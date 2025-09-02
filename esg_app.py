@@ -165,32 +165,59 @@ def build_custom_peers(df, label_col, selected_labels, current_row):
 
 st.sidebar.title("🌱 DR Viewer")
 
-# -------- DATA SOURCE (deploy-friendly) --------
-source_mode = st.sidebar.radio("Data source", ["URL", "Upload", "Local path (dev)"], index=0, horizontal=False)
+# -------- AUTO-LOAD DATA (deploy-first) --------
+# Priority: query param ?data_url=...  >  st.secrets["DATA_URL"]  >  DEFAULT_DATA_URL
 
 df = pd.DataFrame()
-if source_mode == "URL":
-    data_url = st.sidebar.text_input("Data URL (.xlsx or .csv)", placeholder="Paste RAW GitHub/Dropbox/HTTPS link…")
-    if data_url:
-        df = load_table(data_url)
-        if df.empty:
-            st.sidebar.warning("Could not load from URL. For GitHub, click 'Raw' and use that URL; for Dropbox, ensure 'dl=1'.")
-elif source_mode == "Upload":
-    up = st.sidebar.file_uploader("Upload .xlsx/.xls/.csv", type=["xlsx", "xls", "csv"])
-    if up is not None:
-        try:
-            if up.name.lower().endswith((".xlsx", ".xls")):
-                df = pd.read_excel(up)
-            else:
-                df = pd.read_csv(up)
-        except Exception as e:
-            st.sidebar.error(f"Failed to read uploaded file: {e}")
-else:  # Local path (dev)
-    data_path = DEFAULT_DATA_PATH
-    df = load_table(data_path)
+auto_url = None
+qp_data_url = st.query_params.get("data_url")
+if isinstance(qp_data_url, list):
+    qp_data_url = qp_data_url[0] if qp_data_url else None
+if qp_data_url:
+    auto_url = qp_data_url
+else:
+    try:
+        auto_url = st.secrets.get("DATA_URL", "")
+    except Exception:
+        auto_url = ""
+if not auto_url:
+    try:
+        auto_url = DEFAULT_DATA_URL
+    except Exception:
+        auto_url = ""
+
+if auto_url:
+    df = load_table(auto_url)
+    if df.empty:
+        st.sidebar.warning("Auto-load from configured URL failed. Provide a URL or upload a file.")
+    else:
+        st.sidebar.caption(f"Loaded data from URL: {auto_url}")
+
+# -------- FALLBACK: interactive loaders --------
+if df.empty:
+    source_mode = st.sidebar.radio("Data source", ["URL", "Upload", "Local path (dev)"], index=0)
+    if source_mode == "URL":
+        data_url = st.sidebar.text_input("Data URL (.xlsx or .csv)", placeholder="Paste RAW GitHub/Dropbox/HTTPS link…")
+        if data_url:
+            df = load_table(data_url)
+            if df.empty:
+                st.sidebar.warning("Could not load from URL. For GitHub, click 'Raw' and use that URL; for Dropbox, ensure 'dl=1'.")
+    elif source_mode == "Upload":
+        up = st.sidebar.file_uploader("Upload .xlsx/.xls/.csv", type=["xlsx", "xls", "csv"])
+        if up is not None:
+            try:
+                if up.name.lower().endswith((".xlsx", ".xls")):
+                    df = pd.read_excel(up)
+                else:
+                    df = pd.read_csv(up)
+            except Exception as e:
+                st.sidebar.error(f"Failed to read uploaded file: {e}")
+    else:  # Local path (dev)
+        data_path = DEFAULT_DATA_PATH
+        df = load_table(data_path)
 
 if df.empty:
-    st.info("Load a dataset from the sidebar (URL or Upload) to begin.")
+    st.info("No data loaded yet. Configure a GitHub RAW URL via ?data_url=... or st.secrets['DATA_URL'], or use the sidebar to load a file.")
     st.stop()
 
 firm_name_col = first_present(df.columns, FIRM_NAME_COL_CANDIDATES)
