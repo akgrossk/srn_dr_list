@@ -21,7 +21,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-DEFAULT_DATA_PATH = r"C:\Users\agrosko\Dropbox\Coding\srn\DR_extract.xlsx"
+DEFAULT_DATA_PATH = r"https://github.com/akgrossk/srn_dr_list/blob/main/DR_extract.xlsx"
 
 FIRM_NAME_COL_CANDIDATES = ["name", "company", "firm"]
 FIRM_ID_COL_CANDIDATES   = ["isin", "ticker"]
