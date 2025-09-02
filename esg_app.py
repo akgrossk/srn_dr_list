@@ -528,8 +528,7 @@ def render_pillar(pillar: str, title: str, comparison: str):
         with st.expander(exp_title, expanded=False):
             st.dataframe(table, use_container_width=True, hide_index=True)
             if n_peers > 0:
-                st.caption(f"Peers reported % = share of selected peers answering 'Yes'{note}")
-
+                st.caption(f"Peers reported % = share of selected peers reporting DR {note}")
 
 if view == "E":
     render_pillar("E", "E — Environment", comparison)
@@ -537,8 +536,4 @@ elif view == "S":
     render_pillar("S", "S — Social", comparison)
 elif view == "G":
     render_pillar("G", "G — Governance", comparison)
-    render_pillar("E", "E — Environment", comparison)
-elif view == "S":
-    render_pillar("S", "S — Social", comparison)
-elif view == "G":
-    render_pillar("G", "G — Governance", comparison)
+
