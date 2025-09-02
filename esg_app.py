@@ -8,9 +8,11 @@ from collections import defaultdict
 import altair as alt
 from io import BytesIO
 import requests
+from urllib.parse import urlencode
 
 st.set_page_config(page_title="DR Viewer", page_icon="🌱", layout="wide")
-st.markdown("""
+st.markdown(
+    """
 <style>
 .firm-meta{
   font-size: 1.05rem;
@@ -21,7 +23,9 @@ st.markdown("""
   .firm-meta{}
 }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 # ========= CONFIG =========
 # Hard-wired GitHub file (blob URL is fine; we convert to RAW internally)
@@ -37,13 +41,24 @@ YES_SET = {"yes", "ja", "true", "1"}
 NO_SET  = {"no", "nein", "false", "0"}
 PILLAR_LABEL = {"E": "Environment", "S": "Social", "G": "Governance"}
 
+# For query-param encoding/decoding of comparison mode
+COMP_TO_PARAM = {
+    "No comparison": "none",
+    "Country": "country",
+    "Industry": "industry",
+    "Custom": "custom",
+}
+PARAM_TO_COMP = {v: k for k, v in COMP_TO_PARAM.items()}
+
 # ========= HELPERS =========
 def pretty_value(v):
     if pd.isna(v):
         return "—"
     s = str(v).strip().lower()
-    if s in YES_SET: return "✅ Yes"
-    if s in NO_SET:  return "❌ No"
+    if s in YES_SET:
+        return "✅ Yes"
+    if s in NO_SET:
+        return "❌ No"
     return str(v)
 
 def group_key(col: str):
@@ -58,12 +73,15 @@ def build_hierarchy(columns):
     groups = defaultdict(list)
     for c in columns:
         g = group_key(c)
-        if g: groups[g].append(c)
+        if g:
+            groups[g].append(c)
 
     def mkey(c):
         last = c.split("-")[-1]
-        try:    return (int(last), c)
-        except: return (10_000, c)
+        try:
+            return (int(last), c)
+        except Exception:
+            return (10_000, c)
 
     for g in list(groups.keys()):
         groups[g] = sorted(groups[g], key=mkey)
@@ -74,8 +92,10 @@ def build_hierarchy(columns):
 
     def gkey(gname):
         base = gname.split("-")[0]
-        try:    return (gname[0], int(base[1:]), gname)
-        except: return (gname[0], 9999, gname)
+        try:
+            return (gname[0], int(base[1:]), gname)
+        except Exception:
+            return (gname[0], 9999, gname)
 
     for p in by_pillar:
         by_pillar[p] = sorted(by_pillar[p], key=gkey)
@@ -87,7 +107,8 @@ def pillar_columns(pillar: str, groups, by_pillar):
         cols.extend(groups[g])
     for c in cols:
         if c not in seen:
-            out.append(c); seen.add(c)
+            out.append(c)
+            seen.add(c)
     return out
 
 def normalize_github_raw_url(url: str) -> str:
@@ -120,13 +141,15 @@ def load_table(url: str) -> pd.DataFrame:
 
 def first_present(cols, candidates):
     for c in candidates:
-        if c in cols: return c
+        if c in cols:
+            return c
     return None
 
 def read_query_param(key: str, default=None):
     try:
         v = st.query_params.get(key, default)
-        if isinstance(v, list): v = v[0] if v else default
+        if isinstance(v, list):
+            v = v[0] if v else default
         return v
     except Exception:
         qp = st.experimental_get_query_params()
@@ -134,25 +157,34 @@ def read_query_param(key: str, default=None):
         return v[0] if isinstance(v, list) else v
 
 def set_query_params(**params):
-    try:    st.query_params.update(params)
-    except: st.experimental_set_query_params(**params)
+    try:
+        st.query_params.update(params)
+    except Exception:
+        st.experimental_set_query_params(**params)
 
 def build_peers(df, comp_col, current_row):
-    if not comp_col: return None, 0, ""
+    if not comp_col:
+        return None, 0, ""
     current_val = str(current_row.get(comp_col, ""))
-    if current_val == "": return None, 0, ""
+    if current_val == "":
+        return None, 0, ""
     peers = df[df[comp_col].astype(str) == current_val].copy()
-    try: peers = peers.drop(current_row.name, errors="ignore")
-    except Exception: pass
+    try:
+        peers = peers.drop(current_row.name, errors="ignore")
+    except Exception:
+        pass
     note = f" ({comp_col} = {current_val}, n={len(peers)})"
     return peers, len(peers), note
 
 def build_custom_peers(df, label_col, selected_labels, current_row):
-    if not label_col or not selected_labels: return None, 0, ""
+    if not label_col or not selected_labels:
+        return None, 0, ""
     target = set(map(str, selected_labels))
     peers = df[df[label_col].astype(str).isin(target)].copy()
-    try: peers = peers.drop(current_row.name, errors="ignore")
-    except Exception: pass
+    try:
+        peers = peers.drop(current_row.name, errors="ignore")
+    except Exception:
+        pass
     note = f" (custom peers, n={len(peers)})"
     return peers, len(peers), note
 
@@ -160,22 +192,31 @@ def build_custom_peers(df, label_col, selected_labels, current_row):
 st.sidebar.title("🌱 DR Viewer")
 df = load_table(DEFAULT_DATA_URL)
 if df.empty:
-    st.stop()  # error shown above
+    st.stop()  # error shown already
 
-# ========= DETECT COLUMNS & FIRM PICKER =========
+# ========= DETECT COLUMNS & PRE-READ URL STATE =========
 firm_name_col = first_present(df.columns, FIRM_NAME_COL_CANDIDATES)
 firm_id_col   = first_present(df.columns, FIRM_ID_COL_CANDIDATES)
 country_col   = first_present(df.columns, COUNTRY_COL_CANDIDATES)
 industry_col  = first_present(df.columns, INDUSTRY_COL_CANDIDATES)
 
-# Firm selector (no preselected firm)
+# Read selections from URL so they persist when clicking chart links
+firm_qp  = read_query_param("firm", None)
+comp_qp  = (read_query_param("comp", "none") or "none").lower()
+peers_qp = read_query_param("peers", "")
+preselected_peers = [p for p in peers_qp.split(",") if p] if peers_qp else []
+
+# ========= FIRM PICKER (no preselected firm unless in URL) =========
 if firm_name_col:
     firms = df[firm_name_col].dropna().astype(str).unique().tolist()
+    default_index = firms.index(firm_qp) if (firm_qp in firms) else None
     try:
-        firm_label = st.sidebar.selectbox("Firm", firms, index=None, placeholder="Select a firm…")
+        firm_label = st.sidebar.selectbox("Firm", firms, index=default_index, placeholder="Select a firm…")
     except TypeError:
-        firms = ["— Select firm —"] + firms
-        firm_label = st.sidebar.selectbox("Firm", firms, index=0)
+        # Older Streamlit fallback
+        options = ["— Select firm —"] + firms
+        idx = 0 if firm_qp is None else (options.index(firm_qp) if firm_qp in options else 0)
+        firm_label = st.sidebar.selectbox("Firm", options, index=idx)
         if firm_label == "— Select firm —":
             st.stop()
     if not firm_label:
@@ -184,11 +225,13 @@ if firm_name_col:
     current_row = df[df[firm_name_col].astype(str) == str(firm_label)].iloc[0]
 elif firm_id_col:
     firms = df[firm_id_col].dropna().astype(str).unique().tolist()
+    default_index = firms.index(firm_qp) if (firm_qp in firms) else None
     try:
-        firm_label = st.sidebar.selectbox("Firm (ID)", firms, index=None, placeholder="Select a firm…")
+        firm_label = st.sidebar.selectbox("Firm (ID)", firms, index=default_index, placeholder="Select a firm…")
     except TypeError:
-        firms = ["— Select firm —"] + firms
-        firm_label = st.sidebar.selectbox("Firm (ID)", firms, index=0)
+        options = ["— Select firm —"] + firms
+        idx = 0 if firm_qp is None else (options.index(firm_qp) if firm_qp in options else 0)
+        firm_label = st.sidebar.selectbox("Firm (ID)", options, index=idx)
         if firm_label == "— Select firm —":
             st.stop()
     if not firm_label:
@@ -217,39 +260,69 @@ if link_ar and link_ar.lower().startswith(("http://", "https://")):
     try:
         st.link_button("Open firm report", link_ar)
     except Exception:
-        st.markdown(f'<a href="{link_ar}" target="_blank" rel="noopener noreferrer">Open firm report ↗</a>', unsafe_allow_html=True)
+        st.markdown(
+            f'<a href="{link_ar}" target="_blank" rel="noopener noreferrer">Open firm report ↗</a>',
+            unsafe_allow_html=True,
+        )
 
 # ========= NAV & COMPARISON =========
-def read_view():
-    v = read_query_param("view", "Combined")
-    return v if v in ["Combined", "E", "S", "G"] else "Combined"
+valid_views = ["Combined", "E", "S", "G"]
+current_view = read_query_param("view", "Combined")
+if current_view not in valid_views:
+    current_view = "Combined"
 
-view = st.sidebar.radio("Section", ["Combined", "E", "S", "G"], index=["Combined","E","S","G"].index(read_view()))
+view = st.sidebar.radio("Section", valid_views, index=valid_views.index(current_view))
 comp_options = ["No comparison", "Country", "Industry", "Custom"]
-comparison = st.sidebar.selectbox("Comparison", comp_options, index=0)
+comp_default_label = PARAM_TO_COMP.get(comp_qp, "No comparison")
+if comp_default_label not in comp_options:
+    comp_default_label = "No comparison"
+comparison = st.sidebar.selectbox("Comparison", comp_options, index=comp_options.index(comp_default_label))
+
 if comparison == "Country" and not country_col:
     st.sidebar.info("No country column found; comparison will be disabled.")
 if comparison == "Industry" and not industry_col:
     st.sidebar.info("No industry column found; comparison will be disabled.")
-set_query_params(view=view)
 
-# Custom peers (up to 4)
+# Custom peers (up to 4), default from URL
 selected_custom_peers = []
 label_col = firm_name_col if firm_name_col else firm_id_col
 if comparison == "Custom" and label_col:
     all_firms = df[label_col].dropna().astype(str).unique().tolist()
+    # Exclude current firm from options
     try:
         all_firms = [f for f in all_firms if str(f) != str(current_row.get(label_col, ""))]
     except Exception:
         pass
-    selected_custom_peers = st.sidebar.multiselect("Custom peers (max 4)", all_firms, default=[])
+    default_peers = [p for p in preselected_peers if p in all_firms]
+    selected_custom_peers = st.sidebar.multiselect("Custom peers (max 4)", all_firms, default=default_peers)
     if len(selected_custom_peers) > 4:
         st.sidebar.warning("Using only the first 4 selected peers.")
         selected_custom_peers = selected_custom_peers[:4]
 
+# Keep URL in sync with current selections
+params = {
+    "view": view,
+    "firm": str(firm_label),
+    "comp": COMP_TO_PARAM.get(comparison, "none"),
+}
+if COMP_TO_PARAM.get(comparison) == "custom" and selected_custom_peers:
+    params["peers"] = ",".join(selected_custom_peers)
+set_query_params(**params)
+
+# Helper to build internal links that preserve selections
+def link_for(pillar_key: str) -> str:
+    qp = {
+        "view": pillar_key,
+        "firm": str(firm_label),
+        "comp": COMP_TO_PARAM.get(comparison, "none"),
+    }
+    if COMP_TO_PARAM.get(comparison) == "custom" and selected_custom_peers:
+        qp["peers"] = ",".join(selected_custom_peers)
+    return "?" + urlencode(qp)
+
 # ========= COMBINED (chart with counts) =========
 if view == "Combined":
-    st.subheader("Combined overview")
+    st.subheader("Combined overview (reported = Yes)")
 
     # Choose peer set
     comp_col = None
@@ -259,10 +332,12 @@ if view == "Combined":
     peer_note = ""
 
     if comparison == "Country" and country_col:
-        comp_col = country_col; comp_label = "country mean"
+        comp_col = country_col
+        comp_label = "country mean"
         peers, n_peers, peer_note = build_peers(df, comp_col, current_row)
     elif comparison == "Industry" and industry_col:
-        comp_col = industry_col; comp_label = "industry mean"
+        comp_col = industry_col
+        comp_label = "industry mean"
         peers, n_peers, peer_note = build_peers(df, comp_col, current_row)
     elif comparison == "Custom":
         comp_label = "custom"
@@ -284,13 +359,27 @@ if view == "Combined":
             firm_yes = 0
             peer_yes_mean = None
 
-        chart_rows.append({"Pillar": PILLAR_LABEL[pillar], "Series": "Firm — # DR", "Value": firm_yes, "Link": f"?view={pillar}"})
+        chart_rows.append({
+            "Pillar": PILLAR_LABEL[pillar],
+            "Series": "Firm — # DR",
+            "Value": firm_yes,
+            "Link": link_for(pillar),
+        })
         if peer_yes_mean is not None:
-            chart_rows.append({"Pillar": PILLAR_LABEL[pillar], "Series": f"Peers — mean # DR ({comp_label})", "Value": round(peer_yes_mean, 1), "Link": f"?view={pillar}"})
+            chart_rows.append({
+                "Pillar": PILLAR_LABEL[pillar],
+                "Series": f"Peers — mean # DR ({comp_label})",
+                "Value": round(peer_yes_mean, 1),
+                "Link": link_for(pillar),
+            })
 
     chart_df = pd.DataFrame(chart_rows)
+
     if not chart_df.empty:
         base_colors = {"Environment": "#008000", "Social": "#ff0000", "Governance": "#ffa500"}  # E/S/G
+        series_domain = chart_df["Series"].unique().tolist()
+        # Peers series label for styling (if present)
+        peers_label = f"Peers — mean # DR ({comp_label})" if comp_label else ""
 
         chart = (
             alt.Chart(chart_df)
@@ -299,18 +388,26 @@ if view == "Combined":
                 y=alt.Y("Pillar:N", title="", sort=["Environment", "Social", "Governance"]),
                 yOffset=alt.YOffset("Series:N"),  # two bars under each other
                 x=alt.X("Value:Q", title="# of DR reported"),
-                color=alt.Color("Pillar:N",
-                                scale=alt.Scale(domain=list(base_colors.keys()),
-                                                range=list(base_colors.values())),
-                                legend=None),
-                opacity=alt.Opacity("Series:N",
-                                    scale=alt.Scale(domain=chart_df["Series"].unique().tolist(),
-                                                    range=[1.0, 0.55][:len(chart_df["Series"].unique())]),
-                                    legend=alt.Legend(title="")),
-                stroke=alt.condition(alt.FieldEqualPredicate(field="Series", equal=f"Peers — mean # DR reported ({comp_label})"),
-                                     alt.value("#4200ff"), alt.value(None)),
-                strokeWidth=alt.condition(alt.FieldEqualPredicate(field="Series", equal=f"Peers — mean # DR ({comp_label})"),
-                                          alt.value(1), alt.value(0)),
+                color=alt.Color(
+                    "Pillar:N",
+                    scale=alt.Scale(domain=list(base_colors.keys()), range=list(base_colors.values())),
+                    legend=None,
+                ),
+                opacity=alt.Opacity(
+                    "Series:N",
+                    scale=alt.Scale(domain=series_domain, range=[1.0] if len(series_domain) == 1 else [1.0, 0.55]),
+                    legend=alt.Legend(title=""),
+                ),
+                stroke=alt.condition(
+                    alt.FieldEqualPredicate(field="Series", equal=peers_label),
+                    alt.value("#4200ff"),
+                    alt.value(None),
+                ),
+                strokeWidth=alt.condition(
+                    alt.FieldEqualPredicate(field="Series", equal=peers_label),
+                    alt.value(1),
+                    alt.value(0),
+                ),
                 tooltip=["Pillar", "Series", alt.Tooltip("Value:Q", title="# DR", format=".1f"), "Link"],
                 href="Link:N",
             )
@@ -340,7 +437,8 @@ def render_pillar(pillar: str, title: str, comparison: str):
     st.header(title)
     pillar_groups = by_pillar.get(pillar, [])
     if not pillar_groups:
-        st.info(f"No {pillar} columns found."); return
+        st.info(f"No {pillar} columns found.")
+        return
 
     comp_col = None
     comp_label = None
