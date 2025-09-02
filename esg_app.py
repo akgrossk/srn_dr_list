@@ -10,7 +10,7 @@ from io import BytesIO
 import requests
 from urllib.parse import urlencode
 
-st.set_page_config(page_title="DR Viewer", page_icon="🌱", layout="wide")
+st.set_page_config(page_title="DR Viewer", layout="wide")
 st.markdown(
     """
 <style>
