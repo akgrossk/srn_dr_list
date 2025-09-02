@@ -249,7 +249,7 @@ if comparison == "Custom" and label_col:
 
 # ========= COMBINED (chart with counts) =========
 if view == "Combined":
-    st.subheader("Combined overview (reported = Yes)")
+    st.subheader("Combined overview")
 
     # Choose peer set
     comp_col = None
@@ -298,7 +298,7 @@ if view == "Combined":
             .encode(
                 y=alt.Y("Pillar:N", title="", sort=["Environment", "Social", "Governance"]),
                 yOffset=alt.YOffset("Series:N"),  # two bars under each other
-                x=alt.X("Value:Q", title="# of metrics reported 'Yes'"),
+                x=alt.X("Value:Q", title="# of DR reported"),
                 color=alt.Color("Pillar:N",
                                 scale=alt.Scale(domain=list(base_colors.keys()),
                                                 range=list(base_colors.values())),
@@ -307,11 +307,11 @@ if view == "Combined":
                                     scale=alt.Scale(domain=chart_df["Series"].unique().tolist(),
                                                     range=[1.0, 0.55][:len(chart_df["Series"].unique())]),
                                     legend=alt.Legend(title="")),
-                stroke=alt.condition(alt.FieldEqualPredicate(field="Series", equal=f"Peers — mean # Yes ({comp_label})"),
+                stroke=alt.condition(alt.FieldEqualPredicate(field="Series", equal=f"Peers — mean # DR reported ({comp_label})"),
                                      alt.value("#4200ff"), alt.value(None)),
-                strokeWidth=alt.condition(alt.FieldEqualPredicate(field="Series", equal=f"Peers — mean # Yes ({comp_label})"),
+                strokeWidth=alt.condition(alt.FieldEqualPredicate(field="Series", equal=f"Peers — mean # DR ({comp_label})"),
                                           alt.value(1), alt.value(0)),
-                tooltip=["Pillar", "Series", alt.Tooltip("Value:Q", title="# Yes", format=".1f"), "Link"],
+                tooltip=["Pillar", "Series", alt.Tooltip("Value:Q", title="# DR", format=".1f"), "Link"],
                 href="Link:N",
             )
             .properties(height=420, width="container")
@@ -330,7 +330,7 @@ if view == "Combined":
         )
         st.altair_chart(chart + text, use_container_width=True)
 
-    note = "Bars show absolute counts of 'Yes' per pillar (not %)."
+    note = "Bars show absolute counts of DR per pillar."
     if n_peers > 0:
         note += peer_note
     st.caption(note)
