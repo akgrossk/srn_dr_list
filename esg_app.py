@@ -41,6 +41,20 @@ YES_SET = {"yes", "ja", "true", "1"}
 NO_SET  = {"no", "nein", "false", "0"}
 PILLAR_LABEL = {"E": "Environment", "S": "Social", "G": "Governance"}
 
+# ESRS group display names (for expander headers)
+ESRS_LABELS = {
+    "E1": "ESRS E1 — Climate change",
+    "E2": "ESRS E2 — Pollution",
+    "E3": "ESRS E3 — Water and marine resources",
+    "E4": "ESRS E4 — Biodiversity and ecosystems",
+    "E5": "ESRS E5 — Resource use and circular economy",
+    "S1": "ESRS S1 — Own workforce",
+    "S2": "ESRS S2 — Workers in the value chain",
+    "S3": "ESRS S3 — Affected communities",
+    "S4": "ESRS S4 — Consumers and end‑users",
+    "G1": "ESRS G1 — Governance and business conduct",
+}
+
 # For query-param encoding/decoding of comparison mode
 COMP_TO_PARAM = {
     "No comparison": "none",
@@ -435,6 +449,13 @@ if view == "Combined":
 # ========= PILLAR DETAIL TABLES =========
 def render_pillar(pillar: str, title: str, comparison: str):
     st.header(title)
+    # Category caption under the page header
+    if pillar == "E":
+        st.caption("Environmental Standards (E-Category)")
+    elif pillar == "S":
+        st.caption("Social Standards (S-Category)")
+    elif pillar == "G":
+        st.caption("Governance Standard (G-Category)")
     pillar_groups = by_pillar.get(pillar, [])
     if not pillar_groups:
         st.info(f"No {pillar} columns found.")
@@ -473,6 +494,9 @@ def render_pillar(pillar: str, title: str, comparison: str):
                 if len(peer_block) > 0:
                     peers_yes_mean = float(peer_block.sum(axis=1).mean())
 
+        # Build expander title with aggregates, using ESRS display name
+        base_code = g.split("-")[0]
+        display_name = ESRS_LABELS.get(base_code, g)
         # Build expander title with aggregates
         n_metrics = len(metrics)
         if peers_yes_mean is not None:
