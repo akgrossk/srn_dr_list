@@ -552,12 +552,20 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 x_ticks = list(range(0, xmax + 1))
                 series_order = ["Firm (this company)"] + ([peers_series_label] if peers_series_label else [])
 
-                # Single bar layer (no text overlay) for robustness
+                # More space between bars: bigger per-row height + band padding + thicker bars
+                per_row = 56  # try 56–64 if you want even more room
+                chart_h = max(110, per_row * len(series_order))
+
                 chart = (
                     alt.Chart(chart_df)
-                    .mark_bar()
+                    .mark_bar(size=36)  # thicker bars -> clearer labels
                     .encode(
-                        y=alt.Y("Series:N", title="", sort=series_order),
+                        y=alt.Y(
+                            "Series:N",
+                            title="",
+                            sort=series_order,
+                            scale=alt.Scale(paddingInner=0.6, paddingOuter=0.4),  # <-- extra spacing
+                        ),
                         x=alt.X(
                             "Value:Q",
                             title=f"# of DR reported (0–{n_metrics})",
@@ -567,7 +575,10 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                         color=alt.value(bar_color),
                         opacity=alt.Opacity(
                             "Series:N",
-                            scale=alt.Scale(domain=series_order, range=[1.0] if len(series_order) == 1 else [1.0, 0.55]),
+                            scale=alt.Scale(
+                                domain=series_order,
+                                range=[1.0] if len(series_order) == 1 else [1.0, 0.55]
+                            ),
                             legend=alt.Legend(title="")
                         ),
                         tooltip=[
@@ -578,7 +589,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                         ],
                     )
                     .properties(
-                        height=110,
+                        height=chart_h,
                         width="container",
                         padding={"right": 48, "left": 6, "top": 6, "bottom": 28},
                     )
@@ -589,6 +600,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     "Bars show the count of DR reported within this ESRS group; hover to see x/n."
                     + (note if n_peers > 0 else "")
                 )
+
 
 # ========= Which pillar to render =========
 if view == "E":
