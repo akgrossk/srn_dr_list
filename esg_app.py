@@ -10,7 +10,7 @@ from io import BytesIO
 import requests
 from urllib.parse import urlencode
 
-st.set_page_config(page_title="DR Viewer", layout="wide")
+st.set_page_config(page_title="DR Viewer", page_icon="🌱", layout="wide")
 st.markdown(
     """
 <style>
@@ -53,6 +53,20 @@ ESRS_LABELS = {
     "S3": "ESRS S3 — Affected communities",
     "S4": "ESRS S4 — Consumers and end‑users",
     "G1": "ESRS G1 — Governance and business conduct",
+}
+
+# Short labels for expander titles (no "ESRS" prefix, ASCII hyphen)
+SHORT_ESRS_LABELS = {
+    "E1": "E1 - Climate change",
+    "E2": "E2 - Pollution",
+    "E3": "E3 - Water and marine resources",
+    "E4": "E4 - Biodiversity and ecosystems",
+    "E5": "E5 - Resource use and circular economy",
+    "S1": "S1 - Own workforce",
+    "S2": "S2 - Workers in the value chain",
+    "S3": "S3 - Affected communities",
+    "S4": "S4 - Consumers and end-users",
+    "G1": "G1 - Governance and business conduct",
 }
 
 # For query-param encoding/decoding of comparison mode
@@ -487,14 +501,14 @@ def render_pillar(pillar: str, title: str, comparison: str):
                 if len(peer_block) > 0:
                     peers_yes_mean = float(peer_block.sum(axis=1).mean())
 
-        # Build expander title with aggregates, using ESRS base code only (e.g., E1)
+        # Build expander title with aggregates, using short ESRS title
         base_code = g.split("-")[0]
-        display_name = ESRS_LABELS.get(base_code, g)
+        short_title = SHORT_ESRS_LABELS.get(base_code, base_code)
         n_metrics = len(metrics)
         if peers_yes_mean is not None:
-            exp_title = f"{base_code} • {n_metrics} metrics — reported: {firm_yes_count}/{n_metrics} (peers {comp_label}: {peers_yes_mean:.1f}/{n_metrics})"
+            exp_title = f"{short_title} • {n_metrics} metrics — reported: {firm_yes_count}/{n_metrics} (peers {comp_label}: {peers_yes_mean:.1f}/{n_metrics})"
         else:
-            exp_title = f"{base_code} • {n_metrics} metrics — reported: {firm_yes_count}/{n_metrics}"
+            exp_title = f"{short_title} • {n_metrics} metrics — reported: {firm_yes_count}/{n_metrics}"
 
         # ==== Row table ====
         firm_vals = [pretty_value(current_row.get(c, np.nan)) for c in metrics]
@@ -512,7 +526,6 @@ def render_pillar(pillar: str, title: str, comparison: str):
             table[f"Peers reported % ({comp_label})"] = peer_pct
 
         with st.expander(exp_title, expanded=False):
-            st.subheader(display_name)
             st.dataframe(table, use_container_width=True, hide_index=True)
             if n_peers > 0:
                 st.caption(f"Peers reported % = share of selected peers answering 'Yes'{note}")
