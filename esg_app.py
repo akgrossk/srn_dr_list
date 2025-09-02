@@ -448,14 +448,7 @@ if view == "Combined":
 
 # ========= PILLAR DETAIL TABLES =========
 def render_pillar(pillar: str, title: str, comparison: str):
-    st.header(title)
-    # Category caption under the page header
-    if pillar == "E":
-        st.caption("Environmental Standards (E-Category)")
-    elif pillar == "S":
-        st.caption("Social Standards (S-Category)")
-    elif pillar == "G":
-        st.caption("Governance Standard (G-Category)")
+    
     pillar_groups = by_pillar.get(pillar, [])
     if not pillar_groups:
         st.info(f"No {pillar} columns found.")
@@ -494,15 +487,14 @@ def render_pillar(pillar: str, title: str, comparison: str):
                 if len(peer_block) > 0:
                     peers_yes_mean = float(peer_block.sum(axis=1).mean())
 
-        # Build expander title with aggregates, using ESRS display name
+        # Build expander title with aggregates, using ESRS base code only (e.g., E1)
         base_code = g.split("-")[0]
         display_name = ESRS_LABELS.get(base_code, g)
-        # Build expander title with aggregates
         n_metrics = len(metrics)
         if peers_yes_mean is not None:
-            exp_title = f"{g} • {n_metrics} metrics — reported: {firm_yes_count}/{n_metrics} (peers {comp_label}: {peers_yes_mean:.1f}/{n_metrics})"
+            exp_title = f"{base_code} • {n_metrics} metrics — reported: {firm_yes_count}/{n_metrics} (peers {comp_label}: {peers_yes_mean:.1f}/{n_metrics})"
         else:
-            exp_title = f"{g} • {n_metrics} metrics — reported: {firm_yes_count}/{n_metrics}"
+            exp_title = f"{base_code} • {n_metrics} metrics — reported: {firm_yes_count}/{n_metrics}"
 
         # ==== Row table ====
         firm_vals = [pretty_value(current_row.get(c, np.nan)) for c in metrics]
@@ -520,6 +512,7 @@ def render_pillar(pillar: str, title: str, comparison: str):
             table[f"Peers reported % ({comp_label})"] = peer_pct
 
         with st.expander(exp_title, expanded=False):
+            st.subheader(display_name)
             st.dataframe(table, use_container_width=True, hide_index=True)
             if n_peers > 0:
                 st.caption(f"Peers reported % = share of selected peers answering 'Yes'{note}")
