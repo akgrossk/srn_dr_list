@@ -374,8 +374,8 @@ if view == "Combined":
     chart_rows = []
     for pillar in ["E", "S", "G"]:
         pcols = pillar_columns(pillar, groups, by_pillar)
-        total_metrics = len(pcols)
-        if total_metrics:
+        total_DR = len(pcols)
+        if total_DR:
             vals = current_row[pcols].astype(str).str.strip().str.lower()
             firm_yes = int(vals.isin(YES_SET).sum())
             if n_peers > 0:
@@ -482,12 +482,12 @@ def render_pillar(pillar: str, title: str, comparison: str):
         peers, n_peers, note = build_custom_peers(df, label_col, selected_custom_peers, current_row)
 
     for g in pillar_groups:
-        metrics = groups[g]
+        DR = groups[g]
 
         # ==== Aggregate counts for expander header ====
         # Firm: how many "Yes" in this group
         firm_yes_count = 0
-        for m in metrics:
+        for m in DR:
             v = str(current_row.get(m, "")).strip().lower()
             if v in YES_SET:
                 firm_yes_count += 1
@@ -495,7 +495,7 @@ def render_pillar(pillar: str, title: str, comparison: str):
         # Peers: mean # of "Yes" across chosen peers (if any)
         peers_yes_mean = None
         if n_peers > 0:
-            present_cols = [m for m in metrics if m in peers.columns]
+            present_cols = [m for m in DR if m in peers.columns]
             if present_cols:
                 peer_block = peers[present_cols].astype(str).applymap(lambda x: x.strip().lower() in YES_SET)
                 if len(peer_block) > 0:
@@ -504,19 +504,19 @@ def render_pillar(pillar: str, title: str, comparison: str):
         # Build expander title with aggregates, using short ESRS title
         base_code = g.split("-")[0]
         short_title = SHORT_ESRS_LABELS.get(base_code, base_code)
-        n_metrics = len(metrics)
+        n_DR = len(DR)
         if peers_yes_mean is not None:
-            exp_title = f"{short_title} • {n_metrics} metrics — reported: {firm_yes_count}/{n_metrics} (peers {comp_label}: {peers_yes_mean:.1f}/{n_metrics})"
+            exp_title = f"{short_title} • {n_DR} DR — reported: {firm_yes_count}/{n_DR} (peers {comp_label}: {peers_yes_mean:.1f}/{n_DR})"
         else:
-            exp_title = f"{short_title} • {n_metrics} metrics — reported: {firm_yes_count}/{n_metrics}"
+            exp_title = f"{short_title} • {n_DR} DR — reported: {firm_yes_count}/{n_DR}"
 
         # ==== Row table ====
-        firm_vals = [pretty_value(current_row.get(c, np.nan)) for c in metrics]
-        table = pd.DataFrame({"DR": metrics, "Reported": firm_vals})
+        firm_vals = [pretty_value(current_row.get(c, np.nan)) for c in DR]
+        table = pd.DataFrame({"DR": DR, "Reported": firm_vals})
 
         if n_peers > 0:
             peer_pct = []
-            for m in metrics:
+            for m in DR:
                 if m in peers.columns:
                     s = peers[m].astype(str).str.strip().str.lower()
                     pct = (s.isin(YES_SET)).mean()
