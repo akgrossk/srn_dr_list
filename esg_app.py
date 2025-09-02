@@ -85,7 +85,6 @@ def pretty_value(v):
     return str(v)
 
 def group_key(col: str):
-    # Keep your original grouping behavior
     if not isinstance(col, str) or not col or col[0] not in "ESG":
         return None
     parts = col.split("-")
@@ -525,31 +524,27 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 st.dataframe(table, use_container_width=True, hide_index=True)
                 if n_peers > 0:
                     st.caption(f"Peers reported % = share of selected peers answering 'Yes'{note}")
+
             else:
-                # ====== CHART MODE (compact x/n per ESRS group) — robust layering ======
-                # Pillar color (E=green, S=red, G=orange)
+                # ====== CHART MODE (compact x/n per ESRS group), integer ticks, pillar colors ======
                 pillar_colors = {"E": "#008000", "S": "#ff0000", "G": "#ffa500"}
                 bar_color = pillar_colors.get(pillar, "#666666")
 
-                # Build rows for Firm and (optional) Peers
                 rows = []
-                firm_label_str = f"{int(firm_yes_count)}/{n_metrics}"
                 rows.append({
                     "Series": "Firm (this company)",
                     "Value": float(firm_yes_count),
                     "Total": n_metrics,
-                    "Label": firm_label_str,
+                    "Label": f"{int(firm_yes_count)}/{n_metrics}",
                 })
-
                 peers_series_label = None
                 if peers_yes_mean is not None:
                     peers_series_label = f"Peers mean ({comp_label})"
-                    peers_label_str = f"{peers_yes_mean:.1f}/{n_metrics}"
                     rows.append({
                         "Series": peers_series_label,
                         "Value": float(peers_yes_mean),
                         "Total": n_metrics,
-                        "Label": peers_label_str,
+                        "Label": f"{peers_yes_mean:.1f}/{n_metrics}",
                     })
 
                 chart_df = pd.DataFrame(rows)
@@ -557,9 +552,10 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 x_ticks = list(range(0, xmax + 1))
                 series_order = ["Firm (this company)"] + ([peers_series_label] if peers_series_label else [])
 
-                # Build a single base with shared encodings to keep Altair happy
-                base = (
+                # Single bar layer (no text overlay) for robustness
+                chart = (
                     alt.Chart(chart_df)
+                    .mark_bar()
                     .encode(
                         y=alt.Y("Series:N", title="", sort=series_order),
                         x=alt.X(
@@ -568,6 +564,18 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                             scale=alt.Scale(domain=[0, xmax], nice=False, zero=True),
                             axis=alt.Axis(values=x_ticks, tickCount=len(x_ticks), format="d"),
                         ),
+                        color=alt.value(bar_color),
+                        opacity=alt.Opacity(
+                            "Series:N",
+                            scale=alt.Scale(domain=series_order, range=[1.0] if len(series_order) == 1 else [1.0, 0.55]),
+                            legend=alt.Legend(title="")
+                        ),
+                        tooltip=[
+                            alt.Tooltip("Series:N", title="Series"),
+                            alt.Tooltip("Value:Q", title="# DR", format=".1f"),
+                            alt.Tooltip("Total:Q", title="Total DR"),
+                            alt.Tooltip("Label:N", title="Label"),
+                        ],
                     )
                     .properties(
                         height=110,
@@ -576,39 +584,11 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     )
                 )
 
-                # Bars: fixed pillar color; opacity distinguishes series (Firm vs Peers)
-                bars = (
-                    base.mark_bar()
-                    .encode(
-                        color=alt.value(bar_color),
-                        opacity=alt.condition(
-                            alt.datum.Series == (peers_series_label or "__none__"),
-                            alt.value(0.55),
-                            alt.value(1.0),
-                        ),
-                        tooltip=[
-                            alt.Tooltip("Series:N", title="Series"),
-                            alt.Tooltip("Value:Q", title="# DR", format=".1f"),
-                            alt.Tooltip("Total:Q", title="Total DR"),
-                        ],
-                    )
-                )
-
-                # Labels: shown to the right of bars; ensure they're not clipped
-                labels = (
-                    base.mark_text(align="left", baseline="middle", dx=6, clip=False)
-                    .encode(text="Label:N")
-                )
-
-                # Layer safely
-                layered = alt.layer(bars, labels).configure_view(clip=False)
-                st.altair_chart(layered, use_container_width=True)
-
+                st.altair_chart(chart, use_container_width=True)
                 st.caption(
-                    "Bars show the count of DR reported within this ESRS group; labels use the form x/n."
+                    "Bars show the count of DR reported within this ESRS group; hover to see x/n."
                     + (note if n_peers > 0 else "")
                 )
-
 
 # ========= Which pillar to render =========
 if view == "E":
