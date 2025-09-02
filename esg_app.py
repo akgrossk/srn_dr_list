@@ -51,7 +51,7 @@ ESRS_LABELS = {
     "S1": "ESRS S1 — Own workforce",
     "S2": "ESRS S2 — Workers in the value chain",
     "S3": "ESRS S3 — Affected communities",
-    "S4": "ESRS S4 — Consumers and end‑users",
+    "S4": "ESRS S4 — Consumers and end-users",
     "G1": "ESRS G1 — Governance and business conduct",
 }
 
@@ -241,7 +241,6 @@ if firm_name_col:
     try:
         firm_label = st.sidebar.selectbox("Firm", firms, index=default_index, placeholder="Select a firm…")
     except TypeError:
-        # Older Streamlit fallback
         options = ["— Select firm —"] + firms
         idx = 0 if firm_qp is None else (options.index(firm_qp) if firm_qp in options else 0)
         firm_label = st.sidebar.selectbox("Firm", options, index=idx)
@@ -316,7 +315,6 @@ selected_custom_peers = []
 label_col = firm_name_col if firm_name_col else firm_id_col
 if comparison == "Custom" and label_col:
     all_firms = df[label_col].dropna().astype(str).unique().tolist()
-    # Exclude current firm from options
     try:
         all_firms = [f for f in all_firms if str(f) != str(current_row.get(label_col, ""))]
     except Exception:
@@ -326,6 +324,14 @@ if comparison == "Custom" and label_col:
     if len(selected_custom_peers) > 4:
         st.sidebar.warning("Using only the first 4 selected peers.")
         selected_custom_peers = selected_custom_peers[:4]
+
+# === Pillar detail display mode toggle (Tables vs Charts) ===
+pillar_display_mode = st.sidebar.radio(
+    "Pillar display",
+    ["Tables", "Charts"],
+    index=0,
+    help="Show each ESRS group as a table or a compact bar chart (x/n)."
+)
 
 # Keep URL in sync with current selections
 params = {
@@ -352,7 +358,6 @@ def link_for(pillar_key: str) -> str:
 if view == "Combined":
     st.subheader("Combined overview")
 
-    # Choose peer set
     comp_col = None
     comp_label = None
     peers = None
@@ -406,7 +411,6 @@ if view == "Combined":
     if not chart_df.empty:
         base_colors = {"Environment": "#008000", "Social": "#ff0000", "Governance": "#ffa500"}  # E/S/G
         series_domain = chart_df["Series"].unique().tolist()
-        # Peers series label for styling (if present)
         peers_label = f"Peers — mean # DR ({comp_label})" if comp_label else ""
 
         chart = (
@@ -414,7 +418,7 @@ if view == "Combined":
             .mark_bar()
             .encode(
                 y=alt.Y("Pillar:N", title="", sort=["Environment", "Social", "Governance"]),
-                yOffset=alt.YOffset("Series:N"),  # two bars under each other
+                yOffset=alt.YOffset("Series:N"),
                 x=alt.X("Value:Q", title="# of DR reported"),
                 color=alt.Color(
                     "Pillar:N",
@@ -460,9 +464,8 @@ if view == "Combined":
         note += peer_note
     st.caption(note)
 
-# ========= PILLAR DETAIL TABLES =========
-def render_pillar(pillar: str, title: str, comparison: str):
-    
+# ========= PILLAR DETAIL (Tables or compact Charts) =========
+def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
     pillar_groups = by_pillar.get(pillar, [])
     if not pillar_groups:
         st.info(f"No {pillar} columns found.")
@@ -482,57 +485,123 @@ def render_pillar(pillar: str, title: str, comparison: str):
         peers, n_peers, note = build_custom_peers(df, label_col, selected_custom_peers, current_row)
 
     for g in pillar_groups:
-        DR = groups[g]
+        metrics = groups[g]
 
         # ==== Aggregate counts for expander header ====
-        # Firm: how many "Yes" in this group
         firm_yes_count = 0
-        for m in DR:
+        for m in metrics:
             v = str(current_row.get(m, "")).strip().lower()
             if v in YES_SET:
                 firm_yes_count += 1
 
-        # Peers: mean # of "Yes" across chosen peers (if any)
         peers_yes_mean = None
         if n_peers > 0:
-            present_cols = [m for m in DR if m in peers.columns]
+            present_cols = [m for m in metrics if m in peers.columns]
             if present_cols:
                 peer_block = peers[present_cols].astype(str).applymap(lambda x: x.strip().lower() in YES_SET)
                 if len(peer_block) > 0:
                     peers_yes_mean = float(peer_block.sum(axis=1).mean())
 
-        # Build expander title with aggregates, using short ESRS title
         base_code = g.split("-")[0]
         short_title = SHORT_ESRS_LABELS.get(base_code, base_code)
-        n_DR = len(DR)
+        n_metrics = len(metrics)
         if peers_yes_mean is not None:
-            exp_title = f"{short_title} • {n_DR} DR — reported: {firm_yes_count}/{n_DR} (peers {comp_label}: {peers_yes_mean:.1f}/{n_DR})"
+            exp_title = (
+                f"{short_title} • {n_metrics} DR — reported: "
+                f"{firm_yes_count}/{n_metrics} (peers {comp_label}: {peers_yes_mean:.1f}/{n_metrics})"
+            )
         else:
-            exp_title = f"{short_title} • {n_DR} DR — reported: {firm_yes_count}/{n_DR}"
-
-        # ==== Row table ====
-        firm_vals = [pretty_value(current_row.get(c, np.nan)) for c in DR]
-        table = pd.DataFrame({"DR": DR, "Reported": firm_vals})
-
-        if n_peers > 0:
-            peer_pct = []
-            for m in DR:
-                if m in peers.columns:
-                    s = peers[m].astype(str).str.strip().str.lower()
-                    pct = (s.isin(YES_SET)).mean()
-                    peer_pct.append(f"{pct*100:.1f}%")
-                else:
-                    peer_pct.append("—")
-            table[f"Peers reported % ({comp_label})"] = peer_pct
+            exp_title = f"{short_title} • {n_metrics} DR — reported: {firm_yes_count}/{n_metrics}"
 
         with st.expander(exp_title, expanded=False):
-            st.dataframe(table, use_container_width=True, hide_index=True)
-            if n_peers > 0:
-                st.caption(f"Peers reported % = share of selected peers reporting DR {note}")
+            if display_mode == "Tables":
+                firm_vals = [pretty_value(current_row.get(c, np.nan)) for c in metrics]
+                table = pd.DataFrame({"DR": metrics, "Reported": firm_vals})
 
+                if n_peers > 0:
+                    peer_pct = []
+                    for m in metrics:
+                        if m in peers.columns:
+                            s = peers[m].astype(str).str.strip().str.lower()
+                            pct = (s.isin(YES_SET)).mean()
+                            peer_pct.append(f"{pct*100:.1f}%")
+                        else:
+                            peer_pct.append("—")
+                    table[f"Peers reported % ({comp_label})"] = peer_pct
+
+                st.dataframe(table, use_container_width=True, hide_index=True)
+                if n_peers > 0:
+                    st.caption(f"Peers reported % = share of selected peers answering 'Yes'{note}")
+
+            else:
+                # ====== CHART MODE (compact x/n per ESRS group) ======
+                rows = []
+                firm_label = f"{int(firm_yes_count)}/{n_metrics}"
+                rows.append({
+                    "Series": "Firm (this company)",
+                    "Value": float(firm_yes_count),
+                    "Total": n_metrics,
+                    "Label": firm_label,
+                })
+
+                peers_series_label = None
+                if peers_yes_mean is not None:
+                    peers_series_label = f"Peers mean ({comp_label})"
+                    peers_label = f"{peers_yes_mean:.1f}/{n_metrics}"
+                    rows.append({
+                        "Series": peers_series_label,
+                        "Value": float(peers_yes_mean),
+                        "Total": n_metrics,
+                        "Label": peers_label,
+                    })
+
+                chart_df = pd.DataFrame(rows)
+                xmax = n_metrics
+
+                series_sort = ["Firm (this company)"]
+                if peers_series_label:
+                    series_sort.append(peers_series_label)
+
+                chart = (
+                    alt.Chart(chart_df)
+                    .mark_bar()
+                    .encode(
+                        y=alt.Y("Series:N", title="", sort=series_sort),
+                        x=alt.X(
+                            "Value:Q",
+                            title=f"# of DR reported (0–{n_metrics})",
+                            scale=alt.Scale(domain=[0, xmax])
+                        ),
+                        color=alt.Color("Series:N", legend=alt.Legend(title="")),
+                        tooltip=[
+                            alt.Tooltip("Series:N", title="Series"),
+                            alt.Tooltip("Value:Q", title="# DR", format=".1f"),
+                            alt.Tooltip("Total:Q", title="Total DR"),
+                        ],
+                    )
+                    .properties(height=80, width="container")
+                )
+
+                labels = (
+                    alt.Chart(chart_df)
+                    .mark_text(align="left", baseline="middle", dx=4)
+                    .encode(
+                        y=alt.Y("Series:N", sort=series_sort),
+                        x=alt.X("Value:Q", scale=alt.Scale(domain=[0, xmax])),
+                        text=alt.Text("Label:N"),
+                    )
+                )
+
+                st.altair_chart(chart + labels, use_container_width=True)
+                st.caption(
+                    "Bars show the count of DR reported within this ESRS group; labels use the form x/n."
+                    + (note if n_peers > 0 else "")
+                )
+
+# ========= BOTTOM: which pillar to render =========
 if view == "E":
-    render_pillar("E", "E — Environment", comparison)
+    render_pillar("E", "E — Environment", comparison, pillar_display_mode)
 elif view == "S":
-    render_pillar("S", "S — Social", comparison)
+    render_pillar("S", "S — Social", comparison, pillar_display_mode)
 elif view == "G":
-    render_pillar("G", "G — Governance", comparison)
+    render_pillar("G", "G — Governance", comparison, pillar_display_mode)
