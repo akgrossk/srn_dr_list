@@ -284,9 +284,9 @@ if view == "Combined":
             firm_yes = 0
             peer_yes_mean = None
 
-        chart_rows.append({"Pillar": PILLAR_LABEL[pillar], "Series": "Firm — # Yes", "Value": firm_yes, "Link": f"?view={pillar}"})
+        chart_rows.append({"Pillar": PILLAR_LABEL[pillar], "Series": "Firm — # DR", "Value": firm_yes, "Link": f"?view={pillar}"})
         if peer_yes_mean is not None:
-            chart_rows.append({"Pillar": PILLAR_LABEL[pillar], "Series": f"Peers — mean # Yes ({comp_label})", "Value": round(peer_yes_mean, 1), "Link": f"?view={pillar}"})
+            chart_rows.append({"Pillar": PILLAR_LABEL[pillar], "Series": f"Peers — mean # DR ({comp_label})", "Value": round(peer_yes_mean, 1), "Link": f"?view={pillar}"})
 
     chart_df = pd.DataFrame(chart_rows)
     if not chart_df.empty:
