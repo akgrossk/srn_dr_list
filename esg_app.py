@@ -21,8 +21,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-DEFAULT_DATA_PATH = r"C:\Users\agrosko\Dropbox\Coding\srn\DR_extract.xlsx"  # ← your local dev path
-# Auto-load this on deploy (converted to RAW under the hood)
 DEFAULT_DATA_URL = "https://github.com/akgrossk/srn_dr_list/blob/main/DR_extract.xlsx"
 
 FIRM_NAME_COL_CANDIDATES = ["name", "company", "firm"]
