@@ -525,8 +525,6 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 st.dataframe(table, use_container_width=True, hide_index=True)
                 if n_peers > 0:
                     st.caption(f"Peers reported % = share of selected peers answering 'Yes'{note}")
-
-            else:
             else:
                 # ====== CHART MODE (compact x/n per ESRS group) — robust layering ======
                 # Pillar color (E=green, S=red, G=orange)
