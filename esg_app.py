@@ -322,7 +322,7 @@ def link_for(pillar_key: str) -> str:
 
 # ========= COMBINED (chart with counts) =========
 if view == "Combined":
-    st.subheader("Combined overview (reported = Yes)")
+    st.subheader("Combined overview")
 
     # Choose peer set
     comp_col = None
