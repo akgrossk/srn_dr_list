@@ -527,67 +527,66 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     st.caption(f"Peers reported % = share of selected peers answering 'Yes'{note}")
 
             else:
-                # ====== CHART MODE (compact x/n per ESRS group) ======
+            else:
+                # ====== CHART MODE (compact x/n per ESRS group) — robust layering ======
                 # Pillar color (E=green, S=red, G=orange)
                 pillar_colors = {"E": "#008000", "S": "#ff0000", "G": "#ffa500"}
-                pillar_key = pillar  # already "E" / "S" / "G"
-                bar_color = pillar_colors.get(pillar_key, "#666666")
+                bar_color = pillar_colors.get(pillar, "#666666")
 
+                # Build rows for Firm and (optional) Peers
                 rows = []
-                firm_label = f"{int(firm_yes_count)}/{n_metrics}"
+                firm_label_str = f"{int(firm_yes_count)}/{n_metrics}"
                 rows.append({
                     "Series": "Firm (this company)",
                     "Value": float(firm_yes_count),
                     "Total": n_metrics,
-                    "Label": firm_label,
+                    "Label": firm_label_str,
                 })
 
                 peers_series_label = None
                 if peers_yes_mean is not None:
                     peers_series_label = f"Peers mean ({comp_label})"
-                    peers_label = f"{peers_yes_mean:.1f}/{n_metrics}"
+                    peers_label_str = f"{peers_yes_mean:.1f}/{n_metrics}"
                     rows.append({
                         "Series": peers_series_label,
                         "Value": float(peers_yes_mean),
                         "Total": n_metrics,
-                        "Label": peers_label,
+                        "Label": peers_label_str,
                     })
 
                 chart_df = pd.DataFrame(rows)
                 xmax = n_metrics
                 x_ticks = list(range(0, xmax + 1))
+                series_order = ["Firm (this company)"] + ([peers_series_label] if peers_series_label else [])
 
-                series_domain = chart_df["Series"].unique().tolist()
-                peers_label = peers_series_label or ""
-
-                chart = (
+                # Build a single base with shared encodings to keep Altair happy
+                base = (
                     alt.Chart(chart_df)
-                    .mark_bar()
                     .encode(
-                        y=alt.Y("Series:N", title="", sort=["Firm (this company)", peers_series_label] if peers_series_label else ["Firm (this company)"]),
+                        y=alt.Y("Series:N", title="", sort=series_order),
                         x=alt.X(
                             "Value:Q",
                             title=f"# of DR reported (0–{n_metrics})",
                             scale=alt.Scale(domain=[0, xmax], nice=False, zero=True),
-                            axis=alt.Axis(values=x_ticks, tickCount=len(x_ticks), format="d")
+                            axis=alt.Axis(values=x_ticks, tickCount=len(x_ticks), format="d"),
                         ),
-                        # Fixed pillar color; use opacity to distinguish series
+                    )
+                    .properties(
+                        height=110,
+                        width="container",
+                        padding={"right": 48, "left": 6, "top": 6, "bottom": 28},
+                    )
+                )
+
+                # Bars: fixed pillar color; opacity distinguishes series (Firm vs Peers)
+                bars = (
+                    base.mark_bar()
+                    .encode(
                         color=alt.value(bar_color),
-                        opacity=alt.Opacity(
-                            "Series:N",
-                            scale=alt.Scale(domain=series_domain, range=[1.0] if len(series_domain) == 1 else [1.0, 0.55]),
-                            legend=alt.Legend(title="")
-                        ),
-                        # Optional: outline peers to make the difference extra clear
-                        stroke=alt.condition(
-                            alt.FieldEqualPredicate(field="Series", equal=peers_label),
-                            alt.value("#1f4fff"),
-                            alt.value(None),
-                        ),
-                        strokeWidth=alt.condition(
-                            alt.FieldEqualPredicate(field="Series", equal=peers_label),
-                            alt.value(1),
-                            alt.value(0),
+                        opacity=alt.condition(
+                            alt.datum.Series == (peers_series_label or "__none__"),
+                            alt.value(0.55),
+                            alt.value(1.0),
                         ),
                         tooltip=[
                             alt.Tooltip("Series:N", title="Series"),
@@ -595,29 +594,23 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                             alt.Tooltip("Total:Q", title="Total DR"),
                         ],
                     )
-                    .properties(
-                        height=110,
-                        width="container",
-                        padding={"right": 42, "left": 6, "top": 6, "bottom": 28},  # extra right padding to avoid clipping
-                    )
                 )
 
+                # Labels: shown to the right of bars; ensure they're not clipped
                 labels = (
-                    alt.Chart(chart_df)
-                    .mark_text(align="left", baseline="middle", dx=6, clip=False)
-                    .encode(
-                        y=alt.Y("Series:N", sort=["Firm (this company)", peers_series_label] if peers_series_label else ["Firm (this company)"]),
-                        x=alt.X("Value:Q", scale=alt.Scale(domain=[0, xmax], nice=False, zero=True)),
-                        text=alt.Text("Label:N"),
-                        detail="Series:N",
-                    )
+                    base.mark_text(align="left", baseline="middle", dx=6, clip=False)
+                    .encode(text="Label:N")
                 )
 
-                st.altair_chart(chart + labels, use_container_width=True)
+                # Layer safely
+                layered = alt.layer(bars, labels).configure_view(clip=False)
+                st.altair_chart(layered, use_container_width=True)
+
                 st.caption(
                     "Bars show the count of DR reported within this ESRS group; labels use the form x/n."
                     + (note if n_peers > 0 else "")
                 )
+
 
 # ========= Which pillar to render =========
 if view == "E":
