@@ -322,7 +322,7 @@ def link_for(pillar_key: str) -> str:
 
 # ========= COMBINED (chart with counts) =========
 if view == "Combined":
-    st.subheader("Combined overview")
+    st.subheader("Combined overview (reported = Yes)")
 
     # Choose peer set
     comp_col = None
@@ -455,6 +455,32 @@ def render_pillar(pillar: str, title: str, comparison: str):
 
     for g in pillar_groups:
         metrics = groups[g]
+
+        # ==== Aggregate counts for expander header ====
+        # Firm: how many "Yes" in this group
+        firm_yes_count = 0
+        for m in metrics:
+            v = str(current_row.get(m, "")).strip().lower()
+            if v in YES_SET:
+                firm_yes_count += 1
+
+        # Peers: mean # of "Yes" across chosen peers (if any)
+        peers_yes_mean = None
+        if n_peers > 0:
+            present_cols = [m for m in metrics if m in peers.columns]
+            if present_cols:
+                peer_block = peers[present_cols].astype(str).applymap(lambda x: x.strip().lower() in YES_SET)
+                if len(peer_block) > 0:
+                    peers_yes_mean = float(peer_block.sum(axis=1).mean())
+
+        # Build expander title with aggregates
+        n_metrics = len(metrics)
+        if peers_yes_mean is not None:
+            exp_title = f"{g} • {n_metrics} metrics — reported: {firm_yes_count}/{n_metrics} (peers {comp_label}: {peers_yes_mean:.1f}/{n_metrics})"
+        else:
+            exp_title = f"{g} • {n_metrics} metrics — reported: {firm_yes_count}/{n_metrics}"
+
+        # ==== Row table ====
         firm_vals = [pretty_value(current_row.get(c, np.nan)) for c in metrics]
         table = pd.DataFrame({"DR": metrics, "Reported": firm_vals})
 
@@ -469,12 +495,18 @@ def render_pillar(pillar: str, title: str, comparison: str):
                     peer_pct.append("—")
             table[f"Peers reported % ({comp_label})"] = peer_pct
 
-        with st.expander(f"{g} • {len(metrics)} metrics", expanded=False):
+        with st.expander(exp_title, expanded=False):
             st.dataframe(table, use_container_width=True, hide_index=True)
             if n_peers > 0:
                 st.caption(f"Peers reported % = share of selected peers answering 'Yes'{note}")
 
+
 if view == "E":
+    render_pillar("E", "E — Environment", comparison)
+elif view == "S":
+    render_pillar("S", "S — Social", comparison)
+elif view == "G":
+    render_pillar("G", "G — Governance", comparison)
     render_pillar("E", "E — Environment", comparison)
 elif view == "S":
     render_pillar("S", "S — Social", comparison)
