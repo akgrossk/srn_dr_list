@@ -28,10 +28,8 @@ st.markdown(
 )
 
 # ========= CONFIG =========
-# Hard-wired GitHub file (blob URL is fine; we convert to RAW internally)
 DEFAULT_DATA_URL = "https://github.com/akgrossk/srn_dr_list/blob/main/DR_extract.xlsx"
 
-# Columns used for firm selection (auto-detected)
 FIRM_NAME_COL_CANDIDATES = ["name", "company", "firm"]
 FIRM_ID_COL_CANDIDATES   = ["isin", "ticker"]
 COUNTRY_COL_CANDIDATES   = ["country", "Country"]
@@ -41,7 +39,6 @@ YES_SET = {"yes", "ja", "true", "1"}
 NO_SET  = {"no", "nein", "false", "0"}
 PILLAR_LABEL = {"E": "Environment", "S": "Social", "G": "Governance"}
 
-# ESRS group display names (for expander headers)
 ESRS_LABELS = {
     "E1": "ESRS E1 — Climate change",
     "E2": "ESRS E2 — Pollution",
@@ -55,7 +52,6 @@ ESRS_LABELS = {
     "G1": "ESRS G1 — Governance and business conduct",
 }
 
-# Short labels for expander titles (no "ESRS" prefix, ASCII hyphen)
 SHORT_ESRS_LABELS = {
     "E1": "E1 - Climate change",
     "E2": "E2 - Pollution",
@@ -69,7 +65,6 @@ SHORT_ESRS_LABELS = {
     "G1": "G1 - Governance and business conduct",
 }
 
-# For query-param encoding/decoding of comparison mode
 COMP_TO_PARAM = {
     "No comparison": "none",
     "Country": "country",
@@ -90,6 +85,7 @@ def pretty_value(v):
     return str(v)
 
 def group_key(col: str):
+    # Keep your original grouping behavior
     if not isinstance(col, str) or not col or col[0] not in "ESG":
         return None
     parts = col.split("-")
@@ -147,11 +143,10 @@ def normalize_github_raw_url(url: str) -> str:
 
 @st.cache_data(show_spinner=False)
 def load_table(url: str) -> pd.DataFrame:
-    # Fetch from GitHub (public or private with token)
     u = normalize_github_raw_url(url)
     headers = {}
     try:
-        token = st.secrets.get("GITHUB_TOKEN")  # optional for private repos
+        token = st.secrets.get("GITHUB_TOKEN")
         if token:
             headers["Authorization"] = f"token {token}"
     except Exception:
@@ -220,7 +215,7 @@ def build_custom_peers(df, label_col, selected_labels, current_row):
 st.sidebar.title("🌱 DR Viewer")
 df = load_table(DEFAULT_DATA_URL)
 if df.empty:
-    st.stop()  # error shown already
+    st.stop()
 
 # ========= DETECT COLUMNS & PRE-READ URL STATE =========
 firm_name_col = first_present(df.columns, FIRM_NAME_COL_CANDIDATES)
@@ -228,13 +223,12 @@ firm_id_col   = first_present(df.columns, FIRM_ID_COL_CANDIDATES)
 country_col   = first_present(df.columns, COUNTRY_COL_CANDIDATES)
 industry_col  = first_present(df.columns, INDUSTRY_COL_CANDIDATES)
 
-# Read selections from URL so they persist when clicking chart links
 firm_qp  = read_query_param("firm", None)
 comp_qp  = (read_query_param("comp", "none") or "none").lower()
 peers_qp = read_query_param("peers", "")
 preselected_peers = [p for p in peers_qp.split(",") if p] if peers_qp else []
 
-# ========= FIRM PICKER (no preselected firm unless in URL) =========
+# ========= FIRM PICKER =========
 if firm_name_col:
     firms = df[firm_name_col].dropna().astype(str).unique().tolist()
     default_index = firms.index(firm_qp) if (firm_qp in firms) else None
@@ -310,7 +304,7 @@ if comparison == "Country" and not country_col:
 if comparison == "Industry" and not industry_col:
     st.sidebar.info("No industry column found; comparison will be disabled.")
 
-# Custom peers (up to 4), default from URL
+# Custom peers (up to 4)
 selected_custom_peers = []
 label_col = firm_name_col if firm_name_col else firm_id_col
 if comparison == "Custom" and label_col:
@@ -325,7 +319,7 @@ if comparison == "Custom" and label_col:
         st.sidebar.warning("Using only the first 4 selected peers.")
         selected_custom_peers = selected_custom_peers[:4]
 
-# === Pillar detail display mode toggle (Tables vs Charts) ===
+# === Pillar detail display mode toggle ===
 pillar_display_mode = st.sidebar.radio(
     "Pillar display",
     ["Tables", "Charts"],
@@ -333,7 +327,7 @@ pillar_display_mode = st.sidebar.radio(
     help="Show each ESRS group as a table or a compact bar chart (x/n)."
 )
 
-# Keep URL in sync with current selections
+# Keep URL in sync
 params = {
     "view": view,
     "firm": str(firm_label),
@@ -343,7 +337,6 @@ if COMP_TO_PARAM.get(comparison) == "custom" and selected_custom_peers:
     params["peers"] = ",".join(selected_custom_peers)
 set_query_params(**params)
 
-# Helper to build internal links that preserve selections
 def link_for(pillar_key: str) -> str:
     qp = {
         "view": pillar_key,
@@ -535,6 +528,11 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
 
             else:
                 # ====== CHART MODE (compact x/n per ESRS group) ======
+                # Pillar color (E=green, S=red, G=orange)
+                pillar_colors = {"E": "#008000", "S": "#ff0000", "G": "#ffa500"}
+                pillar_key = pillar  # already "E" / "S" / "G"
+                bar_color = pillar_colors.get(pillar_key, "#666666")
+
                 rows = []
                 firm_label = f"{int(firm_yes_count)}/{n_metrics}"
                 rows.append({
@@ -557,38 +555,61 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
 
                 chart_df = pd.DataFrame(rows)
                 xmax = n_metrics
+                x_ticks = list(range(0, xmax + 1))
 
-                series_sort = ["Firm (this company)"]
-                if peers_series_label:
-                    series_sort.append(peers_series_label)
+                series_domain = chart_df["Series"].unique().tolist()
+                peers_label = peers_series_label or ""
 
                 chart = (
                     alt.Chart(chart_df)
                     .mark_bar()
                     .encode(
-                        y=alt.Y("Series:N", title="", sort=series_sort),
+                        y=alt.Y("Series:N", title="", sort=["Firm (this company)", peers_series_label] if peers_series_label else ["Firm (this company)"]),
                         x=alt.X(
                             "Value:Q",
                             title=f"# of DR reported (0–{n_metrics})",
-                            scale=alt.Scale(domain=[0, xmax])
+                            scale=alt.Scale(domain=[0, xmax], nice=False, zero=True),
+                            axis=alt.Axis(values=x_ticks, tickCount=len(x_ticks), format="d")
                         ),
-                        color=alt.Color("Series:N", legend=alt.Legend(title="")),
+                        # Fixed pillar color; use opacity to distinguish series
+                        color=alt.value(bar_color),
+                        opacity=alt.Opacity(
+                            "Series:N",
+                            scale=alt.Scale(domain=series_domain, range=[1.0] if len(series_domain) == 1 else [1.0, 0.55]),
+                            legend=alt.Legend(title="")
+                        ),
+                        # Optional: outline peers to make the difference extra clear
+                        stroke=alt.condition(
+                            alt.FieldEqualPredicate(field="Series", equal=peers_label),
+                            alt.value("#1f4fff"),
+                            alt.value(None),
+                        ),
+                        strokeWidth=alt.condition(
+                            alt.FieldEqualPredicate(field="Series", equal=peers_label),
+                            alt.value(1),
+                            alt.value(0),
+                        ),
                         tooltip=[
                             alt.Tooltip("Series:N", title="Series"),
                             alt.Tooltip("Value:Q", title="# DR", format=".1f"),
                             alt.Tooltip("Total:Q", title="Total DR"),
                         ],
                     )
-                    .properties(height=80, width="container")
+                    .properties(
+                        height=110,
+                        width="container",
+                        padding={"right": 42, "left": 6, "top": 6, "bottom": 28},  # extra right padding to avoid clipping
+                    )
                 )
 
                 labels = (
                     alt.Chart(chart_df)
-                    .mark_text(align="left", baseline="middle", dx=4)
+                    .mark_text(align="left", baseline="middle", dx=6, clip=False)
                     .encode(
-                        y=alt.Y("Series:N", sort=series_sort),
-                        x=alt.X("Value:Q", scale=alt.Scale(domain=[0, xmax])),
+                        y=alt.Y("Series:N", sort=["Firm (this company)", peers_series_label] if peers_series_label else ["Firm (this company)"]),
+                        x=alt.X("Value:Q", scale=alt.Scale(domain=[0, xmax], nice=False, zero=True)),
                         text=alt.Text("Label:N"),
+                        detail="Series:N",
                     )
                 )
 
@@ -598,7 +619,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     + (note if n_peers > 0 else "")
                 )
 
-# ========= BOTTOM: which pillar to render =========
+# ========= Which pillar to render =========
 if view == "E":
     render_pillar("E", "E — Environment", comparison, pillar_display_mode)
 elif view == "S":
