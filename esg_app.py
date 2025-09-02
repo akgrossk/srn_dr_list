@@ -3,9 +3,7 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 from collections import defaultdict
-import altair as alt  # charts
-from io import BytesIO
-import requests
+import altair as alt
 
 st.set_page_config(page_title="DR Viewer", page_icon="🌱", layout="wide")
 st.markdown("""
@@ -21,7 +19,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-DEFAULT_DATA_URL = "https://github.com/akgrossk/srn_dr_list/blob/main/DR_extract.xlsx"
+DEFAULT_DATA_PATH = r"C:\Users\agrosko\Dropbox\Coding\srn\DR_extract.xlsx"
 
 FIRM_NAME_COL_CANDIDATES = ["name", "company", "firm"]
 FIRM_ID_COL_CANDIDATES   = ["isin", "ticker"]
@@ -88,38 +86,7 @@ def pillar_columns(pillar: str, groups, by_pillar):
             out.append(c); seen.add(c)
     return out
 
-def normalize_github_raw_url(url: str) -> str:
-    u = url.strip()
-    if "github.com" in u and "/blob/" in u:
-        u = u.replace("https://github.com/", "https://raw.githubusercontent.com/").replace("/blob/", "/")
-    if "dropbox.com" in u and "dl=0" in u:
-        u = u.replace("dl=0", "dl=1")
-    return u
-
-@st.cache_data(show_spinner=False)
 def load_table(path: str) -> pd.DataFrame:
-    # Handle URLs
-    if isinstance(path, str) and path.lower().startswith(("http://", "https://")):
-        url = normalize_github_raw_url(path)
-        headers = {}
-        try:
-            token = st.secrets.get("GITHUB_TOKEN")  # optional, for private repos
-        except Exception:
-            token = None
-        if token and ("githubusercontent" in url or "github.com" in url):
-            headers["Authorization"] = f"token {token}"
-        try:
-            r = requests.get(url, headers=headers, timeout=30)
-            r.raise_for_status()
-            data = BytesIO(r.content)
-            if url.lower().endswith((".xlsx", ".xls")):
-                return pd.read_excel(data)
-            return pd.read_csv(data)
-        except Exception as e:
-            st.error(f"Failed to fetch data from URL: {e}")
-            return pd.DataFrame()
-
-    # Handle local filesystem paths
     p = Path(path)
     if not p.exists():
         return pd.DataFrame()
@@ -128,7 +95,6 @@ def load_table(path: str) -> pd.DataFrame:
     if p.suffix.lower() == ".csv":
         return pd.read_csv(p)
     return pd.DataFrame()
-
 
 def first_present(cols, candidates):
     for c in candidates:
@@ -164,33 +130,10 @@ def build_custom_peers(df, label_col, selected_labels, current_row):
     return peers, len(peers), note
 
 st.sidebar.title("🌱 DR Viewer")
-
-# -------- DATA SOURCE (deploy-friendly) --------
-source_mode = st.sidebar.radio("Data source", ["URL", "Upload", "Local path (dev)"], index=0, horizontal=False)
-
-df = pd.DataFrame()
-if source_mode == "URL":
-    data_url = st.sidebar.text_input("Data URL (.xlsx or .csv)", placeholder="Paste RAW GitHub/Dropbox/HTTPS link…")
-    if data_url:
-        df = load_table(data_url)
-        if df.empty:
-            st.sidebar.warning("Could not load from URL. For GitHub, click 'Raw' and use that URL; for Dropbox, ensure 'dl=1'.")
-elif source_mode == "Upload":
-    up = st.sidebar.file_uploader("Upload .xlsx/.xls/.csv", type=["xlsx", "xls", "csv"])
-    if up is not None:
-        try:
-            if up.name.lower().endswith((".xlsx", ".xls")):
-                df = pd.read_excel(up)
-            else:
-                df = pd.read_csv(up)
-        except Exception as e:
-            st.sidebar.error(f"Failed to read uploaded file: {e}")
-else:  # Local path (dev)
-    data_path = DEFAULT_DATA_PATH
-    df = load_table(data_path)
-
+data_path = DEFAULT_DATA_PATH
+df = load_table(data_path)
 if df.empty:
-    st.info("Load a dataset from the sidebar (URL or Upload) to begin.")
+    st.error(f"Could not read data at:\n{data_path}\n\nMake sure the path is correct and points to an .xlsx/.xls/.csv file.")
     st.stop()
 
 firm_name_col = first_present(df.columns, FIRM_NAME_COL_CANDIDATES)
@@ -281,7 +224,7 @@ st.query_params["view"] = view
 
 # ---------- Combined ----------
 if view == "Combined":
-    st.subheader("Combined overview (reported = Yes)")
+    st.subheader("Combined overview")
 
     # We will chart absolute counts (# of metrics answered "Yes"), not percentages.
 
@@ -352,13 +295,15 @@ if view == "Combined":
             .encode(
                 y=alt.Y("Pillar:N", title="", sort=["Environment", "Social", "Governance"]),
                 yOffset=alt.YOffset("Series:N"),
-                x=alt.X("Value:Q", title="# of metrics reported 'Yes'"),
+                x=alt.X("Value:Q", title="# of reported metrics"),
                 color=alt.Color("Pillar:N", scale=alt.Scale(domain=list(base_colors.keys()), range=list(base_colors.values())), legend=None),
                 opacity=alt.Opacity("Series:N", scale=alt.Scale(domain=chart_df["Series"].unique().tolist(), range=[1.0, 0.5]), legend=alt.Legend(title="")),
-                tooltip=["Pillar", "Series", alt.Tooltip("Value:Q", title="# Yes", format=".1f"),"Link"],
+                tooltip=["Pillar", "Series", alt.Tooltip("Value:Q", title="# Reported", format=".1f"), "Link"],
                 href="Link:N",
             )
             .properties(height=420, width="container")
+
+#, alt.Tooltip("Total:Q", title="Total metrics" for the hover to show that in graph
         )
         text = (
             alt.Chart(chart_df)
@@ -373,7 +318,7 @@ if view == "Combined":
         )
         st.altair_chart(chart + text, use_container_width=True)
 
-    note = "Bars show absolute counts of 'Yes' per pillar (not %)."
+    note = "Bars show absolute counts of reported DR per pillar."
     if comp_col and n_peers > 0:
         note += peer_note
     st.caption(note)
@@ -412,7 +357,7 @@ def render_pillar(pillar: str, title: str, comparison: str):
         with st.expander(f"{g} • {len(metrics)} metrics", expanded=False):
             st.dataframe(table, use_container_width=True, hide_index=True)
             if n_peers > 0:
-                st.caption(f"Peers reported % = share of peer firms answering 'Yes'{note}")
+                st.caption(f"Peers reported % = share of reportong peer firms{note}")
 
 if view == "E":
     render_pillar("E", "E — Environment", comparison)
@@ -420,4 +365,3 @@ elif view == "S":
     render_pillar("S", "S — Social", comparison)
 elif view == "G":
     render_pillar("G", "G — Governance", comparison)
-
