@@ -1,9 +1,13 @@
+# esg_app.py — DR Viewer (GitHub auto-load; Country/Industry/Custom comparison)
+# Requirements: streamlit, pandas, numpy, altair, requests, openpyxl
+
 import streamlit as st
 import pandas as pd
 import numpy as np
-from pathlib import Path
 from collections import defaultdict
 import altair as alt
+from io import BytesIO
+import requests
 
 st.set_page_config(page_title="DR Viewer", page_icon="🌱", layout="wide")
 st.markdown("""
@@ -19,8 +23,11 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-DEFAULT_DATA_PATH = r"https://github.com/akgrossk/srn_dr_list/blob/main/DR_extract.xlsx"
+# ========= CONFIG =========
+# Hard-wired GitHub file (blob URL is fine; we convert to RAW internally)
+DEFAULT_DATA_URL = "https://github.com/akgrossk/srn_dr_list/blob/main/DR_extract.xlsx"
 
+# Columns used for firm selection (auto-detected)
 FIRM_NAME_COL_CANDIDATES = ["name", "company", "firm"]
 FIRM_ID_COL_CANDIDATES   = ["isin", "ticker"]
 COUNTRY_COL_CANDIDATES   = ["country", "Country"]
@@ -28,25 +35,22 @@ INDUSTRY_COL_CANDIDATES  = ["industry", "Industry", "sector", "Sector"]
 
 YES_SET = {"yes", "ja", "true", "1"}
 NO_SET  = {"no", "nein", "false", "0"}
-
 PILLAR_LABEL = {"E": "Environment", "S": "Social", "G": "Governance"}
 
+# ========= HELPERS =========
 def pretty_value(v):
     if pd.isna(v):
         return "—"
-    s = str(v).strip()
-    low = s.lower()
-    if low in YES_SET:
-        return "✅ Yes"
-    if low in NO_SET:
-        return "❌ No"
-    return s
+    s = str(v).strip().lower()
+    if s in YES_SET: return "✅ Yes"
+    if s in NO_SET:  return "❌ No"
+    return str(v)
 
 def group_key(col: str):
     if not isinstance(col, str) or not col or col[0] not in "ESG":
         return None
     parts = col.split("-")
-    if len(parts) >= 2 and not parts[1].isdigit():
+    if len(parts) >= 2 and not parts[1].isdigit():  # IRO / GOV / SBM etc.
         return f"{parts[0]}-{parts[1]}"
     return parts[0]
 
@@ -54,25 +58,25 @@ def build_hierarchy(columns):
     groups = defaultdict(list)
     for c in columns:
         g = group_key(c)
-        if g:
-            groups[g].append(c)
+        if g: groups[g].append(c)
+
     def mkey(c):
         last = c.split("-")[-1]
-        try:
-            return (int(last), c)
-        except Exception:
-            return (10_000, c)
+        try:    return (int(last), c)
+        except: return (10_000, c)
+
     for g in list(groups.keys()):
         groups[g] = sorted(groups[g], key=mkey)
+
     by_pillar = {"E": [], "S": [], "G": []}
     for g in groups:
         by_pillar[g[0]].append(g)
+
     def gkey(gname):
         base = gname.split("-")[0]
-        try:
-            return (gname[0], int(base[1:]), gname)
-        except Exception:
-            return (gname[0], 9999, gname)
+        try:    return (gname[0], int(base[1:]), gname)
+        except: return (gname[0], 9999, gname)
+
     for p in by_pillar:
         by_pillar[p] = sorted(by_pillar[p], key=gkey)
     return groups, by_pillar
@@ -86,68 +90,90 @@ def pillar_columns(pillar: str, groups, by_pillar):
             out.append(c); seen.add(c)
     return out
 
-def load_table(path: str) -> pd.DataFrame:
-    p = Path(path)
-    if not p.exists():
+def normalize_github_raw_url(url: str) -> str:
+    u = url.strip()
+    if "github.com" in u and "/blob/" in u:
+        u = u.replace("https://github.com/", "https://raw.githubusercontent.com/").replace("/blob/", "/")
+    return u
+
+@st.cache_data(show_spinner=False)
+def load_table(url: str) -> pd.DataFrame:
+    # Fetch from GitHub (public or private with token)
+    u = normalize_github_raw_url(url)
+    headers = {}
+    try:
+        token = st.secrets.get("GITHUB_TOKEN")  # optional for private repos
+        if token:
+            headers["Authorization"] = f"token {token}"
+    except Exception:
+        pass
+    try:
+        r = requests.get(u, headers=headers, timeout=30)
+        r.raise_for_status()
+        data = BytesIO(r.content)
+        if u.lower().endswith((".xlsx", ".xls")):
+            return pd.read_excel(data)
+        return pd.read_csv(data)
+    except Exception as e:
+        st.error(f"Failed to fetch data from GitHub: {e}")
         return pd.DataFrame()
-    if p.suffix.lower() in {".xlsx", ".xls"}:
-        return pd.read_excel(p)
-    if p.suffix.lower() == ".csv":
-        return pd.read_csv(p)
-    return pd.DataFrame()
 
 def first_present(cols, candidates):
     for c in candidates:
-        if c in cols:
-            return c
+        if c in cols: return c
     return None
 
-def build_peers(df, comp_col, current_row):
-    if not comp_col:
-        return None, 0, ""
-    current_val = str(current_row.get(comp_col, ""))
-    if current_val == "":
-        return None, 0, ""
-    peers = df[df[comp_col].astype(str) == current_val].copy()
+def read_query_param(key: str, default=None):
     try:
-        peers = peers.drop(current_row.name, errors="ignore")
+        v = st.query_params.get(key, default)
+        if isinstance(v, list): v = v[0] if v else default
+        return v
     except Exception:
-        pass
+        qp = st.experimental_get_query_params()
+        v = qp.get(key, [default])
+        return v[0] if isinstance(v, list) else v
+
+def set_query_params(**params):
+    try:    st.query_params.update(params)
+    except: st.experimental_set_query_params(**params)
+
+def build_peers(df, comp_col, current_row):
+    if not comp_col: return None, 0, ""
+    current_val = str(current_row.get(comp_col, ""))
+    if current_val == "": return None, 0, ""
+    peers = df[df[comp_col].astype(str) == current_val].copy()
+    try: peers = peers.drop(current_row.name, errors="ignore")
+    except Exception: pass
     note = f" ({comp_col} = {current_val}, n={len(peers)})"
     return peers, len(peers), note
 
-# NEW: custom peer builder from explicit firm names/IDs
 def build_custom_peers(df, label_col, selected_labels, current_row):
-    if not label_col or not selected_labels:
-        return None, 0, ""
+    if not label_col or not selected_labels: return None, 0, ""
     target = set(map(str, selected_labels))
     peers = df[df[label_col].astype(str).isin(target)].copy()
-    try:
-        peers = peers.drop(current_row.name, errors="ignore")
-    except Exception:
-        pass
+    try: peers = peers.drop(current_row.name, errors="ignore")
+    except Exception: pass
     note = f" (custom peers, n={len(peers)})"
     return peers, len(peers), note
 
+# ========= LOAD DATA (GitHub only) =========
 st.sidebar.title("🌱 DR Viewer")
-data_path = DEFAULT_DATA_PATH
-df = load_table(data_path)
+df = load_table(DEFAULT_DATA_URL)
 if df.empty:
-    st.error(f"Could not read data at:\n{data_path}\n\nMake sure the path is correct and points to an .xlsx/.xls/.csv file.")
-    st.stop()
+    st.stop()  # error shown above
 
+# ========= DETECT COLUMNS & FIRM PICKER =========
 firm_name_col = first_present(df.columns, FIRM_NAME_COL_CANDIDATES)
 firm_id_col   = first_present(df.columns, FIRM_ID_COL_CANDIDATES)
 country_col   = first_present(df.columns, COUNTRY_COL_CANDIDATES)
 industry_col  = first_present(df.columns, INDUSTRY_COL_CANDIDATES)
 
-# Firm selector (no pre-selected firm)
+# Firm selector (no preselected firm)
 if firm_name_col:
     firms = df[firm_name_col].dropna().astype(str).unique().tolist()
     try:
         firm_label = st.sidebar.selectbox("Firm", firms, index=None, placeholder="Select a firm…")
     except TypeError:
-        # Fallback for older Streamlit: add a dummy first option
         firms = ["— Select firm —"] + firms
         firm_label = st.sidebar.selectbox("Firm", firms, index=0)
         if firm_label == "— Select firm —":
@@ -170,19 +196,19 @@ elif firm_id_col:
         st.stop()
     current_row = df[df[firm_id_col].astype(str) == str(firm_label)].iloc[0]
 else:
-    st.error("No firm identifier column found (looked for: name / company / firm / isin / ticker).")
+    st.error("No firm identifier column found (looked for: name/company/firm or isin/ticker).")
     st.stop()
 
+# ========= ESG STRUCTURE =========
 esg_columns = [c for c in df.columns if isinstance(c, str) and c[:1] in ("E", "S", "G")]
 groups, by_pillar = build_hierarchy(esg_columns)
 
+# ========= HEADER =========
 st.title(str(firm_label))
-
-isin_txt = f"ISIN: <strong>{current_row.get(firm_id_col, 'n/a')}</strong>" if firm_id_col else ""
+isin_txt    = f"ISIN: <strong>{current_row.get(firm_id_col, 'n/a')}</strong>" if firm_id_col else ""
 country_txt = f"Country: <strong>{current_row.get(country_col, 'n/a')}</strong>" if country_col else ""
-industry_txt = f"Industry: <strong>{current_row.get(industry_col, 'n/a')}</strong>" if industry_col else ""
+industry_txt= f"Industry: <strong>{current_row.get(industry_col, 'n/a')}</strong>" if industry_col else ""
 sub = " · ".join([t for t in [isin_txt, country_txt, industry_txt] if t])
-
 if sub:
     st.markdown(f"<div class='firm-meta'>{sub}</div>", unsafe_allow_html=True)
 
@@ -193,20 +219,21 @@ if link_ar and link_ar.lower().startswith(("http://", "https://")):
     except Exception:
         st.markdown(f'<a href="{link_ar}" target="_blank" rel="noopener noreferrer">Open firm report ↗</a>', unsafe_allow_html=True)
 
-valid_views = ["Combined", "E", "S", "G"]
-current_view = st.query_params.get("view", "Combined")
-if current_view not in valid_views:
-    current_view = "Combined"
+# ========= NAV & COMPARISON =========
+def read_view():
+    v = read_query_param("view", "Combined")
+    return v if v in ["Combined", "E", "S", "G"] else "Combined"
 
-view = st.sidebar.radio("Section", valid_views, index=valid_views.index(current_view))
+view = st.sidebar.radio("Section", ["Combined", "E", "S", "G"], index=["Combined","E","S","G"].index(read_view()))
 comp_options = ["No comparison", "Country", "Industry", "Custom"]
 comparison = st.sidebar.selectbox("Comparison", comp_options, index=0)
 if comparison == "Country" and not country_col:
     st.sidebar.info("No country column found; comparison will be disabled.")
 if comparison == "Industry" and not industry_col:
     st.sidebar.info("No industry column found; comparison will be disabled.")
+set_query_params(view=view)
 
-# Custom peers picker (up to 4)
+# Custom peers (up to 4)
 selected_custom_peers = []
 label_col = firm_name_col if firm_name_col else firm_id_col
 if comparison == "Custom" and label_col:
@@ -220,15 +247,11 @@ if comparison == "Custom" and label_col:
         st.sidebar.warning("Using only the first 4 selected peers.")
         selected_custom_peers = selected_custom_peers[:4]
 
-st.query_params["view"] = view
-
-# ---------- Combined ----------
+# ========= COMBINED (chart with counts) =========
 if view == "Combined":
-    st.subheader("Combined overview")
+    st.subheader("Combined overview (reported = Yes)")
 
-    # We will chart absolute counts (# of metrics answered "Yes"), not percentages.
-
-    # Peer-set selection
+    # Choose peer set
     comp_col = None
     comp_label = None
     peers = None
@@ -236,19 +259,16 @@ if view == "Combined":
     peer_note = ""
 
     if comparison == "Country" and country_col:
-        comp_col = country_col
-        comp_label = "country mean"
+        comp_col = country_col; comp_label = "country mean"
         peers, n_peers, peer_note = build_peers(df, comp_col, current_row)
     elif comparison == "Industry" and industry_col:
-        comp_col = industry_col
-        comp_label = "industry mean"
+        comp_col = industry_col; comp_label = "industry mean"
         peers, n_peers, peer_note = build_peers(df, comp_col, current_row)
     elif comparison == "Custom":
         comp_label = "custom"
         peers, n_peers, peer_note = build_custom_peers(df, label_col, selected_custom_peers, current_row)
 
     chart_rows = []
-
     for pillar in ["E", "S", "G"]:
         pcols = pillar_columns(pillar, groups, by_pillar)
         total_metrics = len(pcols)
@@ -264,47 +284,39 @@ if view == "Combined":
             firm_yes = 0
             peer_yes_mean = None
 
-        # Rows for chart (long format). Keep link to pillar pages.
-        chart_rows.append({
-            "Pillar": PILLAR_LABEL[pillar],
-            "Series": "Firm — # Yes",
-            "Value": firm_yes,
-            "Total": total_metrics,
-            "Link": f"?view={pillar}",
-        })
+        chart_rows.append({"Pillar": PILLAR_LABEL[pillar], "Series": "Firm — # Yes", "Value": firm_yes, "Link": f"?view={pillar}"})
         if peer_yes_mean is not None:
-            chart_rows.append({
-                "Pillar": PILLAR_LABEL[pillar],
-                "Series": f"Peers — mean # Yes ({comp_label})",
-                "Value": round(peer_yes_mean, 1),
-                "Total": total_metrics,
-                "Link": f"?view={pillar}",
-            })
+            chart_rows.append({"Pillar": PILLAR_LABEL[pillar], "Series": f"Peers — mean # Yes ({comp_label})", "Value": round(peer_yes_mean, 1), "Link": f"?view={pillar}"})
 
     chart_df = pd.DataFrame(chart_rows)
-
     if not chart_df.empty:
-        base_colors = {
-            "Environment": "#008000",
-            "Social": "#ff0000",
-            "Governance": "#ffa500",
-        }
+        base_colors = {"Environment": "#008000", "Social": "#ff0000", "Governance": "#ffa500"}  # E/S/G
+
         chart = (
             alt.Chart(chart_df)
             .mark_bar()
             .encode(
                 y=alt.Y("Pillar:N", title="", sort=["Environment", "Social", "Governance"]),
-                yOffset=alt.YOffset("Series:N"),
-                x=alt.X("Value:Q", title="# of reported metrics"),
-                color=alt.Color("Pillar:N", scale=alt.Scale(domain=list(base_colors.keys()), range=list(base_colors.values())), legend=None),
-                opacity=alt.Opacity("Series:N", scale=alt.Scale(domain=chart_df["Series"].unique().tolist(), range=[1.0, 0.5]), legend=alt.Legend(title="")),
-                tooltip=["Pillar", "Series", alt.Tooltip("Value:Q", title="# Reported", format=".1f"), "Link"],
+                yOffset=alt.YOffset("Series:N"),  # two bars under each other
+                x=alt.X("Value:Q", title="# of metrics reported 'Yes'"),
+                color=alt.Color("Pillar:N",
+                                scale=alt.Scale(domain=list(base_colors.keys()),
+                                                range=list(base_colors.values())),
+                                legend=None),
+                opacity=alt.Opacity("Series:N",
+                                    scale=alt.Scale(domain=chart_df["Series"].unique().tolist(),
+                                                    range=[1.0, 0.55][:len(chart_df["Series"].unique())]),
+                                    legend=alt.Legend(title="")),
+                stroke=alt.condition(alt.FieldEqualPredicate(field="Series", equal=f"Peers — mean # Yes ({comp_label})"),
+                                     alt.value("#4200ff"), alt.value(None)),
+                strokeWidth=alt.condition(alt.FieldEqualPredicate(field="Series", equal=f"Peers — mean # Yes ({comp_label})"),
+                                          alt.value(1), alt.value(0)),
+                tooltip=["Pillar", "Series", alt.Tooltip("Value:Q", title="# Yes", format=".1f"), "Link"],
                 href="Link:N",
             )
             .properties(height=420, width="container")
-
-#, alt.Tooltip("Total:Q", title="Total metrics" for the hover to show that in graph
         )
+
         text = (
             alt.Chart(chart_df)
             .mark_text(align="left", baseline="middle", dx=3, color="white")
@@ -318,32 +330,36 @@ if view == "Combined":
         )
         st.altair_chart(chart + text, use_container_width=True)
 
-    note = "Bars show absolute counts of reported DR per pillar."
-    if comp_col and n_peers > 0:
+    note = "Bars show absolute counts of 'Yes' per pillar (not %)."
+    if n_peers > 0:
         note += peer_note
     st.caption(note)
 
-#---
+# ========= PILLAR DETAIL TABLES =========
 def render_pillar(pillar: str, title: str, comparison: str):
     st.header(title)
     pillar_groups = by_pillar.get(pillar, [])
     if not pillar_groups:
-        st.info(f"No {pillar} columns found.")
-        return
+        st.info(f"No {pillar} columns found."); return
+
     comp_col = None
     comp_label = None
+    peers, n_peers, note = (None, 0, "")
     if comparison == "Country" and country_col:
         comp_col, comp_label = country_col, "country"
+        peers, n_peers, note = build_peers(df, comp_col, current_row)
     elif comparison == "Industry" and industry_col:
         comp_col, comp_label = industry_col, "industry"
-    peers, n_peers, note = build_peers(df, comp_col, current_row) if comp_col else (None, 0, "")
-    if comparison == "Custom":
+        peers, n_peers, note = build_peers(df, comp_col, current_row)
+    elif comparison == "Custom":
         comp_label = "custom"
         peers, n_peers, note = build_custom_peers(df, label_col, selected_custom_peers, current_row)
+
     for g in pillar_groups:
         metrics = groups[g]
         firm_vals = [pretty_value(current_row.get(c, np.nan)) for c in metrics]
         table = pd.DataFrame({"DR": metrics, "Reported": firm_vals})
+
         if n_peers > 0:
             peer_pct = []
             for m in metrics:
@@ -354,10 +370,11 @@ def render_pillar(pillar: str, title: str, comparison: str):
                 else:
                     peer_pct.append("—")
             table[f"Peers reported % ({comp_label})"] = peer_pct
+
         with st.expander(f"{g} • {len(metrics)} metrics", expanded=False):
             st.dataframe(table, use_container_width=True, hide_index=True)
             if n_peers > 0:
-                st.caption(f"Peers reported % = share of reportong peer firms{note}")
+                st.caption(f"Peers reported % = share of selected peers answering 'Yes'{note}")
 
 if view == "E":
     render_pillar("E", "E — Environment", comparison)
