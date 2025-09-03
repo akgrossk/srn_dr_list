@@ -533,6 +533,11 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
         peers, n_peers, note = build_peers(df, comp_col, current_row)
     elif comparison == "Custom":
         comp_label = "custom"
+         # --- short legend labels (for Combined chart) ---
+        firm_series = "Firm"
+        comp_label_short = (comp_label or "").replace(" mean", "") if comp_label else None  # country/sector/industry/custom
+        peers_series = f"Peers avg ({comp_label_short})" if comp_label_short else None
+
         peers, n_peers, note = build_custom_peers(df, label_col, selected_custom_peers, current_row)
 
     for g in pillar_groups:
