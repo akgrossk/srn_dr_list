@@ -295,10 +295,13 @@ if link_ar and link_ar.lower().startswith(("http://", "https://")):
         )
 
 # ========= NAV & COMPARISON =========
-valid_views = ["Combined", "E", "S", "G"]
-current_view = read_query_param("view", "Combined")
+valid_views = ["Total", "E", "S", "G"]
+current_view = read_query_param("view", "Total")
+# backwards-compat for old URLs using view=Combined
+if current_view == "Combined":
+    current_view = "Total"
 if current_view not in valid_views:
-    current_view = "Combined"
+    current_view = "Total"
 
 view = st.sidebar.radio("Section", valid_views, index=valid_views.index(current_view))
 comp_options = ["No comparison", "Country", "Sector", "Industry", "Custom"]
