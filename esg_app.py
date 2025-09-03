@@ -407,14 +407,14 @@ if view == "Combined":
         # chart rows
         chart_rows.append({
             "Pillar": PILLAR_LABEL[pillar],
-            "Series": "Firm — # DR",
+            "Series": firm_series,
             "Value": firm_yes,
             "Link": link_for(pillar),
         })
         if peer_yes_mean is not None:
             chart_rows.append({
                 "Pillar": PILLAR_LABEL[pillar],
-                "Series": f"Peers — mean # DR ({comp_label})",
+                "Series": peers_series,
                 "Value": round(peer_yes_mean, 1),
                 "Link": link_for(pillar),
             })
@@ -446,12 +446,13 @@ if view == "Combined":
         chart_df = pd.DataFrame(chart_rows)
         if not chart_df.empty:
             base_colors = {"Environment": "#008000", "Social": "#ff0000", "Governance": "#ffa500"}  # E/S/G
-            series_domain = chart_df["Series"].unique().tolist()
-            peers_label = f"Peers — mean # DR ({comp_label})" if comp_label else ""
-
+            # legend should show just our two short labels
+            series_domain = [firm_series] + ([peers_series] if peers_series else [])
+            peers_label = peers_series or ""
+        
             bars = (
                 alt.Chart(chart_df)
-                .mark_bar(size=20)  # slimmer bars for laptops
+                .mark_bar(size=20)  # slimmer for laptops
                 .encode(
                     y=alt.Y(
                         "Pillar:N",
@@ -467,10 +468,22 @@ if view == "Combined":
                         scale=alt.Scale(domain=list(base_colors.keys()), range=list(base_colors.values())),
                         legend=None,
                     ),
+                    # legend via opacity, using short labels + bottom placement + circle symbols
                     opacity=alt.Opacity(
                         "Series:N",
-                        scale=alt.Scale(domain=series_domain, range=[1.0] if len(series_domain) == 1 else [1.0, 0.55]),
-                        legend=alt.Legend(title=""),
+                        scale=alt.Scale(
+                            domain=series_domain,
+                            range=[1.0] if len(series_domain) == 1 else [1.0, 0.58],
+                        ),
+                        legend=alt.Legend(
+                            title="",
+                            orient="bottom",
+                            direction="horizontal",
+                            columns=2,
+                            labelLimit=1000,   # no truncation
+                            labelFontSize=12,
+                            symbolType="circle"  # no black squares
+                        ),
                     ),
                     stroke=alt.condition(
                         alt.FieldEqualPredicate(field="Series", equal=peers_label),
@@ -485,9 +498,9 @@ if view == "Combined":
                     tooltip=["Pillar", "Series", alt.Tooltip("Value:Q", title="# DR", format=".1f"), "Link"],
                     href="Link:N",
                 )
-                .properties(height=300)  # shorter height for laptops
+                .properties(height=300)  # laptop-friendly
             )
-
+        
             labels = (
                 alt.Chart(chart_df)
                 .mark_text(align="left", baseline="middle", dx=3, color="white")
@@ -499,8 +512,9 @@ if view == "Combined":
                     href="Link:N",
                 )
             )
-
+        
             st.altair_chart(bars + labels, use_container_width=True)
+
 
         note = "Bars show absolute counts of DR per pillar."
         if n_peers > 0:
