@@ -604,10 +604,10 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     st.caption(f"Peers reported % = share of selected peers answering 'Yes'{note}")
 
             else:
-                # ====== CHART MODE (compact x/n per ESRS group), thicker bars ======
+                # ====== CHART MODE (compact x/n per ESRS group) — no overlap, readable labels ======
                 pillar_colors = {"E": "#008000", "S": "#ff0000", "G": "#ffa500"}
                 bar_color = pillar_colors.get(pillar, "#666666")
-
+            
                 rows = [
                     {
                         "Series": "Firm (this company)",
@@ -625,25 +625,30 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                         "Total": n_metrics,
                         "Label": f"{peers_yes_mean:.1f}/{n_metrics}",
                     })
-
+            
                 chart_df = pd.DataFrame(rows)
                 xmax = n_metrics
                 x_ticks = list(range(0, xmax + 1))
                 series_order = ["Firm (this company)"] + ([peers_series_label] if peers_series_label else [])
-
-                per_row = 54
-                chart_h = max(120, per_row * len(series_order))
-
+            
                 chart = (
                     alt.Chart(chart_df)
-                    .mark_bar(size=26)  # thicker bars
+                    .mark_bar()  # let band-step control thickness (prevents overlap)
                     .encode(
                         y=alt.Y(
                             "Series:N",
                             title="",
                             sort=series_order,
-                            scale=alt.Scale(paddingInner=0.35, paddingOuter=0.45),
-                            axis=alt.Axis(labelLimit=0, labelPadding=10, labelAlign="left", ticks=False),
+                            scale=alt.Scale(paddingInner=0.25, paddingOuter=0.25),
+                            axis=alt.Axis(
+                                labels=True,
+                                labelFontSize=12,
+                                labelPadding=10,
+                                labelLimit=1000,   # don't truncate left labels
+                                ticks=False,
+                                domain=False,
+                                title=None,
+                            ),
                         ),
                         x=alt.X(
                             "Value:Q",
@@ -654,8 +659,11 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                         color=alt.value(bar_color),
                         opacity=alt.Opacity(
                             "Series:N",
-                            scale=alt.Scale(domain=series_order, range=[1.0] if len(series_order) == 1 else [1.0, 0.58]),
-                            legend=alt.Legend(title="")
+                            scale=alt.Scale(
+                                domain=series_order,
+                                range=[1.0] if len(series_order) == 1 else [1.0, 0.6],
+                            ),
+                            legend=alt.Legend(title="", orient="bottom", direction="horizontal"),
                         ),
                         tooltip=[
                             alt.Tooltip("Series:N", title="Series"),
@@ -665,12 +673,13 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                         ],
                     )
                     .properties(
-                        height=chart_h,
+                        # ensure enough vertical space per row so bars/labels never collide
+                        height=alt.Step(42),  # ~42px per category row (2 rows ≈ 84px total)
                         width="container",
-                        padding={"left": 160, "right": 48, "top": 6, "bottom": 28},
+                        padding={"left": 180, "right": 40, "top": 6, "bottom": 24},  # extra left space for long labels
                     )
                 )
-
+            
                 st.altair_chart(chart, use_container_width=True)
                 st.caption(
                     "Bars show the count of DR reported within this ESRS group; hover to see x/n."
