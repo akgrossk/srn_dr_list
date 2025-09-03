@@ -604,23 +604,26 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     st.caption(f"Peers reported % = share of selected peers answering 'Yes'{note}")
 
             else:
-                # ====== CHART MODE (compact x/n per ESRS group) — no overlap, readable labels ======
+                # ====== CHART MODE (no left labels, no built-in legend; tiny boxes underneath) ======
                 pillar_colors = {"E": "#008000", "S": "#ff0000", "G": "#ffa500"}
                 bar_color = pillar_colors.get(pillar, "#666666")
             
+                # Compact labels for the (custom) legend boxes
+                firm_label = "Firm"
+                peers_label = f"Peers avg ({comp_label})" if (peers_yes_mean is not None) else None
+            
+                # Data for bars
                 rows = [
                     {
-                        "Series": "Firm (this company)",
+                        "Series": firm_label,
                         "Value": float(firm_yes_count),
                         "Total": n_metrics,
                         "Label": f"{int(firm_yes_count)}/{n_metrics}",
                     }
                 ]
-                peers_series_label = None
-                if peers_yes_mean is not None:
-                    peers_series_label = f"Peers mean ({comp_label})"
+                if peers_label:
                     rows.append({
-                        "Series": peers_series_label,
+                        "Series": peers_label,
                         "Value": float(peers_yes_mean),
                         "Total": n_metrics,
                         "Label": f"{peers_yes_mean:.1f}/{n_metrics}",
@@ -629,25 +632,20 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 chart_df = pd.DataFrame(rows)
                 xmax = n_metrics
                 x_ticks = list(range(0, xmax + 1))
-                series_order = ["Firm (this company)"] + ([peers_series_label] if peers_series_label else [])
+                series_order = [firm_label] + ([peers_label] if peers_label else [])
             
-                chart = (
+                # Main bars chart (no left labels, no built-in legend). Use band step so bars never overlap.
+                bars = (
                     alt.Chart(chart_df)
-                    .mark_bar()  # let band-step control thickness (prevents overlap)
+                    .mark_bar()
                     .encode(
                         y=alt.Y(
                             "Series:N",
                             title="",
                             sort=series_order,
                             scale=alt.Scale(paddingInner=0.25, paddingOuter=0.25),
-                            axis=alt.Axis(
-                                labels=True,
-                                labelFontSize=12,
-                                labelPadding=10,
-                                labelLimit=1000,   # don't truncate left labels
-                                ticks=False,
-                                domain=False,
-                                title=None,
+                            axis=alt.Axis(  # hide left axis text entirely
+                                labels=False, ticks=False, domain=False, title=None
                             ),
                         ),
                         x=alt.X(
@@ -657,13 +655,14 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                             axis=alt.Axis(values=x_ticks, tickCount=len(x_ticks), format="d"),
                         ),
                         color=alt.value(bar_color),
+                        # keep visual distinction without showing a legend
                         opacity=alt.Opacity(
                             "Series:N",
                             scale=alt.Scale(
                                 domain=series_order,
                                 range=[1.0] if len(series_order) == 1 else [1.0, 0.6],
                             ),
-                            legend=alt.Legend(title="", orient="bottom", direction="horizontal"),
+                            legend=None,
                         ),
                         tooltip=[
                             alt.Tooltip("Series:N", title="Series"),
@@ -673,18 +672,56 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                         ],
                     )
                     .properties(
-                        # ensure enough vertical space per row so bars/labels never collide
-                        height=alt.Step(42),  # ~42px per category row (2 rows ≈ 84px total)
+                        height=alt.Step(42),   # enough vertical space so rows never collide
                         width="container",
-                        padding={"left": 180, "right": 40, "top": 6, "bottom": 24},  # extra left space for long labels
+                        padding={"left": 24, "right": 40, "top": 6, "bottom": 6},  # minimal left margin (no labels)
                     )
                 )
             
-                st.altair_chart(chart, use_container_width=True)
+                # Tiny colored boxes legend UNDER the chart (simple & compact)
+                legend_rows = [{"Label": firm_label}]
+                if peers_label:
+                    legend_rows.append({"Label": peers_label})
+                legend_df = pd.DataFrame(legend_rows)
+                legend_opacity_range = [1.0] if len(legend_rows) == 1 else [1.0, 0.6]
+            
+                legend_boxes = (
+                    alt.Chart(legend_df)
+                    .mark_square(size=120)
+                    .encode(
+                        x=alt.X(
+                            "Label:N",
+                            title="",
+                            axis=alt.Axis(
+                                orient="bottom",
+                                labelPadding=6,
+                                ticks=False,
+                                domain=False,
+                                labelFontSize=12,
+                            ),
+                        ),
+                        color=alt.value(bar_color),
+                        opacity=alt.Opacity(
+                            "Label:N",
+                            scale=alt.Scale(
+                                domain=[r["Label"] for r in legend_rows],
+                                range=legend_opacity_range
+                            ),
+                            legend=None,
+                        ),
+                    )
+                    .properties(height=28, width="container")
+                )
+            
+                # Stack chart + tiny boxes vertically
+                fig = alt.vconcat(bars, legend_boxes).spacing(6)
+                st.altair_chart(fig, use_container_width=True)
+            
                 st.caption(
                     "Bars show the count of DR reported within this ESRS group; hover to see x/n."
                     + (note if n_peers > 0 else "")
                 )
+
 
 # ========= Which pillar to render =========
 if view == "E":
