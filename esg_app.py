@@ -28,7 +28,7 @@ st.markdown(
 )
 
 # ========= CONFIG =========
-DEFAULT_DATA_URL = "https://github.com/akgrossk/srn_dr_list/blob/main/DR_extract.xlsx"
+DEFAULT_DATA_URL = "https://github.com/akgrossk/srn_dr_list/blob/main/DR_upload.xlsx"
 
 FIRM_NAME_COL_CANDIDATES = ["name", "company", "firm"]
 FIRM_ID_COL_CANDIDATES   = ["isin", "ticker"]
