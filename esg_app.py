@@ -74,7 +74,7 @@ COMP_TO_PARAM = {
     "Country": "country",
     "Sector": "sector",
     "Industry": "industry",
-    "Custom Peers": "custom",
+    "Custom": "custom",
 }
 PARAM_TO_COMP = {v: k for k, v in COMP_TO_PARAM.items()}
 
