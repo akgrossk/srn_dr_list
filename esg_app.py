@@ -284,7 +284,7 @@ if sub:
     st.markdown(f"<div class='firm-meta'>{sub}</div>", unsafe_allow_html=True)
 
 link_ar = str(current_row.get("Link_AR", "")).strip()
-if link_ar and link_ar.lower().startswith(("http://", "https://")):
+if link_ar and link_ar.lower().starts_with(("http://", "https://")):
     try:
         st.link_button("Open firm report", link_ar)
     except Exception:
@@ -336,6 +336,14 @@ pillar_display_mode = st.sidebar.radio(
     help="Show each ESRS group as a table or a compact bar chart (x/n)."
 )
 
+# === NEW: Combined overview display mode toggle ===
+combined_display_mode = st.sidebar.radio(
+    "Combined display",
+    ["Charts", "Tables"],
+    index=0,
+    help="Switch the combined overview between a bar chart and a summary table."
+)
+
 # Keep URL in sync
 params = {
     "view": view,
@@ -356,7 +364,7 @@ def link_for(pillar_key: str) -> str:
         qp["peers"] = ",".join(selected_custom_peers)
     return "?" + urlencode(qp)
 
-# ========= COMBINED (chart with counts) =========
+# ========= COMBINED (chart/table with counts) =========
 if view == "Combined":
     st.subheader("Combined overview")
 
@@ -383,9 +391,11 @@ if view == "Combined":
         peers, n_peers, peer_note = build_custom_peers(df, label_col, selected_custom_peers, current_row)
 
     chart_rows = []
+    summary_rows = []
     for pillar in ["E", "S", "G"]:
         pcols = pillar_columns(pillar, groups, by_pillar)
         total_DR = len(pcols)
+
         if total_DR:
             vals = current_row[pcols].astype(str).str.strip().str.lower()
             firm_yes = int(vals.isin(YES_SET).sum())
@@ -398,6 +408,7 @@ if view == "Combined":
             firm_yes = 0
             peer_yes_mean = None
 
+        # chart rows
         chart_rows.append({
             "Pillar": PILLAR_LABEL[pillar],
             "Series": "Firm — # DR",
@@ -412,63 +423,86 @@ if view == "Combined":
                 "Link": link_for(pillar),
             })
 
-    chart_df = pd.DataFrame(chart_rows)
+        # summary table rows
+        summary_rows.append({
+            "Pillar": PILLAR_LABEL[pillar],
+            "Firm — # DR": firm_yes,
+            "Peers — mean # DR": (round(peer_yes_mean, 1) if peer_yes_mean is not None else None),
+            "Total DR": total_DR,
+        })
 
-    if not chart_df.empty:
-        base_colors = {"Environment": "#008000", "Social": "#ff0000", "Governance": "#ffa500"}  # E/S/G
-        series_domain = chart_df["Series"].unique().tolist()
-        peers_label = f"Peers — mean # DR ({comp_label})" if comp_label else ""
+    # ===== Tables or Charts for Combined =====
+    if combined_display_mode == "Tables":
+        tbl = pd.DataFrame(summary_rows)
+        if n_peers > 0:
+            tbl = tbl.rename(columns={"Peers — mean # DR": f"Peers — mean # DR ({comp_label})"})
+        else:
+            if "Peers — mean # DR" in tbl.columns:
+                tbl = tbl.drop(columns=["Peers — mean # DR"])
+        st.dataframe(tbl, use_container_width=True, hide_index=True)
 
-        chart = (
-            alt.Chart(chart_df)
-            .mark_bar()
-            .encode(
-                y=alt.Y("Pillar:N", title="", sort=["Environment", "Social", "Governance"]),
-                yOffset=alt.YOffset("Series:N"),
-                x=alt.X("Value:Q", title="# of DR reported"),
-                color=alt.Color(
-                    "Pillar:N",
-                    scale=alt.Scale(domain=list(base_colors.keys()), range=list(base_colors.values())),
-                    legend=None,
-                ),
-                opacity=alt.Opacity(
-                    "Series:N",
-                    scale=alt.Scale(domain=series_domain, range=[1.0] if len(series_domain) == 1 else [1.0, 0.55]),
-                    legend=alt.Legend(title=""),
-                ),
-                stroke=alt.condition(
-                    alt.FieldEqualPredicate(field="Series", equal=peers_label),
-                    alt.value("#4200ff"),
-                    alt.value(None),
-                ),
-                strokeWidth=alt.condition(
-                    alt.FieldEqualPredicate(field="Series", equal=peers_label),
-                    alt.value(1),
-                    alt.value(0),
-                ),
-                tooltip=["Pillar", "Series", alt.Tooltip("Value:Q", title="# DR", format=".1f"), "Link"],
-                href="Link:N",
+        note = "Rows show absolute counts of DR per pillar."
+        if n_peers > 0:
+            note += peer_note
+        st.caption(note)
+
+    else:
+        chart_df = pd.DataFrame(chart_rows)
+        if not chart_df.empty:
+            base_colors = {"Environment": "#008000", "Social": "#ff0000", "Governance": "#ffa500"}  # E/S/G
+            series_domain = chart_df["Series"].unique().tolist()
+            peers_label = f"Peers — mean # DR ({comp_label})" if comp_label else ""
+
+            chart = (
+                alt.Chart(chart_df)
+                .mark_bar(size=24)  # thicker bars
+                .encode(
+                    y=alt.Y("Pillar:N", title="", sort=["Environment", "Social", "Governance"]),
+                    yOffset=alt.YOffset("Series:N"),
+                    x=alt.X("Value:Q", title="# of DR reported"),
+                    color=alt.Color(
+                        "Pillar:N",
+                        scale=alt.Scale(domain=list(base_colors.keys()), range=list(base_colors.values())),
+                        legend=None,
+                    ),
+                    opacity=alt.Opacity(
+                        "Series:N",
+                        scale=alt.Scale(domain=series_domain, range=[1.0] if len(series_domain) == 1 else [1.0, 0.55]),
+                        legend=alt.Legend(title=""),
+                    ),
+                    stroke=alt.condition(
+                        alt.FieldEqualPredicate(field="Series", equal=peers_label),
+                        alt.value("#4200ff"),
+                        alt.value(None),
+                    ),
+                    strokeWidth=alt.condition(
+                        alt.FieldEqualPredicate(field="Series", equal=peers_label),
+                        alt.value(1),
+                        alt.value(0),
+                    ),
+                    tooltip=["Pillar", "Series", alt.Tooltip("Value:Q", title="# DR", format=".1f"), "Link"],
+                    href="Link:N",
+                )
+                .properties(height=420, width="container")
             )
-            .properties(height=420, width="container")
-        )
 
-        text = (
-            alt.Chart(chart_df)
-            .mark_text(align="left", baseline="middle", dx=3, color="white")
-            .encode(
-                y=alt.Y("Pillar:N", sort=["Environment", "Social", "Governance"]),
-                yOffset=alt.YOffset("Series:N"),
-                x=alt.X("Value:Q"),
-                text=alt.Text("Value:Q", format=".1f"),
-                href="Link:N",
+            text = (
+                alt.Chart(chart_df)
+                .mark_text(align="left", baseline="middle", dx=4, color="white")
+                .encode(
+                    y=alt.Y("Pillar:N", sort=["Environment", "Social", "Governance"]),
+                    yOffset=alt.YOffset("Series:N"),
+                    x=alt.X("Value:Q"),
+                    text=alt.Text("Value:Q", format=".1f"),
+                    href="Link:N",
+                )
             )
-        )
-        st.altair_chart(chart + text, use_container_width=True)
+            st.altair_chart(chart + text, use_container_width=True)
 
-    note = "Bars show absolute counts of DR per pillar."
-    if n_peers > 0:
-        note += peer_note
-    st.caption(note)
+        note = "Bars show absolute counts of DR per pillar."
+        if n_peers > 0:
+            note += peer_note
+        st.caption(note)
 
 # ========= PILLAR DETAIL (Tables or compact Charts) =========
 def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
@@ -543,7 +577,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     st.caption(f"Peers reported % = share of selected peers answering 'Yes'{note}")
 
             else:
-                # ====== CHART MODE (compact x/n per ESRS group), uniform thickness, no label overlap ======
+                # ====== CHART MODE (compact x/n per ESRS group), thicker bars, uniform thickness ======
                 pillar_colors = {"E": "#008000", "S": "#ff0000", "G": "#ffa500"}
                 bar_color = pillar_colors.get(pillar, "#666666")
 
@@ -570,20 +604,20 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 x_ticks = list(range(0, xmax + 1))
                 series_order = ["Firm (this company)"] + ([peers_series_label] if peers_series_label else [])
 
-                # Row height and padding for clear separation between bars
-                per_row = 50  # adjust to 64+ if you want even more space
+                # Row height and padding for clear separation between thicker bars
+                per_row = 54  # slightly taller rows so thicker bars look clean
                 chart_h = max(120, per_row * len(series_order))
 
                 chart = (
                     alt.Chart(chart_df)
-                    .mark_bar()  # let band scale control thickness so both bars are identical
+                    .mark_bar(size=26)  # thicker bars
                     .encode(
                         y=alt.Y(
                             "Series:N",
                             title="",
                             sort=series_order,
-                            # band padding = space between the bars; axis tweaks avoid overlap/truncation
-                            scale=alt.Scale(paddingInner=0.55, paddingOuter=0.45),
+                            # a bit less inner padding to make bars appear chunkier but still spaced
+                            scale=alt.Scale(paddingInner=0.35, paddingOuter=0.45),
                             axis=alt.Axis(
                                 labelLimit=0,      # don't truncate long labels
                                 labelPadding=10,   # gap between labels and bars
@@ -598,7 +632,6 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                             axis=alt.Axis(values=x_ticks, tickCount=len(x_ticks), format="d"),
                         ),
                         color=alt.value(bar_color),  # pillar color
-                        # opacity separates Firm vs Peers without changing thickness
                         opacity=alt.Opacity(
                             "Series:N",
                             scale=alt.Scale(domain=series_order, range=[1.0] if len(series_order) == 1 else [1.0, 0.58]),
@@ -624,7 +657,6 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     "Bars show the count of DR reported within this ESRS group; hover to see x/n."
                     + (note if n_peers > 0 else "")
                 )
-
 
 # ========= Which pillar to render =========
 if view == "E":
