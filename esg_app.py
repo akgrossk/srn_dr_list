@@ -640,14 +640,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                             title="",
                             sort=series_order,
                             scale=alt.Scale(paddingInner=0.25, paddingOuter=0.25),
-                            axis=alt.Axis(
-                                labels=True,
-                                labelFontSize=12,
-                                labelPadding=10,
-                                labelLimit=1000,   # don't truncate left labels
-                                ticks=False,
-                                domain=False,
-                                title=None,
+                            axis==None,
                             ),
                         ),
                         x=alt.X(
