@@ -451,7 +451,7 @@ if view == "Combined":
 
             chart = (
                 alt.Chart(chart_df)
-                .mark_bar(size=9)  # thicker bars
+                .mark_bar(size=25)  # thicker bars
                 .encode(
                     y=alt.Y("Pillar:N", title="", sort=["Environment", "Social", "Governance"]),
                     yOffset=alt.YOffset("Series:N"),
