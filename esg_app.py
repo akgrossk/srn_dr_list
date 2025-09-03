@@ -284,7 +284,7 @@ if sub:
     st.markdown(f"<div class='firm-meta'>{sub}</div>", unsafe_allow_html=True)
 
 link_ar = str(current_row.get("Link_AR", "")).strip()
-if link_ar and link_ar.lower().starts_with(("http://", "https://")):
+if link_ar and link_ar.lower().startswith(("http://", "https://")):
     try:
         st.link_button("Open firm report", link_ar)
     except Exception:
@@ -292,6 +292,7 @@ if link_ar and link_ar.lower().starts_with(("http://", "https://")):
             f'<a href="{link_ar}" target="_blank" rel="noopener noreferrer">Open firm report ↗</a>',
             unsafe_allow_html=True,
         )
+
 
 # ========= NAV & COMPARISON =========
 valid_views = ["Combined", "E", "S", "G"]
