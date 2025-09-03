@@ -10,7 +10,7 @@ from io import BytesIO
 import requests
 from urllib.parse import urlencode
 
-st.set_page_config(page_title="DR Viewer", page_icon="🌱", layout="wide")
+st.set_page_config(page_title="Disclosure Requirements Viewer", page_icon="🌱", layout="wide")
 st.markdown(
     """
 <style>
@@ -216,7 +216,7 @@ def build_custom_peers(df, label_col, selected_labels, current_row):
     return peers, len(peers), note
 
 # ========= LOAD DATA (GitHub only) =========
-st.sidebar.title("🌱 DR Viewer")
+st.sidebar.title("🌱 Disclosure Requirements Viewer")
 df = load_table(DEFAULT_DATA_URL)
 if df.empty:
     st.stop()
@@ -475,7 +475,7 @@ if view == "Total":
                         axis=alt.Axis(labels=True, ticks=False, domain=False, labelPadding=6, title=None),
                     ),
                     yOffset=alt.YOffset("Series:N"),
-                    x=alt.X("Value:Q", title="# of DR reported"),
+                    x=alt.X("Value:Q", title="Number of Disclosure Requirements reported"),
                     color=alt.Color(
                         "Pillar:N",
                         scale=alt.Scale(domain=list(base_colors.keys()), range=list(base_colors.values())),
@@ -532,7 +532,7 @@ if view == "Total":
 
             st.altair_chart(layered, use_container_width=True)
 
-        note = "Bars show absolute counts of DR per pillar."
+        note = "Bars show absolute counts of Disclosure Requirements per pillar."
         if n_peers > 0:
             note += peer_note
         st.caption(note)
@@ -583,16 +583,16 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
         n_metrics = len(metrics)
         if peers_yes_mean is not None:
             exp_title = (
-                f"{short_title} • {n_metrics} DR — reported: "
+                f"{short_title} • {n_metrics} Disclosure Requirements — reported: "
                 f"{firm_yes_count}/{n_metrics} (peers {comp_label}: {peers_yes_mean:.1f}/{n_metrics})"
             )
         else:
-            exp_title = f"{short_title} • {n_metrics} DR — reported: {firm_yes_count}/{n_metrics}"
+            exp_title = f"{short_title} • {n_metrics} Disclosure Requirements — reported: {firm_yes_count}/{n_metrics}"
 
         with st.expander(exp_title, expanded=False):
             if display_mode == "Tables":
                 firm_vals = [pretty_value(current_row.get(c, np.nan)) for c in metrics]
-                table = pd.DataFrame({"DR": metrics, "Reported": firm_vals})
+                table = pd.DataFrame({"Disclosure Requirements": metrics, "Reported": firm_vals})
 
                 if n_peers > 0:
                     peer_pct = []
@@ -650,7 +650,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                         ),
                         x=alt.X(
                             "Value:Q",
-                            title=f"# of DR reported (0–{n_metrics})",
+                            title=f"Number of of Disclosure Requirements reported (0–{n_metrics})",
                             scale=alt.Scale(domain=[0, xmax], nice=False, zero=True),
                             axis=alt.Axis(values=x_ticks, tickCount=len(x_ticks), format="d"),
                         ),
@@ -662,8 +662,8 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                         ),
                         tooltip=[
                             alt.Tooltip("Series:N", title="Series"),
-                            alt.Tooltip("Value:Q", title="# DR", format=".1f"),
-                            alt.Tooltip("Total:Q", title="Total DR"),
+                            alt.Tooltip("Value:Q", title="Number of Disclosure Requirements", format=".1f"),
+                            alt.Tooltip("Total:Q", title="Total Disclosure Requirements"),
                             alt.Tooltip("Label:N", title="Label"),
                         ],
                     )
@@ -677,7 +677,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
             
                 st.altair_chart(chart, use_container_width=True)
                 st.caption(
-                    "Bars show the count of DR reported within this ESRS group; hover to see x/n."
+                    "Bars show the count of Disclosure Requirements reported within this ESRS group; hover to see x/n."
                     + (note if n_peers > 0 else "")
                 )
 
