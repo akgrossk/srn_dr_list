@@ -335,7 +335,8 @@ mode_default_index = 0 if mode_qp == "charts" else 1
 display_mode = st.sidebar.radio(
     "Display",
     mode_options,
-    index=mode_default_index
+    index=mode_default_index,
+    help="Use one setting for both the Combined overview and the pillar sections."
 )
 
 # Keep URL in sync
@@ -385,6 +386,11 @@ if view == "Combined":
     elif comparison == "Custom":
         comp_label = "custom"
         peers, n_peers, peer_note = build_custom_peers(df, label_col, selected_custom_peers, current_row)
+
+    # --- short legend labels (for Combined chart) ---
+    firm_series = "Firm"
+    comp_label_short = (comp_label or "").replace(" mean", "") if comp_label else None  # country/sector/industry/custom
+    peers_series = f"Peers avg ({comp_label_short})" if comp_label_short else None
 
     chart_rows = []
     summary_rows = []
@@ -446,10 +452,11 @@ if view == "Combined":
         chart_df = pd.DataFrame(chart_rows)
         if not chart_df.empty:
             base_colors = {"Environment": "#008000", "Social": "#ff0000", "Governance": "#ffa500"}  # E/S/G
+
             # legend should show just our two short labels
             series_domain = [firm_series] + ([peers_series] if peers_series else [])
             peers_label = peers_series or ""
-        
+
             bars = (
                 alt.Chart(chart_df)
                 .mark_bar(size=20)  # slimmer for laptops
@@ -482,7 +489,7 @@ if view == "Combined":
                             columns=2,
                             labelLimit=1000,   # no truncation
                             labelFontSize=12,
-                            symbolType="circle"  # no black squares
+                            symbolType="circle"
                         ),
                     ),
                     stroke=alt.condition(
@@ -498,9 +505,8 @@ if view == "Combined":
                     tooltip=["Pillar", "Series", alt.Tooltip("Value:Q", title="# DR", format=".1f"), "Link"],
                     href="Link:N",
                 )
-                .properties(height=300)  # laptop-friendly
             )
-        
+
             labels = (
                 alt.Chart(chart_df)
                 .mark_text(align="left", baseline="middle", dx=3, color="white")
@@ -512,14 +518,13 @@ if view == "Combined":
                     href="Link:N",
                 )
             )
-        
-            st.altair_chart(bars + labels, use_container_width=True)
 
+            layered = alt.layer(bars, labels).properties(
+                height=300,  # laptop-friendly height
+                width="container"
+            )
 
-        note = "Bars show absolute counts of DR per pillar."
-        if n_peers > 0:
-            note += peer_note
-        st.caption(note)
+            st.altair_chart(layered, use_container_width=True)
 
         note = "Bars show absolute counts of DR per pillar."
         if n_peers > 0:
@@ -547,11 +552,6 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
         peers, n_peers, note = build_peers(df, comp_col, current_row)
     elif comparison == "Custom":
         comp_label = "custom"
-         # --- short legend labels (for Combined chart) ---
-        firm_series = "Firm"
-        comp_label_short = (comp_label or "").replace(" mean", "") if comp_label else None  # country/sector/industry/custom
-        peers_series = f"Peers avg ({comp_label_short})" if comp_label_short else None
-
         peers, n_peers, note = build_custom_peers(df, label_col, selected_custom_peers, current_row)
 
     for g in pillar_groups:
