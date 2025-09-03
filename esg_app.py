@@ -33,7 +33,10 @@ DEFAULT_DATA_URL = "https://github.com/akgrossk/srn_dr_list/blob/main/DR_upload.
 FIRM_NAME_COL_CANDIDATES = ["name", "company", "firm"]
 FIRM_ID_COL_CANDIDATES   = ["isin", "ticker"]
 COUNTRY_COL_CANDIDATES   = ["country", "Country"]
-INDUSTRY_COL_CANDIDATES  = ["industry", "Industry", "sector", "Sector"]
+
+# IMPORTANT: use your SICS columns first, with sensible fallbacks
+INDUSTRY_COL_CANDIDATES  = ["primary_sics_industry", "industry", "Industry"]
+SECTOR_COL_CANDIDATES    = ["primary_sics_sector", "sector", "Sector"]
 
 YES_SET = {"yes", "ja", "true", "1"}
 NO_SET  = {"no", "nein", "false", "0"}
@@ -65,9 +68,11 @@ SHORT_ESRS_LABELS = {
     "G1": "G1 - Governance and business conduct",
 }
 
+# add Sector as a first-class comparison
 COMP_TO_PARAM = {
     "No comparison": "none",
     "Country": "country",
+    "Sector": "sector",
     "Industry": "industry",
     "Custom": "custom",
 }
@@ -159,7 +164,7 @@ def load_table(url: str) -> pd.DataFrame:
         return pd.read_csv(data)
     except Exception as e:
         st.error(f"Failed to fetch data from GitHub: {e}")
-        return pd.DataFrame()
+    return pd.DataFrame()
 
 def first_present(cols, candidates):
     for c in candidates:
@@ -221,7 +226,9 @@ firm_name_col = first_present(df.columns, FIRM_NAME_COL_CANDIDATES)
 firm_id_col   = first_present(df.columns, FIRM_ID_COL_CANDIDATES)
 country_col   = first_present(df.columns, COUNTRY_COL_CANDIDATES)
 industry_col  = first_present(df.columns, INDUSTRY_COL_CANDIDATES)
+sector_col    = first_present(df.columns, SECTOR_COL_CANDIDATES)
 
+# Read selections from URL
 firm_qp  = read_query_param("firm", None)
 comp_qp  = (read_query_param("comp", "none") or "none").lower()
 peers_qp = read_query_param("peers", "")
@@ -268,10 +275,11 @@ groups, by_pillar = build_hierarchy(esg_columns)
 
 # ========= HEADER =========
 st.title(str(firm_label))
-isin_txt    = f"ISIN: <strong>{current_row.get(firm_id_col, 'n/a')}</strong>" if firm_id_col else ""
-country_txt = f"Country: <strong>{current_row.get(country_col, 'n/a')}</strong>" if country_col else ""
-industry_txt= f"Industry: <strong>{current_row.get(industry_col, 'n/a')}</strong>" if industry_col else ""
-sub = " · ".join([t for t in [isin_txt, country_txt, industry_txt] if t])
+isin_txt     = f"ISIN: <strong>{current_row.get(firm_id_col, 'n/a')}</strong>" if firm_id_col else ""
+country_txt  = f"Country: <strong>{current_row.get(country_col, 'n/a')}</strong>" if country_col else ""
+sector_txt   = f"Sector: <strong>{current_row.get(sector_col, 'n/a')}</strong>" if sector_col else ""
+industry_txt = f"Industry: <strong>{current_row.get(industry_col, 'n/a')}</strong>" if industry_col else ""
+sub = " · ".join([t for t in [isin_txt, country_txt, sector_txt, industry_txt] if t])
 if sub:
     st.markdown(f"<div class='firm-meta'>{sub}</div>", unsafe_allow_html=True)
 
@@ -292,7 +300,7 @@ if current_view not in valid_views:
     current_view = "Combined"
 
 view = st.sidebar.radio("Section", valid_views, index=valid_views.index(current_view))
-comp_options = ["No comparison", "Country", "Industry", "Custom"]
+comp_options = ["No comparison", "Country", "Sector", "Industry", "Custom"]
 comp_default_label = PARAM_TO_COMP.get(comp_qp, "No comparison")
 if comp_default_label not in comp_options:
     comp_default_label = "No comparison"
@@ -300,6 +308,8 @@ comparison = st.sidebar.selectbox("Comparison", comp_options, index=comp_options
 
 if comparison == "Country" and not country_col:
     st.sidebar.info("No country column found; comparison will be disabled.")
+if comparison == "Sector" and not sector_col:
+    st.sidebar.info("No sector column found; comparison will be disabled.")
 if comparison == "Industry" and not industry_col:
     st.sidebar.info("No industry column found; comparison will be disabled.")
 
@@ -359,6 +369,10 @@ if view == "Combined":
     if comparison == "Country" and country_col:
         comp_col = country_col
         comp_label = "country mean"
+        peers, n_peers, peer_note = build_peers(df, comp_col, current_row)
+    elif comparison == "Sector" and sector_col:
+        comp_col = sector_col
+        comp_label = "sector mean"
         peers, n_peers, peer_note = build_peers(df, comp_col, current_row)
     elif comparison == "Industry" and industry_col:
         comp_col = industry_col
@@ -469,6 +483,9 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
     if comparison == "Country" and country_col:
         comp_col, comp_label = country_col, "country"
         peers, n_peers, note = build_peers(df, comp_col, current_row)
+    elif comparison == "Sector" and sector_col:
+        comp_col, comp_label = sector_col, "sector"
+        peers, n_peers, note = build_peers(df, comp_col, current_row)
     elif comparison == "Industry" and industry_col:
         comp_col, comp_label = industry_col, "industry"
         peers, n_peers, note = build_peers(df, comp_col, current_row)
@@ -552,12 +569,20 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 x_ticks = list(range(0, xmax + 1))
                 series_order = ["Firm (this company)"] + ([peers_series_label] if peers_series_label else [])
 
-                # Single bar layer (no text overlay) for robustness
+                # More space between bars: bigger per-row height + band padding + thicker bars
+                per_row = 56
+                chart_h = max(110, per_row * len(series_order))
+
                 chart = (
                     alt.Chart(chart_df)
-                    .mark_bar()
+                    .mark_bar(size=36)
                     .encode(
-                        y=alt.Y("Series:N", title="", sort=series_order),
+                        y=alt.Y(
+                            "Series:N",
+                            title="",
+                            sort=series_order,
+                            scale=alt.Scale(paddingInner=0.6, paddingOuter=0.4),
+                        ),
                         x=alt.X(
                             "Value:Q",
                             title=f"# of DR reported (0–{n_metrics})",
@@ -567,7 +592,10 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                         color=alt.value(bar_color),
                         opacity=alt.Opacity(
                             "Series:N",
-                            scale=alt.Scale(domain=series_order, range=[1.0] if len(series_order) == 1 else [1.0, 0.55]),
+                            scale=alt.Scale(
+                                domain=series_order,
+                                range=[1.0] if len(series_order) == 1 else [1.0, 0.55]
+                            ),
                             legend=alt.Legend(title="")
                         ),
                         tooltip=[
@@ -578,7 +606,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                         ],
                     )
                     .properties(
-                        height=110,
+                        height=chart_h,
                         width="container",
                         padding={"right": 48, "left": 6, "top": 6, "bottom": 28},
                     )
