@@ -364,9 +364,9 @@ def link_for(pillar_key: str) -> str:
     return "?" + urlencode(qp)
 
 # ========= COMBINED (chart/table with counts) =========
-if view == "Combined":
-    st.subheader("Combined overview")
-
+if view == "Total":
+    st.subheader("Total overview")
+    
     comp_col = None
     comp_label = None
     peers = None
