@@ -232,6 +232,7 @@ sector_col    = first_present(df.columns, SECTOR_COL_CANDIDATES)
 firm_qp  = read_query_param("firm", None)
 comp_qp  = (read_query_param("comp", "none") or "none").lower()
 peers_qp = read_query_param("peers", "")
+mode_qp  = (read_query_param("mode", "charts") or "charts").lower()
 preselected_peers = [p for p in peers_qp.split(",") if p] if peers_qp else []
 
 # ========= FIRM PICKER =========
@@ -293,7 +294,6 @@ if link_ar and link_ar.lower().startswith(("http://", "https://")):
             unsafe_allow_html=True,
         )
 
-
 # ========= NAV & COMPARISON =========
 valid_views = ["Combined", "E", "S", "G"]
 current_view = read_query_param("view", "Combined")
@@ -329,20 +329,14 @@ if comparison == "Custom" and label_col:
         st.sidebar.warning("Using only the first 4 selected peers.")
         selected_custom_peers = selected_custom_peers[:4]
 
-# === Pillar detail display mode toggle ===
-pillar_display_mode = st.sidebar.radio(
-    "Pillar display",
-    ["Tables", "Charts"],
-    index=0,
-    help="Show each ESRS group as a table or a compact bar chart (x/n)."
-)
-
-# === NEW: Combined overview display mode toggle ===
-combined_display_mode = st.sidebar.radio(
-    "Combined display",
-    ["Charts", "Tables"],
-    index=0,
-    help="Switch the combined overview between a bar chart and a summary table."
+# === ONE GLOBAL DISPLAY MODE TOGGLE (applies to Combined + Pillars) ===
+mode_options = ["Charts", "Tables"]
+mode_default_index = 0 if mode_qp == "charts" else 1
+display_mode = st.sidebar.radio(
+    "Display",
+    mode_options,
+    index=mode_default_index,
+    help="Use one setting for both the Combined overview and the pillar sections."
 )
 
 # Keep URL in sync
@@ -350,6 +344,7 @@ params = {
     "view": view,
     "firm": str(firm_label),
     "comp": COMP_TO_PARAM.get(comparison, "none"),
+    "mode": "charts" if display_mode == "Charts" else "tables",
 }
 if COMP_TO_PARAM.get(comparison) == "custom" and selected_custom_peers:
     params["peers"] = ",".join(selected_custom_peers)
@@ -360,6 +355,7 @@ def link_for(pillar_key: str) -> str:
         "view": pillar_key,
         "firm": str(firm_label),
         "comp": COMP_TO_PARAM.get(comparison, "none"),
+        "mode": "charts" if display_mode == "Charts" else "tables",
     }
     if COMP_TO_PARAM.get(comparison) == "custom" and selected_custom_peers:
         qp["peers"] = ",".join(selected_custom_peers)
@@ -432,8 +428,8 @@ if view == "Combined":
             "Total DR": total_DR,
         })
 
-    # ===== Tables or Charts for Combined =====
-    if combined_display_mode == "Tables":
+    # ===== Global Tables or Charts =====
+    if display_mode == "Tables":
         tbl = pd.DataFrame(summary_rows)
         if n_peers > 0:
             tbl = tbl.rename(columns={"Peers — mean # DR": f"Peers — mean # DR ({comp_label})"})
@@ -456,7 +452,7 @@ if view == "Combined":
 
             chart = (
                 alt.Chart(chart_df)
-                .mark_bar(size=24)  # thicker bars
+                .mark_bar(size=9)  # thicker bars
                 .encode(
                     y=alt.Y("Pillar:N", title="", sort=["Environment", "Social", "Governance"]),
                     yOffset=alt.YOffset("Series:N"),
@@ -578,7 +574,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     st.caption(f"Peers reported % = share of selected peers answering 'Yes'{note}")
 
             else:
-                # ====== CHART MODE (compact x/n per ESRS group), thicker bars, uniform thickness ======
+                # ====== CHART MODE (compact x/n per ESRS group), thicker bars ======
                 pillar_colors = {"E": "#008000", "S": "#ff0000", "G": "#ffa500"}
                 bar_color = pillar_colors.get(pillar, "#666666")
 
@@ -605,26 +601,19 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 x_ticks = list(range(0, xmax + 1))
                 series_order = ["Firm (this company)"] + ([peers_series_label] if peers_series_label else [])
 
-                # Row height and padding for clear separation between thicker bars
-                per_row = 50  # slightly taller rows so thicker bars look clean
+                per_row = 54
                 chart_h = max(120, per_row * len(series_order))
 
                 chart = (
                     alt.Chart(chart_df)
-                    .mark_bar(size=10)  # thicker bars
+                    .mark_bar(size=26)  # thicker bars
                     .encode(
                         y=alt.Y(
                             "Series:N",
                             title="",
                             sort=series_order,
-                            # a bit less inner padding to make bars appear chunkier but still spaced
                             scale=alt.Scale(paddingInner=0.35, paddingOuter=0.45),
-                            axis=alt.Axis(
-                                labelLimit=0,      # don't truncate long labels
-                                labelPadding=10,   # gap between labels and bars
-                                labelAlign="left", # keep labels left-aligned
-                                ticks=False
-                            ),
+                            axis=alt.Axis(labelLimit=0, labelPadding=10, labelAlign="left", ticks=False),
                         ),
                         x=alt.X(
                             "Value:Q",
@@ -632,7 +621,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                             scale=alt.Scale(domain=[0, xmax], nice=False, zero=True),
                             axis=alt.Axis(values=x_ticks, tickCount=len(x_ticks), format="d"),
                         ),
-                        color=alt.value(bar_color),  # pillar color
+                        color=alt.value(bar_color),
                         opacity=alt.Opacity(
                             "Series:N",
                             scale=alt.Scale(domain=series_order, range=[1.0] if len(series_order) == 1 else [1.0, 0.58]),
@@ -648,7 +637,6 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     .properties(
                         height=chart_h,
                         width="container",
-                        # extra left padding so long labels never collide with bars
                         padding={"left": 160, "right": 48, "top": 6, "bottom": 28},
                     )
                 )
@@ -661,8 +649,8 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
 
 # ========= Which pillar to render =========
 if view == "E":
-    render_pillar("E", "E — Environment", comparison, pillar_display_mode)
+    render_pillar("E", "E — Environment", comparison, display_mode)
 elif view == "S":
-    render_pillar("S", "S — Social", comparison, pillar_display_mode)
+    render_pillar("S", "S — Social", comparison, display_mode)
 elif view == "G":
-    render_pillar("G", "G — Governance", comparison, pillar_display_mode)
+    render_pillar("G", "G — Governance", comparison, display_mode)
