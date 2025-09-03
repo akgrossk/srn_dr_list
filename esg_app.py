@@ -335,7 +335,8 @@ mode_default_index = 0 if mode_qp == "charts" else 1
 display_mode = st.sidebar.radio(
     "Display",
     mode_options,
-    index=mode_default_index
+    index=mode_default_index,
+    help="Use one setting for both the Combined overview and the pillar sections."
 )
 
 # Keep URL in sync
@@ -445,22 +446,15 @@ if view == "Combined":
     else:
         chart_df = pd.DataFrame(chart_rows)
         if not chart_df.empty:
-            base_colors = {"Environment": "#008000", "Social": "#ff0000", "Governance": "#ffa500"}
+            base_colors = {"Environment": "#008000", "Social": "#ff0000", "Governance": "#ffa500"}  # E/S/G
             series_domain = chart_df["Series"].unique().tolist()
             peers_label = f"Peers — mean # DR ({comp_label})" if comp_label else ""
 
             chart = (
                 alt.Chart(chart_df)
-                .mark_bar(size=20)  # slimmer to fit laptops
+                .mark_bar(size=24)  # thicker bars
                 .encode(
-                    y=alt.Y(
-                        "Pillar:N",
-                        title="",
-                        sort=["Environment", "Social", "Governance"],
-                        # tighter spacing between E/S/G
-                        scale=alt.Scale(paddingInner=0.12, paddingOuter=0.06),
-                        axis=alt.Axis(labels=True, ticks=False, domain=False, labelPadding=6, title=None),
-                    ),
+                    y=alt.Y("Pillar:N", title="", sort=["Environment", "Social", "Governance"]),
                     yOffset=alt.YOffset("Series:N"),
                     x=alt.X("Value:Q", title="# of DR reported"),
                     color=alt.Color(
@@ -486,12 +480,12 @@ if view == "Combined":
                     tooltip=["Pillar", "Series", alt.Tooltip("Value:Q", title="# DR", format=".1f"), "Link"],
                     href="Link:N",
                 )
-                .properties(height=300, width="container", padding={"left": 100, "right": 30, "top": 6, "bottom": 24})
+                .properties(height=420, width="container")
             )
 
             text = (
                 alt.Chart(chart_df)
-                .mark_text(align="left", baseline="middle", dx=3, color="white")
+                .mark_text(align="left", baseline="middle", dx=4, color="white")
                 .encode(
                     y=alt.Y("Pillar:N", sort=["Environment", "Social", "Governance"]),
                     yOffset=alt.YOffset("Series:N"),
@@ -580,7 +574,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     st.caption(f"Peers reported % = share of selected peers answering 'Yes'{note}")
 
             else:
-                # ====== CHART MODE (compact x/n per ESRS group), thicker bars, with left labels ======
+                # ====== CHART MODE (compact x/n per ESRS group), thicker bars ======
                 pillar_colors = {"E": "#008000", "S": "#ff0000", "G": "#ffa500"}
                 bar_color = pillar_colors.get(pillar, "#666666")
 
@@ -607,24 +601,19 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 x_ticks = list(range(0, xmax + 1))
                 series_order = ["Firm (this company)"] + ([peers_series_label] if peers_series_label else [])
 
-                # More compact row height; bar size small enough to never overlap
-                per_row = 46
-                chart_h = max(110, per_row * len(series_order))
+                per_row = 54
+                chart_h = max(120, per_row * len(series_order))
 
                 chart = (
                     alt.Chart(chart_df)
-                    .mark_bar(size=20)  # slimmer so two rows never collide
+                    .mark_bar(size=26)  # thicker bars
                     .encode(
                         y=alt.Y(
                             "Series:N",
                             title="",
                             sort=series_order,
-                            # tighter spacing, but enough to distinguish rows
-                            scale=alt.Scale(paddingInner=0.25, paddingOuter=0.30),
-                            axis=alt.Axis(
-                                labels=True, ticks=False, domain=False,
-                                labelPadding=8, labelLimit=200, title=None,
-                            ),
+                            scale=alt.Scale(paddingInner=0.35, paddingOuter=0.45),
+                            axis=alt.Axis(labelLimit=0, labelPadding=10, labelAlign="left", ticks=False),
                         ),
                         x=alt.X(
                             "Value:Q",
@@ -633,6 +622,11 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                             axis=alt.Axis(values=x_ticks, tickCount=len(x_ticks), format="d"),
                         ),
                         color=alt.value(bar_color),
+                        opacity=alt.Opacity(
+                            "Series:N",
+                            scale=alt.Scale(domain=series_order, range=[1.0] if len(series_order) == 1 else [1.0, 0.58]),
+                            legend=alt.Legend(title="")
+                        ),
                         tooltip=[
                             alt.Tooltip("Series:N", title="Series"),
                             alt.Tooltip("Value:Q", title="# DR", format=".1f"),
@@ -643,7 +637,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     .properties(
                         height=chart_h,
                         width="container",
-                        padding={"left": 120, "right": 36, "top": 6, "bottom": 24},
+                        padding={"left": 160, "right": 48, "top": 6, "bottom": 28},
                     )
                 )
 
