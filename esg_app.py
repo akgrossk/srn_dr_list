@@ -301,7 +301,7 @@ if current_view not in valid_views:
     current_view = "Combined"
 
 view = st.sidebar.radio("Section", valid_views, index=valid_views.index(current_view))
-comp_options = ["No comparison", "Country", "Sector", "Industry", "Custom Peers"]
+comp_options = ["No comparison", "Country", "Sector", "Industry", "Custom"]
 comp_default_label = PARAM_TO_COMP.get(comp_qp, "No comparison")
 if comp_default_label not in comp_options:
     comp_default_label = "No comparison"
