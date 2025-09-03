@@ -74,7 +74,7 @@ COMP_TO_PARAM = {
     "Country": "country",
     "Sector": "sector",
     "Industry": "industry",
-    "Custom": "custom",
+    "Custom peers": "custom",
 }
 PARAM_TO_COMP = {v: k for k, v in COMP_TO_PARAM.items()}
 
@@ -304,7 +304,7 @@ if current_view not in valid_views:
     current_view = "Total"
 
 view = st.sidebar.radio("Section", valid_views, index=valid_views.index(current_view))
-comp_options = ["No comparison", "Country", "Sector", "Industry", "Custom"]
+comp_options = ["No comparison", "Country", "Sector", "Industry", "Custom peers"]
 comp_default_label = PARAM_TO_COMP.get(comp_qp, "No comparison")
 if comp_default_label not in comp_options:
     comp_default_label = "No comparison"
@@ -320,7 +320,7 @@ if comparison == "Industry" and not industry_col:
 # Custom peers (up to 4)
 selected_custom_peers = []
 label_col = firm_name_col if firm_name_col else firm_id_col
-if comparison == "Custom" and label_col:
+if comparison == "Custom peers" and label_col:
     all_firms = df[label_col].dropna().astype(str).unique().tolist()
     try:
         all_firms = [f for f in all_firms if str(f) != str(current_row.get(label_col, ""))]
@@ -385,10 +385,10 @@ if view == "Total":
         comp_col = industry_col
         comp_label = "industry mean"
         peers, n_peers, peer_note = build_peers(df, comp_col, current_row)
-    elif comparison == "Custom":
+    elif comparison == "Custom peers":
         comp_label = "custom"
         peers, n_peers, peer_note = build_custom_peers(df, label_col, selected_custom_peers, current_row)
-
+    
     # --- short legend labels (for Combined chart) ---
     firm_series = "Firm"
     comp_label_short = (comp_label or "").replace(" mean", "") if comp_label else None  # country/sector/industry/custom
@@ -552,7 +552,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
     elif comparison == "Industry" and industry_col:
         comp_col, comp_label = industry_col, "industry"
         peers, n_peers, note = build_peers(df, comp_col, current_row)
-    elif comparison == "Custom":
+    elif comparison == "Custom peers":
         comp_label = "custom"
         peers, n_peers, note = build_custom_peers(df, label_col, selected_custom_peers, current_row)
 
