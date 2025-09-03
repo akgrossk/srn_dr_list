@@ -633,15 +633,14 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
             
                 chart = (
                     alt.Chart(chart_df)
-                    .mark_bar()  # let band-step control thickness (prevents overlap)
+                    .mark_bar()
                     .encode(
                         y=alt.Y(
                             "Series:N",
                             title="",
                             sort=series_order,
                             scale=alt.Scale(paddingInner=0.25, paddingOuter=0.25),
-                            axis==None,
-                            ),
+                            axis=None,  # ⟵ no text/ticks left of the bars
                         ),
                         x=alt.X(
                             "Value:Q",
@@ -652,10 +651,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                         color=alt.value(bar_color),
                         opacity=alt.Opacity(
                             "Series:N",
-                            scale=alt.Scale(
-                                domain=series_order,
-                                range=[1.0] if len(series_order) == 1 else [1.0, 0.6],
-                            ),
+                            scale=alt.Scale(domain=series_order, range=[1.0] if len(series_order) == 1 else [1.0, 0.6]),
                             legend=alt.Legend(title="", orient="bottom", direction="horizontal"),
                         ),
                         tooltip=[
@@ -666,12 +662,12 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                         ],
                     )
                     .properties(
-                        # ensure enough vertical space per row so bars/labels never collide
-                        height=alt.Step(42),  # ~42px per category row (2 rows ≈ 84px total)
+                        height=alt.Step(42),
                         width="container",
-                        padding={"left": 180, "right": 40, "top": 6, "bottom": 24},  # extra left space for long labels
+                        padding={"left": 12, "right": 40, "top": 6, "bottom": 24},  # ⟵ was 180
                     )
                 )
+
             
                 st.altair_chart(chart, use_container_width=True)
                 st.caption(
