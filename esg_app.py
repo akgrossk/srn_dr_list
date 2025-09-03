@@ -444,63 +444,68 @@ if view == "Combined":
 
     else:
         chart_df = pd.DataFrame(chart_rows)
-if not chart_df.empty:
-    base_colors = {"Environment": "#008000", "Social": "#ff0000", "Governance": "#ffa500"}  # E/S/G
-    series_domain = chart_df["Series"].unique().tolist()
-    peers_label = f"Peers — mean # DR ({comp_label})" if comp_label else ""
+        if not chart_df.empty:
+            base_colors = {"Environment": "#008000", "Social": "#ff0000", "Governance": "#ffa500"}  # E/S/G
+            series_domain = chart_df["Series"].unique().tolist()
+            peers_label = f"Peers — mean # DR ({comp_label})" if comp_label else ""
 
-    bars = (
-        alt.Chart(chart_df)
-        .mark_bar(size=20)  # slimmer bars for laptops
-        .encode(
-            y=alt.Y(
-                "Pillar:N",
-                title="",
-                sort=["Environment", "Social", "Governance"],
-                scale=alt.Scale(paddingInner=0.12, paddingOuter=0.06),
-                axis=alt.Axis(labels=True, ticks=False, domain=False, labelPadding=6, title=None),
-            ),
-            yOffset=alt.YOffset("Series:N"),
-            x=alt.X("Value:Q", title="# of DR reported"),
-            color=alt.Color(
-                "Pillar:N",
-                scale=alt.Scale(domain=list(base_colors.keys()), range=list(base_colors.values())),
-                legend=None,
-            ),
-            opacity=alt.Opacity(
-                "Series:N",
-                scale=alt.Scale(domain=series_domain, range=[1.0] if len(series_domain) == 1 else [1.0, 0.55]),
-                legend=alt.Legend(title=""),
-            ),
-            stroke=alt.condition(
-                alt.FieldEqualPredicate(field="Series", equal=peers_label),
-                alt.value("#4200ff"),
-                alt.value(None),
-            ),
-            strokeWidth=alt.condition(
-                alt.FieldEqualPredicate(field="Series", equal=peers_label),
-                alt.value(1),
-                alt.value(0),
-            ),
-            tooltip=["Pillar", "Series", alt.Tooltip("Value:Q", title="# DR", format=".1f"), "Link"],
-            href="Link:N",
-        )
-        .properties(height=300)  # shorter overall height to fit on laptop screens
-    )
+            bars = (
+                alt.Chart(chart_df)
+                .mark_bar(size=20)  # slimmer bars for laptops
+                .encode(
+                    y=alt.Y(
+                        "Pillar:N",
+                        title="",
+                        sort=["Environment", "Social", "Governance"],
+                        scale=alt.Scale(paddingInner=0.12, paddingOuter=0.06),
+                        axis=alt.Axis(labels=True, ticks=False, domain=False, labelPadding=6, title=None),
+                    ),
+                    yOffset=alt.YOffset("Series:N"),
+                    x=alt.X("Value:Q", title="# of DR reported"),
+                    color=alt.Color(
+                        "Pillar:N",
+                        scale=alt.Scale(domain=list(base_colors.keys()), range=list(base_colors.values())),
+                        legend=None,
+                    ),
+                    opacity=alt.Opacity(
+                        "Series:N",
+                        scale=alt.Scale(domain=series_domain, range=[1.0] if len(series_domain) == 1 else [1.0, 0.55]),
+                        legend=alt.Legend(title=""),
+                    ),
+                    stroke=alt.condition(
+                        alt.FieldEqualPredicate(field="Series", equal=peers_label),
+                        alt.value("#4200ff"),
+                        alt.value(None),
+                    ),
+                    strokeWidth=alt.condition(
+                        alt.FieldEqualPredicate(field="Series", equal=peers_label),
+                        alt.value(1),
+                        alt.value(0),
+                    ),
+                    tooltip=["Pillar", "Series", alt.Tooltip("Value:Q", title="# DR", format=".1f"), "Link"],
+                    href="Link:N",
+                )
+                .properties(height=300)  # shorter height for laptops
+            )
 
-    labels = (
-        alt.Chart(chart_df)
-        .mark_text(align="left", baseline="middle", dx=3, color="white")
-        .encode(
-            y=alt.Y("Pillar:N", sort=["Environment", "Social", "Governance"]),
-            yOffset=alt.YOffset("Series:N"),
-            x=alt.X("Value:Q"),
-            text=alt.Text("Value:Q", format=".1f"),
-            href="Link:N",
-        )
-    )
+            labels = (
+                alt.Chart(chart_df)
+                .mark_text(align="left", baseline="middle", dx=3, color="white")
+                .encode(
+                    y=alt.Y("Pillar:N", sort=["Environment", "Social", "Governance"]),
+                    yOffset=alt.YOffset("Series:N"),
+                    x=alt.X("Value:Q"),
+                    text=alt.Text("Value:Q", format=".1f"),
+                    href="Link:N",
+                )
+            )
 
-    st.altair_chart(bars + labels, use_container_width=True)
+            st.altair_chart(bars + labels, use_container_width=True)
+
+        note = "Bars show absolute counts of DR per pillar."
+        if n_peers > 0:
+            note += peer_note
+        st.caption(note)
 
         note = "Bars show absolute counts of DR per pillar."
         if n_peers > 0:
