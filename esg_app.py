@@ -543,16 +543,18 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     st.caption(f"Peers reported % = share of selected peers answering 'Yes'{note}")
 
             else:
-                # ====== CHART MODE (compact x/n), thicker bars, no in-bar text ======
+                # ====== CHART MODE (compact x/n per ESRS group), uniform thickness, no label overlap ======
                 pillar_colors = {"E": "#008000", "S": "#ff0000", "G": "#ffa500"}
                 bar_color = pillar_colors.get(pillar, "#666666")
 
-                rows = [{
-                    "Series": "Firm (this company)",
-                    "Value": float(firm_yes_count),
-                    "Total": n_metrics,
-                    "Label": f"{int(firm_yes_count)}/{n_metrics}",
-                }]
+                rows = [
+                    {
+                        "Series": "Firm (this company)",
+                        "Value": float(firm_yes_count),
+                        "Total": n_metrics,
+                        "Label": f"{int(firm_yes_count)}/{n_metrics}",
+                    }
+                ]
                 peers_series_label = None
                 if peers_yes_mean is not None:
                     peers_series_label = f"Peers mean ({comp_label})"
@@ -568,23 +570,24 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 x_ticks = list(range(0, xmax + 1))
                 series_order = ["Firm (this company)"] + ([peers_series_label] if peers_series_label else [])
 
-                # Thicker bars + roomy spacing & left padding (no text drawn on bars)
-                per_row = 50
+                # Row height and padding for clear separation between bars
+                per_row = 50  # adjust to 64+ if you want even more space
                 chart_h = max(120, per_row * len(series_order))
 
                 chart = (
                     alt.Chart(chart_df)
-                    .mark_bar(size=30)  # <-- thicker bars; both bars same thickness
+                    .mark_bar()  # let band scale control thickness so both bars are identical
                     .encode(
                         y=alt.Y(
                             "Series:N",
                             title="",
                             sort=series_order,
-                            scale=alt.Scale(paddingInner=0.45, paddingOuter=0.40),
+                            # band padding = space between the bars; axis tweaks avoid overlap/truncation
+                            scale=alt.Scale(paddingInner=0.55, paddingOuter=0.45),
                             axis=alt.Axis(
                                 labelLimit=0,      # don't truncate long labels
-                                labelPadding=12,   # gap between labels and bars
-                                labelAlign="left",
+                                labelPadding=10,   # gap between labels and bars
+                                labelAlign="left", # keep labels left-aligned
                                 ticks=False
                             ),
                         ),
@@ -594,14 +597,12 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                             scale=alt.Scale(domain=[0, xmax], nice=False, zero=True),
                             axis=alt.Axis(values=x_ticks, tickCount=len(x_ticks), format="d"),
                         ),
-                        color=alt.value(bar_color),  # pillar color (E/S/G)
+                        color=alt.value(bar_color),  # pillar color
+                        # opacity separates Firm vs Peers without changing thickness
                         opacity=alt.Opacity(
                             "Series:N",
-                            scale=alt.Scale(
-                                domain=series_order,
-                                range=[1.0] if len(series_order) == 1 else [1.0, 0.6]
-                            ),
-                            legend=None  # no legend needed here if you already show one elsewhere
+                            scale=alt.Scale(domain=series_order, range=[1.0] if len(series_order) == 1 else [1.0, 0.58]),
+                            legend=alt.Legend(title="")
                         ),
                         tooltip=[
                             alt.Tooltip("Series:N", title="Series"),
@@ -613,7 +614,8 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     .properties(
                         height=chart_h,
                         width="container",
-                        padding={"left": 170, "right": 52, "top": 8, "bottom": 30},
+                        # extra left padding so long labels never collide with bars
+                        padding={"left": 160, "right": 48, "top": 6, "bottom": 28},
                     )
                 )
 
@@ -622,7 +624,6 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     "Bars show the count of DR reported within this ESRS group; hover to see x/n."
                     + (note if n_peers > 0 else "")
                 )
-
 
 
 # ========= Which pillar to render =========
