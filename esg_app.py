@@ -445,15 +445,22 @@ if view == "Combined":
     else:
         chart_df = pd.DataFrame(chart_rows)
         if not chart_df.empty:
-            base_colors = {"Environment": "#008000", "Social": "#ff0000", "Governance": "#ffa500"}  # E/S/G
+            base_colors = {"Environment": "#008000", "Social": "#ff0000", "Governance": "#ffa500"}
             series_domain = chart_df["Series"].unique().tolist()
             peers_label = f"Peers — mean # DR ({comp_label})" if comp_label else ""
 
             chart = (
                 alt.Chart(chart_df)
-                .mark_bar(size=25)  # thicker bars
+                .mark_bar(size=20)  # slimmer to fit laptops
                 .encode(
-                    y=alt.Y("Pillar:N", title="", sort=["Environment", "Social", "Governance"]),
+                    y=alt.Y(
+                        "Pillar:N",
+                        title="",
+                        sort=["Environment", "Social", "Governance"],
+                        # tighter spacing between E/S/G
+                        scale=alt.Scale(paddingInner=0.12, paddingOuter=0.06),
+                        axis=alt.Axis(labels=True, ticks=False, domain=False, labelPadding=6, title=None),
+                    ),
                     yOffset=alt.YOffset("Series:N"),
                     x=alt.X("Value:Q", title="# of DR reported"),
                     color=alt.Color(
@@ -479,12 +486,12 @@ if view == "Combined":
                     tooltip=["Pillar", "Series", alt.Tooltip("Value:Q", title="# DR", format=".1f"), "Link"],
                     href="Link:N",
                 )
-                .properties(height=420, width="container")
+                .properties(height=300, width="container", padding={"left": 100, "right": 30, "top": 6, "bottom": 24})
             )
 
             text = (
                 alt.Chart(chart_df)
-                .mark_text(align="left", baseline="middle", dx=4, color="white")
+                .mark_text(align="left", baseline="middle", dx=3, color="white")
                 .encode(
                     y=alt.Y("Pillar:N", sort=["Environment", "Social", "Governance"]),
                     yOffset=alt.YOffset("Series:N"),
@@ -573,84 +580,78 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     st.caption(f"Peers reported % = share of selected peers answering 'Yes'{note}")
 
             else:
-# ====== CHART MODE (compact x/n per ESRS group), thicker bars, with left labels ======
-pillar_colors = {"E": "#008000", "S": "#ff0000", "G": "#ffa500"}
-bar_color = pillar_colors.get(pillar, "#666666")
+                # ====== CHART MODE (compact x/n per ESRS group), thicker bars, with left labels ======
+                pillar_colors = {"E": "#008000", "S": "#ff0000", "G": "#ffa500"}
+                bar_color = pillar_colors.get(pillar, "#666666")
 
-rows = [
-    {
-        "Series": "Firm (this company)",
-        "Value": float(firm_yes_count),
-        "Total": n_metrics,
-        "Label": f"{int(firm_yes_count)}/{n_metrics}",
-    }
-]
-peers_series_label = None
-if peers_yes_mean is not None:
-    peers_series_label = f"Peers mean ({comp_label})"
-    rows.append({
-        "Series": peers_series_label,
-        "Value": float(peers_yes_mean),
-        "Total": n_metrics,
-        "Label": f"{peers_yes_mean:.1f}/{n_metrics}",
-    })
+                rows = [
+                    {
+                        "Series": "Firm (this company)",
+                        "Value": float(firm_yes_count),
+                        "Total": n_metrics,
+                        "Label": f"{int(firm_yes_count)}/{n_metrics}",
+                    }
+                ]
+                peers_series_label = None
+                if peers_yes_mean is not None:
+                    peers_series_label = f"Peers mean ({comp_label})"
+                    rows.append({
+                        "Series": peers_series_label,
+                        "Value": float(peers_yes_mean),
+                        "Total": n_metrics,
+                        "Label": f"{peers_yes_mean:.1f}/{n_metrics}",
+                    })
 
-chart_df = pd.DataFrame(rows)
-xmax = n_metrics
-x_ticks = list(range(0, xmax + 1))
-series_order = ["Firm (this company)"] + ([peers_series_label] if peers_series_label else [])
+                chart_df = pd.DataFrame(rows)
+                xmax = n_metrics
+                x_ticks = list(range(0, xmax + 1))
+                series_order = ["Firm (this company)"] + ([peers_series_label] if peers_series_label else [])
 
-# More compact row height; bar size small enough to never overlap
-per_row = 46
-chart_h = max(110, per_row * len(series_order))
+                # More compact row height; bar size small enough to never overlap
+                per_row = 46
+                chart_h = max(110, per_row * len(series_order))
 
-chart = (
-    alt.Chart(chart_df)
-    .mark_bar(size=20)  # slimmer so two rows never collide
-    .encode(
-        y=alt.Y(
-            "Series:N",
-            title="",
-            sort=series_order,
-            # tighter spacing, but keep enough to see both rows clearly
-            scale=alt.Scale(paddingInner=0.25, paddingOuter=0.30),
-            axis=alt.Axis(
-                labels=True,        # ensure labels render
-                ticks=False,
-                domain=False,
-                labelPadding=8,
-                labelLimit=200,     # don't truncate left labels
-                title=None,
-            ),
-        ),
-        x=alt.X(
-            "Value:Q",
-            title=f"# of DR reported (0–{n_metrics})",
-            scale=alt.Scale(domain=[0, xmax], nice=False, zero=True),
-            axis=alt.Axis(values=x_ticks, tickCount=len(x_ticks), format="d"),
-        ),
-        color=alt.value(bar_color),
-        tooltip=[
-            alt.Tooltip("Series:N", title="Series"),
-            alt.Tooltip("Value:Q", title="# DR", format=".1f"),
-            alt.Tooltip("Total:Q", title="Total DR"),
-            alt.Tooltip("Label:N", title="Label"),
-        ],
-    )
-    .properties(
-        height=chart_h,
-        width="container",
-        # slightly smaller left padding; labels still safe
-        padding={"left": 120, "right": 36, "top": 6, "bottom": 24},
-    )
-)
+                chart = (
+                    alt.Chart(chart_df)
+                    .mark_bar(size=20)  # slimmer so two rows never collide
+                    .encode(
+                        y=alt.Y(
+                            "Series:N",
+                            title="",
+                            sort=series_order,
+                            # tighter spacing, but enough to distinguish rows
+                            scale=alt.Scale(paddingInner=0.25, paddingOuter=0.30),
+                            axis=alt.Axis(
+                                labels=True, ticks=False, domain=False,
+                                labelPadding=8, labelLimit=200, title=None,
+                            ),
+                        ),
+                        x=alt.X(
+                            "Value:Q",
+                            title=f"# of DR reported (0–{n_metrics})",
+                            scale=alt.Scale(domain=[0, xmax], nice=False, zero=True),
+                            axis=alt.Axis(values=x_ticks, tickCount=len(x_ticks), format="d"),
+                        ),
+                        color=alt.value(bar_color),
+                        tooltip=[
+                            alt.Tooltip("Series:N", title="Series"),
+                            alt.Tooltip("Value:Q", title="# DR", format=".1f"),
+                            alt.Tooltip("Total:Q", title="Total DR"),
+                            alt.Tooltip("Label:N", title="Label"),
+                        ],
+                    )
+                    .properties(
+                        height=chart_h,
+                        width="container",
+                        padding={"left": 120, "right": 36, "top": 6, "bottom": 24},
+                    )
+                )
 
-st.altair_chart(chart, use_container_width=True)
-st.caption(
-    "Bars show the count of DR reported within this ESRS group; hover to see x/n."
-    + (note if n_peers > 0 else "")
-)
-
+                st.altair_chart(chart, use_container_width=True)
+                st.caption(
+                    "Bars show the count of DR reported within this ESRS group; hover to see x/n."
+                    + (note if n_peers > 0 else "")
+                )
 
 # ========= Which pillar to render =========
 if view == "E":
