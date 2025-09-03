@@ -606,12 +606,12 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 series_order = ["Firm (this company)"] + ([peers_series_label] if peers_series_label else [])
 
                 # Row height and padding for clear separation between thicker bars
-                per_row = 40  # slightly taller rows so thicker bars look clean
+                per_row = 50  # slightly taller rows so thicker bars look clean
                 chart_h = max(120, per_row * len(series_order))
 
                 chart = (
                     alt.Chart(chart_df)
-                    .mark_bar(size=26)  # thicker bars
+                    .mark_bar(size=10)  # thicker bars
                     .encode(
                         y=alt.Y(
                             "Series:N",
