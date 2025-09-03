@@ -430,22 +430,26 @@ if view == "Total":
         # summary table rows
         summary_rows.append({
             "Pillar": PILLAR_LABEL[pillar],
-            "Firm — # DR": firm_yes,
-            "Peers — mean # DR": (round(peer_yes_mean, 1) if peer_yes_mean is not None else None),
-            "Total DR": total_DR,
+            "Firm — number of Disclosure Requirements": firm_yes,
+            "Peers — mean number of Disclosure Requirements": (round(peer_yes_mean, 1) if peer_yes_mean is not None else None),
+            "Total Disclosure Requirements": total_DR,
         })
 
     # ===== Global Tables or Charts =====
     if display_mode == "Tables":
         tbl = pd.DataFrame(summary_rows)
         if n_peers > 0:
-            tbl = tbl.rename(columns={"Peers — mean # DR": f"Peers — mean # DR ({comp_label})"})
+            tbl = tbl.rename(columns={
+                "Peers — mean number of Disclosure Requirements":
+                f"Peers — mean number of Disclosure Requirements ({comp_label})"
+            })
         else:
-            if "Peers — mean # DR" in tbl.columns:
-                tbl = tbl.drop(columns=["Peers — mean # DR"])
+            if "Peers — mean number of Disclosure Requirements" in tbl.columns:
+                tbl = tbl.drop(columns=["Peers — mean number of Disclosure Requirements"])
+                
         st.dataframe(tbl, use_container_width=True, hide_index=True)
 
-        note = "Rows show absolute counts of DR per pillar."
+        note = "Rows show the number of Disclosure Requirements per pillar."
         if n_peers > 0:
             note += peer_note
         st.caption(note)
