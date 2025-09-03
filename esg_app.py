@@ -335,8 +335,7 @@ mode_default_index = 0 if mode_qp == "charts" else 1
 display_mode = st.sidebar.radio(
     "Display",
     mode_options,
-    index=mode_default_index,
-    help="Use one setting for both the Combined overview and the pillar sections."
+    index=mode_default_index
 )
 
 # Keep URL in sync
