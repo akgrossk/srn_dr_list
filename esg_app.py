@@ -507,10 +507,6 @@ if view == "Total":
                         scale=alt.Scale(domain=STD_ORDER, range=[STD_COLOR[c] for c in STD_ORDER]),
                         legend=alt.Legend(**LEGEND_KW),
                     ),
-                        "StdCode:N",
-                        scale=alt.Scale(domain=color_domain, range=color_range),
-                        legend=alt.Legend(title="Standard"),
-                    ),
                     order=alt.Order("StdCode:N", sort="ascending"),
                     tooltip=[
                         alt.Tooltip("Series:N", title="Series"),
@@ -518,6 +514,8 @@ if view == "Total":
                         alt.Tooltip("Value:Q", title="# DR", format=".1f"),
                     ],
                 )
+            )
+
 
             totals = (
                 base
