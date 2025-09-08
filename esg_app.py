@@ -482,31 +482,28 @@ if view == "Total":
             # FIXED legend domain so E/S/G families always appear
             color_domain = STD_ORDER
             color_range  = [STD_COLOR[c] for c in STD_ORDER]
-    
+
+            # legend + color encoding for the Overview
             legend_cfg = alt.Legend(
                 title="Standard",
                 orient="bottom",
                 direction="horizontal",
-                columns=6,        # tweak to fit width
-                symbolSize=120,
+                columns=6,
                 labelLimit=1000,
             )
-    
+            
             color_enc = alt.Color(
                 "StdCode:N",
                 scale=alt.Scale(domain=color_domain, range=color_range),
                 legend=legend_cfg,
             )
-    
-            y_sort = [firm_series] + ([peers_series] if peers_series else [])
-            base = alt.Chart(chart_df)
-    
+            
             bars = (
                 base
                 .mark_bar()
                 .encode(
                     y=alt.Y("Series:N", title="", sort=y_sort),
-                    x=alt.X("Value:Q", title="Number of Disclosure Requirements reported"),
+                    x=x_enc,  # <- use the conditional axis (integer ticks for G)
                     color=color_enc,
                     order=alt.Order("StdCode:N", sort="ascending"),
                     tooltip=[
@@ -516,7 +513,7 @@ if view == "Total":
                     ],
                 )
             )
-    
+            
             totals = (
                 base
                 .transform_aggregate(total="sum(Value)", groupby=["Series"])
@@ -527,14 +524,14 @@ if view == "Total":
                     text=alt.Text("total:Q", format=".1f"),
                 )
             )
-    
+            
             fig = alt.layer(bars, totals).properties(
                 height=120, width="container",
                 padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
             ).configure_view(stroke=None)
-    
+            
             st.altair_chart(fig, use_container_width=True)
-    
+
         note = "Bars show total counts of reported Disclosure Requirements, stacked by standard (E1–E5, S1–S4, G1) with shaded colors."
         if n_peers > 0:
             note += peer_note
