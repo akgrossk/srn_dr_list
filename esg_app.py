@@ -530,7 +530,7 @@ if view == "Total":
 
             fig = alt.layer(bars, totals).properties(
                 height=120, width="container",
-                padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
+                padding={"left": 12, "right": 12, "top": 6, "bottom": 30},  # was 6
             ).configure_view(stroke=None)
 
             st.altair_chart(fig, use_container_width=True)
