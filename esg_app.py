@@ -479,24 +479,25 @@ if view == "Total":
 
         chart_df = pd.DataFrame(perstd_rows)
         if not chart_df.empty:
-            present_codes = [c for c in STD_ORDER if (chart_df["StdCode"] == c).any()]
-            color_domain = present_codes
-            color_range  = [STD_COLOR[c] for c in present_codes]
+# FIXED domain so legend always shows E1..E5, S1..S4, G1 (even if some are 0 in this view)
+            color_domain = STD_ORDER
+            color_range  = [STD_COLOR[c] for c in STD_ORDER]
+            
+            legend_cfg = alt.Legend(
+                title="Standard",
+                orient="bottom",
+                direction="horizontal",
+                columns=6,         # tweak to fit your width
+                symbolSize=120,    # slightly larger swatches
+                labelLimit=1000,
+            )
+            
+            color_enc = alt.Color(
+                "StdCode:N",
+                scale=alt.Scale(domain=color_domain, range=color_range),
+                legend=legend_cfg,
+            )
 
-            y_sort = [firm_series] + ([peers_series] if peers_series else [])
-            base = alt.Chart(chart_df)
-
-            bars = (
-                base
-                .mark_bar()
-                .encode(
-                    y=alt.Y("Series:N", title="", sort=y_sort),
-                    x=alt.X("Value:Q", title="Number of Disclosure Requirements reported"),
-                    color=alt.Color(
-                        "StdCode:N",
-                        scale=alt.Scale(domain=color_domain, range=color_range),
-                        legend=alt.Legend(title="Standard"),
-                    ),
                     order=alt.Order("StdCode:N", sort="ascending"),
                     tooltip=[
                         alt.Tooltip("Series:N", title="Series"),
@@ -609,19 +610,12 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 .mark_bar()
                 .encode(
                     y=alt.Y("Series:N", title="", sort=y_sort),
-                    x=x_enc,  # <- IMPORTANT: use the conditional x encoding
-                    color=alt.Color(
-                        "StdCode:N",
-                        scale=alt.Scale(domain=color_domain, range=color_range),
-                        legend=alt.Legend(title="Standard")
-                    ),
+                    x=alt.X("Value:Q", title="Number of Disclosure Requirements reported"),
+                    color=color_enc,   # <-- use the legend with bottom orient
                     order=alt.Order("StdCode:N", sort="ascending"),
-                    tooltip=[
-                        alt.Tooltip("Series:N", title="Series"),
-                        alt.Tooltip("Standard:N", title="Standard"),
-                        alt.Tooltip("Value:Q", title="# DR", format=".1f"),
-                    ],
+                    tooltip=[ ... ],
                 )
+)
             )
             
             totals = (
