@@ -592,95 +592,76 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     st.caption(f"Peers reported % = share of selected peers answering 'Yes'{note}")
 
             else:
-                # ===== CHART MODE: one segmented bar per ESRS group (slices = sub-standards) =====
-                # Each slice shows green/red for the firm, and a green proportion for peers.
-                ok_color = "#16a34a"   # green
-                no_color = "#ef4444"   # red
-
-                present_cols = [m for m in metrics if m in df.columns]
-
-                # Helper to make short header labels like "E1-1", "E1-2" (first token before a space, if any)
-                def short_label(c: str) -> str:
-                    s = str(c).strip()
-                    return s.split(" ")[0] if " " in s else s
-
-                labels = [short_label(m) for m in present_cols]
-
-                # Build rows: each (Series, Label) gets two categories that stack to 1:
-                #   Reported = share (1 for firm if Yes, else 0; peers in [0..1])
-                #   Unreported = 1 - share
-                rows = []
-                # Firm shares (blanks -> treated as not reported)
-                for m, lbl in zip(present_cols, labels):
-                    v = str(current_row.get(m, "")).strip().lower()
-                    share = 1.0 if v in YES_SET else 0.0
-                    rows.append({"Series": "Firm (this company)", "Label": lbl, "Category": "Reported",   "Value": share})
-                    rows.append({"Series": "Firm (this company)", "Label": lbl, "Category": "Unreported", "Value": 1.0 - share})
-
-                # Peers shares (if available)
-                peers_label = None
-                if n_peers > 0 and present_cols:
-                    peers_label = "Peers mean" + (f" ({comp_label})" if comp_label else "")
-                    for m, lbl in zip(present_cols, labels):
-                        s = peers[m].astype(str).str.strip().str.lower()
-                        share = float((s.isin(YES_SET)).mean())  # proportion in [0..1]
-                        rows.append({"Series": peers_label, "Label": lbl, "Category": "Reported",   "Value": share})
-                        rows.append({"Series": peers_label, "Label": lbl, "Category": "Unreported", "Value": 1.0 - share})
-
+                # ====== CHART MODE (compact x/n per ESRS group) — no overlap, readable labels ======
+                pillar_colors = {"E": "#008000", "S": "#ff0000", "G": "#ffa500"}
+                bar_color = pillar_colors.get(pillar, "#666666")
+            
+                rows = [
+                    {
+                        "Series": "Firm (this company)",
+                        "Value": float(firm_yes_count),
+                        "Total": n_metrics,
+                        "Label": f"{int(firm_yes_count)}/{n_metrics}",
+                    }
+                ]
+                peers_series_label = None
+                if peers_yes_mean is not None:
+                    peers_series_label = f"Peers mean ({comp_label})"
+                    rows.append({
+                        "Series": peers_series_label,
+                        "Value": float(peers_yes_mean),
+                        "Total": n_metrics,
+                        "Label": f"{peers_yes_mean:.1f}/{n_metrics}",
+                    })
+            
                 chart_df = pd.DataFrame(rows)
-                series_order = ["Firm (this company)"] + ([peers_label] if peers_label else [])
-
-                base = alt.Chart(chart_df)
-
-                # One tiny normalized stacked bar per sub-standard, arranged left→right to look like one segmented bar
-                bars = (
-                    base
+                xmax = n_metrics
+                x_ticks = list(range(0, xmax + 1))
+                series_order = ["Firm (this company)"] + ([peers_series_label] if peers_series_label else [])
+            
+                chart = (
+                    alt.Chart(chart_df)
                     .mark_bar()
                     .encode(
-                        y=alt.Y("Series:N", title="", sort=series_order, axis=None),
-                        x=alt.X("Value:Q", stack="normalize", axis=None, title=None),
-                        color=alt.Color(
-                            "Category:N",
-                            scale=alt.Scale(domain=["Reported", "Unreported"], range=[ok_color, no_color]),
-                            legend=None,
+                        y=alt.Y(
+                            "Series:N",
+                            title="",
+                            sort=series_order,
+                            scale=alt.Scale(paddingInner=0.25, paddingOuter=0.25),
+                            axis=None,  # ⟵ no text/ticks left of the bars
+                        ),
+                        x=alt.X(
+                            "Value:Q",
+                            title=f"Number of of Disclosure Requirements reported (0–{n_metrics})",
+                            scale=alt.Scale(domain=[0, xmax], nice=False, zero=True),
+                            axis=alt.Axis(values=x_ticks, tickCount=len(x_ticks), format="d"),
+                        ),
+                        color=alt.value(bar_color),
+                        opacity=alt.Opacity(
+                            "Series:N",
+                            scale=alt.Scale(domain=series_order, range=[1.0] if len(series_order) == 1 else [1.0, 0.6]),
+                            legend=alt.Legend(title="", orient="bottom", direction="horizontal"),
                         ),
                         tooltip=[
-                            alt.Tooltip("Label:N", title="Sub-standard"),
                             alt.Tooltip("Series:N", title="Series"),
-                            alt.Tooltip("Category:N", title="Status"),
-                            alt.Tooltip("Value:Q", title="Share", format=".0%"),
+                            alt.Tooltip("Value:Q", title="Number of Disclosure Requirements", format=".1f"),
+                            alt.Tooltip("Total:Q", title="Total Disclosure Requirements"),
+                            alt.Tooltip("Label:N", title="Label"),
                         ],
                     )
-                    .facet(
-                        column=alt.Column(
-                            "Label:N",
-                            sort=labels,                      # keep the natural E1-1, E1-2, ...
-                            header=alt.Header(
-                                title=None,
-                                labelAngle=0,
-                                labelOrient="bottom",
-                                labelPadding=4,
-                                labelLimit=0,                 # no truncation
-                            ),
-                        ),
-                        spacing={"column": 1, "row": 0},      # minimal gaps so it reads like one bar
+                    .properties(
+                        height=alt.Step(42),
+                        width="container",
+                        padding={"left": 12, "right": 40, "top": 6, "bottom": 24},  # ⟵ was 180
                     )
                 )
 
-                # Put layout properties on the faceted figure (not on children)
-                fig = bars.properties(
-                    height=alt.Step(42),                      # two rows: firm + peers
-                    width=26,                                  # width per slice; tweak (e.g., 22–30) as needed
-                    padding={"left": 12, "right": 12, "top": 6, "bottom": 24},
-                )
-
-                st.altair_chart(fig, use_container_width=True)
+            
+                st.altair_chart(chart, use_container_width=True)
                 st.caption(
-                    "Each ESRS sub-standard is a slice of the bar. "
-                    "Firm shows green if reported, red if not; Peers show green proportionally to the share of peers that reported."
+                    "Bars show the count of Disclosure Requirements reported within this ESRS group; hover to see x/n."
                     + (note if n_peers > 0 else "")
                 )
-
 
 # ========= Which pillar to render =========
 if view == "E":
