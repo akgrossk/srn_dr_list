@@ -471,74 +471,51 @@ if view == "Total":
             series_domain = [firm_series] + ([peers_series] if peers_series else [])
             peers_label = peers_series or ""
 
-            bars = (
+            # We now stack E/S/G within each Series (Firm vs Peers)
+            stacked = (
                 alt.Chart(chart_df)
-                .mark_bar(size=20)  # slimmer for laptops
+                .mark_bar()
                 .encode(
-                    y=alt.Y(
-                        "Pillar:N",
-                        title="",
-                        sort=["Environment", "Social", "Governance"],
-                        scale=alt.Scale(paddingInner=0.12, paddingOuter=0.06),
-                        axis=alt.Axis(labels=True, ticks=False, domain=False, labelPadding=6, title=None),
-                    ),
-                    yOffset=alt.YOffset("Series:N"),
+                    y=alt.Y("Series:N", title="", sort=[firm_series] + ([peers_series] if peers_series else [])),
                     x=alt.X("Value:Q", title="Number of Disclosure Requirements reported"),
                     color=alt.Color(
                         "Pillar:N",
                         scale=alt.Scale(domain=list(base_colors.keys()), range=list(base_colors.values())),
-                        legend=None,
+                        legend=alt.Legend(title="Pillar"),
                     ),
-                    # legend via opacity, using short labels + bottom placement + circle symbols
-                    opacity=alt.Opacity(
-                        "Series:N",
-                        scale=alt.Scale(
-                            domain=series_domain,
-                            range=[1.0] if len(series_domain) == 1 else [1.0, 0.58],
-                        ),
-                        legend=alt.Legend(
-                            title="",
-                            orient="bottom",
-                            direction="horizontal",
-                            columns=2,
-                            labelLimit=1000,   # no truncation
-                            labelFontSize=12,
-                            symbolType="circle"
-                        ),
+                    tooltip=[
+                        alt.Tooltip("Series:N", title="Series"),
+                        alt.Tooltip("Pillar:N", title="Pillar"),
+                        alt.Tooltip("Value:Q", title="# DR", format=".1f"),
+                    ],
+                    href="Link:N",  # clicking a stack segment still navigates to its pillar detail
+                    order=alt.Order(
+                        # Ensure consistent E, S, G stacking order
+                        "Pillar",
+                        sort="ascending"
                     ),
-                    stroke=alt.condition(
-                        alt.FieldEqualPredicate(field="Series", equal=peers_label),
-                        alt.value("#4200ff"),
-                        alt.value(None),
-                    ),
-                    strokeWidth=alt.condition(
-                        alt.FieldEqualPredicate(field="Series", equal=peers_label),
-                        alt.value(1),
-                        alt.value(0),
-                    ),
-                    tooltip=["Pillar", "Series", alt.Tooltip("Value:Q", title="# DR", format=".1f"), "Link"],
-                    href="Link:N",
                 )
+                .properties(height=120, width="container")
             )
-
-            labels = (
-                alt.Chart(chart_df)
-                .mark_text(align="left", baseline="middle", dx=3, color="white")
+        
+            # Optional: total labels at the end of each stacked bar
+            totals = (
+                stacked
+                .transform_aggregate(total="sum(Value)", groupby=["Series"])
+                .mark_text(align="left", baseline="middle", dx=4)
                 .encode(
-                    y=alt.Y("Pillar:N", sort=["Environment", "Social", "Governance"]),
-                    yOffset=alt.YOffset("Series:N"),
-                    x=alt.X("Value:Q"),
-                    text=alt.Text("Value:Q", format=".1f"),
-                    href="Link:N",
+                    y="Series:N",
+                    x="total:Q",
+                    text=alt.Text("total:Q", format=".1f"),
                 )
             )
-
-            layered = alt.layer(bars, labels).properties(
-                height=300,  # laptop-friendly height
-                width="container"
-            )
-
-            st.altair_chart(layered, use_container_width=True)
+        
+            st.altair_chart(stacked + totals, use_container_width=True)
+        
+        note = "Bars show total counts of Disclosure Requirements, stacked by pillar."
+        if n_peers > 0:
+            note += peer_note
+        st.caption(note)
 
         note = "Bars show absolute counts of Disclosure Requirements per pillar."
         if n_peers > 0:
