@@ -401,14 +401,28 @@ def link_for(pillar_key: str) -> str:
     return "?" + urlencode(qp)
 
 # ========= COMBINED (chart/table with counts) =========
-if view == "Total":
-    left, right = st.columns([1,3])
+# Header row (legend next to the title)
+left, right = st.columns([1, 3])
 with left:
     st.subheader("Total overview")
 with right:
-    # show only standards present in the data to keep it compact
-    present_codes = [c for c in STD_ORDER if (c in chart_df["StdCode"].unique())] if 'chart_df' in locals() else STD_ORDER
+    present_codes = [c for c in STD_ORDER if 'chart_df' in locals() and (chart_df["StdCode"] == c).any()] or STD_ORDER
     render_inline_legend(present_codes, STD_COLOR)
+
+# ⬇️ important: we're now OUTSIDE the column blocks
+# add a line break / spacer so the chart starts on a new full-width row
+st.markdown("<br>", unsafe_allow_html=True)
+# or: st.divider()  (if you’re ok with a horizontal line)
+# or: st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+
+# Full-width chart
+fig = alt.layer(bars, totals).properties(
+    height=120, width="container",
+    padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
+).configure_view(stroke=None)
+
+st.altair_chart(fig, use_container_width=True)
+
     
     comp_col = None
     comp_label = None
