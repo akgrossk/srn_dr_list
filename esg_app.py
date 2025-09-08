@@ -583,7 +583,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
     if display_mode == "Charts":
         st.markdown("### Overview")
 
-        firm_series_label = "Firm (this company)"
+        firm_series_label = "Firm"
         peers_series_label = f"Peers mean ({comp_label})" if (n_peers > 0) else None
 
         overview_rows = []
@@ -760,7 +760,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     xmid = (xa + xb) / 2.0
                     share = 1.0 if is_yes(current_row.get(col, "")) else 0.0
                     rows.append({
-                        "Series": "Firm (this company)",
+                        "Series": "Firm",
                         "Label": labels[i],
                         "i": i, "xa": float(xa), "xb": float(xb),
                         "xmid": float(xmid), "share": float(share)
@@ -786,7 +786,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 tile_df = pd.DataFrame(rows)
                 tile_df["xg"] = tile_df["xa"] + eff_w * tile_df["share"]  # end of green overlay per tile
 
-                series_order = ["Firm (this company)"] + ([peers_label] if peers_label else [])
+                series_order = ["Firm"] + ([peers_label] if peers_label else [])
 
                 # Build an x-axis that shows sub-standard labels at tile centers via labelExpr
                 tick_values = [i + 0.5 for i in range(n_tiles)]
