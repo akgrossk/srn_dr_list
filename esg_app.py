@@ -638,7 +638,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     color=alt.Color(
                         "StdCode:N",
                         scale=alt.Scale(domain=color_domain, range=color_range),
-                        legend=alt.Legend(title="Standard")
+                        legend=None
                     ),
                     order=alt.Order("StdCode:N", sort="ascending"),
                     tooltip=[
