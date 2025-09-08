@@ -518,7 +518,6 @@ if view == "Total":
                         alt.Tooltip("Value:Q", title="# DR", format=".1f"),
                     ],
                 )
-            )
 
             totals = (
                 base
