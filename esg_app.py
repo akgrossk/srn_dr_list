@@ -460,12 +460,12 @@ if view == "Total":
                 continue
             metrics_in_group = groups[std_code]
             label = SHORT_ESRS_LABELS.get(std_code, std_code)
-
+    
             # Firm count
             vals = current_row[metrics_in_group].astype(str).str.strip().str.lower()
             firm_yes = int(vals.isin(YES_SET).sum())
             perstd_rows.append({"StdCode": std_code, "Standard": label, "Series": firm_series, "Value": float(firm_yes)})
-
+    
             # Peers mean expected count
             peer_yes_mean = None
             if n_peers > 0:
@@ -476,28 +476,38 @@ if view == "Total":
                         peer_yes_mean = float(peer_block.sum(axis=1).mean())
             if peer_yes_mean is not None and peers_series:
                 perstd_rows.append({"StdCode": std_code, "Standard": label, "Series": peers_series, "Value": float(peer_yes_mean)})
-
+    
         chart_df = pd.DataFrame(perstd_rows)
         if not chart_df.empty:
-# FIXED domain so legend always shows E1..E5, S1..S4, G1 (even if some are 0 in this view)
+            # FIXED legend domain so E/S/G families always appear
             color_domain = STD_ORDER
             color_range  = [STD_COLOR[c] for c in STD_ORDER]
-            
+    
             legend_cfg = alt.Legend(
                 title="Standard",
                 orient="bottom",
                 direction="horizontal",
-                columns=6,         # tweak to fit your width
-                symbolSize=120,    # slightly larger swatches
+                columns=6,        # tweak to fit width
+                symbolSize=120,
                 labelLimit=1000,
             )
-            
+    
             color_enc = alt.Color(
                 "StdCode:N",
                 scale=alt.Scale(domain=color_domain, range=color_range),
                 legend=legend_cfg,
             )
-
+    
+            y_sort = [firm_series] + ([peers_series] if peers_series else [])
+            base = alt.Chart(chart_df)
+    
+            bars = (
+                base
+                .mark_bar()
+                .encode(
+                    y=alt.Y("Series:N", title="", sort=y_sort),
+                    x=alt.X("Value:Q", title="Number of Disclosure Requirements reported"),
+                    color=color_enc,
                     order=alt.Order("StdCode:N", sort="ascending"),
                     tooltip=[
                         alt.Tooltip("Series:N", title="Series"),
@@ -506,7 +516,7 @@ if view == "Total":
                     ],
                 )
             )
-
+    
             totals = (
                 base
                 .transform_aggregate(total="sum(Value)", groupby=["Series"])
@@ -517,18 +527,19 @@ if view == "Total":
                     text=alt.Text("total:Q", format=".1f"),
                 )
             )
-
+    
             fig = alt.layer(bars, totals).properties(
                 height=120, width="container",
                 padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
             ).configure_view(stroke=None)
-
+    
             st.altair_chart(fig, use_container_width=True)
-
+    
         note = "Bars show total counts of reported Disclosure Requirements, stacked by standard (E1–E5, S1–S4, G1) with shaded colors."
         if n_peers > 0:
             note += peer_note
         st.caption(note)
+
 
 # ========= PILLAR DETAIL (Tables or compact Charts) =========
 def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
