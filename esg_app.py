@@ -82,16 +82,6 @@ STD_COLOR = {
     **{s: c for s, c in zip(G_STANDARDS, PALETTE_G)},
 }
 
-# Put legends below charts so they're visible on smaller screens
-LEGEND_KW = dict(
-    title="Standard",
-    orient="bottom",
-    direction="horizontal",
-    columns=5,       # wrap across rows on narrow screens
-    labelFontSize=11,
-    symbolSize=120,
-)
-
 # add Sector as a first-class comparison
 COMP_TO_PARAM = {
     "No comparison": "none",
@@ -504,8 +494,8 @@ if view == "Total":
                     x=alt.X("Value:Q", title="Number of Disclosure Requirements reported"),
                     color=alt.Color(
                         "StdCode:N",
-                        scale=alt.Scale(domain=STD_ORDER, range=[STD_COLOR[c] for c in STD_ORDER]),
-                        legend=alt.Legend(**LEGEND_KW),
+                        scale=alt.Scale(domain=color_domain, range=color_range),
+                        legend=alt.Legend(title="Standard"),
                     ),
                     order=alt.Order("StdCode:N", sort="ascending"),
                     tooltip=[
@@ -515,7 +505,6 @@ if view == "Total":
                     ],
                 )
             )
-
 
             totals = (
                 base
