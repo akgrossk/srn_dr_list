@@ -514,7 +514,7 @@ if view == "Total":
         
             st.altair_chart(stacked + totals, use_container_width=True)
         
-        note = "Bars show total counts of Disclosure Requirements, stacked by pillar (E → S → G)."
+        note = "Bars show total counts of reported Disclosure Requirements, stacked by pillar."
         if n_peers > 0:
             note += peer_note
         st.caption(note)
