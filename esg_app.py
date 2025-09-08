@@ -542,6 +542,104 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
         comp_label = "custom"
         peers, n_peers, note = build_custom_peers(df, label_col, selected_custom_peers, current_row)
 
+
+        # === PILLAR OVERVIEW (stacked by ESRS standard within this pillar) ===
+    if display_mode == "Charts":
+        st.markdown("### Overview")
+
+        firm_series_label = "Firm (this company)"
+        peers_series_label = f"Peers mean ({comp_label})" if (n_peers > 0) else None
+
+        overview_rows = []
+        std_items = []  # (label, order)
+
+        for g in pillar_groups:
+            metrics_in_group = groups[g]
+            base_code = g.split("-")[0]                      # e.g., "E1"
+            label = SHORT_ESRS_LABELS.get(base_code, base_code)
+
+            # numeric order E1<E2<... ; fallback high if parse fails
+            try:
+                std_order = int(base_code[1:])
+            except Exception:
+                std_order = 9999
+            std_items.append((label, std_order))
+
+            # firm yes count within this standard
+            vals = current_row[metrics_in_group].astype(str).str.strip().str.lower()
+            firm_yes = int(vals.isin(YES_SET).sum())
+            overview_rows.append({
+                "Standard": label, "StdCode": base_code, "StdOrder": std_order,
+                "Series": firm_series_label, "Value": float(firm_yes)
+            })
+
+            # peers expected count (mean across peers)
+            if n_peers > 0:
+                present_cols = [m for m in metrics_in_group if m in peers.columns]
+                peer_yes_mean = None
+                if present_cols:
+                    peer_block = peers[present_cols].astype(str).applymap(lambda x: x.strip().lower() in YES_SET)
+                    if len(peer_block) > 0:
+                        peer_yes_mean = float(peer_block.sum(axis=1).mean())
+                if peer_yes_mean is not None:
+                    overview_rows.append({
+                        "Standard": label, "StdCode": base_code, "StdOrder": std_order,
+                        "Series": peers_series_label, "Value": float(peer_yes_mean)
+                    })
+
+        if overview_rows:
+            chart_df = pd.DataFrame(overview_rows)
+            std_domain = [lbl for lbl, _ in sorted(set(std_items), key=lambda t: t[1])]
+            y_sort = [firm_series_label] + ([peers_series_label] if peers_series_label else [])
+
+            base = alt.Chart(chart_df)
+
+            bars = (
+                base
+                .mark_bar()
+                .encode(
+                    y=alt.Y("Series:N", title="", sort=y_sort),
+                    x=alt.X("Value:Q", title="Number of Disclosure Requirements reported"),
+                    color=alt.Color(
+                        "Standard:N",
+                        scale=alt.Scale(domain=std_domain),
+                        legend=alt.Legend(title="Standard")
+                    ),
+                    order=alt.Order("StdOrder:Q", sort="ascending"),
+                    tooltip=[
+                        alt.Tooltip("Series:N", title="Series"),
+                        alt.Tooltip("Standard:N", title="Standard"),
+                        alt.Tooltip("Value:Q", title="# DR", format=".1f"),
+                    ],
+                )
+            )
+
+            totals = (
+                base
+                .transform_aggregate(total="sum(Value)", groupby=["Series"])
+                .mark_text(align="left", baseline="middle", dx=4)
+                .encode(
+                    y=alt.Y("Series:N", sort=y_sort),
+                    x="total:Q",
+                    text=alt.Text("total:Q", format=".1f"),
+                )
+            )
+
+            fig = alt.layer(bars, totals).properties(
+                height=120,
+                width="container",
+                padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
+            ).configure_view(stroke=None)
+
+            st.altair_chart(fig, use_container_width=True)
+            st.caption(
+                "Two bars (Firm vs Peers). Segments are the standards in this pillar "
+                "(e.g., E1–E5), showing how many DRs are reported in each segment."
+                + (note if n_peers > 0 else "")
+            )
+
+        st.markdown("---")
+
     for g in pillar_groups:
         metrics = groups[g]
 
