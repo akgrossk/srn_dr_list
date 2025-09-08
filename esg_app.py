@@ -592,11 +592,10 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     st.caption(f"Peers reported % = share of selected peers answering 'Yes'{note}")
 
             else:
-                # === CHART MODE: segmented bar (tiles) per ESRS group ===
+                # === CHART MODE: segmented bar (tiles) per ESRS group, with labels & peer % ===
                 ok_color = "#16a34a"   # green
                 no_color = "#ef4444"   # red
 
-                # Sub-standards present in the data for this group
                 present_cols = [m for m in metrics if m in df.columns]
                 n_tiles = len(present_cols)
                 if n_tiles == 0:
@@ -614,102 +613,137 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     s = str(col).strip()
                     return s.split(" ")[0] if " " in s else s  # e.g., "E1-1"
 
-                # Build per-tile rows for firm and peers
+                # Small horizontal gap between tiles (0..1 is one tile’s span)
+                tile_gap = 0.10  # 10% of a tile width as gutter
+                eff_w = 1.0 - tile_gap
+
                 rows = []
-                # Firm tiles (1 if reported, else 0)
+                label_rows = []
+                # --- Firm tiles
                 for i, col in enumerate(present_cols):
+                    xa = i + tile_gap / 2.0
+                    xb = i + 1 - tile_gap / 2.0
+                    xmid = (xa + xb) / 2.0
                     share = 1.0 if is_yes(current_row.get(col, "")) else 0.0
                     rows.append({
                         "Series": "Firm (this company)",
                         "Label": short_label(col),
                         "i": i,
-                        "x0": float(i),
-                        "x1": float(i + 1),
-                        "share": float(share),
+                        "xa": float(xa),
+                        "xb": float(xb),
+                        "xg": float(xa + eff_w * share),  # end of green overlay
+                        "xmid": float(xmid),
+                        "share": float(share),             # 0 or 1
                     })
+                    label_rows.append({"Label": short_label(col), "xmid": float(xmid)})
 
+                # --- Peers tiles
                 peers_label = None
                 if n_peers > 0:
                     peers_label = "Peers mean" + (f" ({comp_label})" if comp_label else "")
                     for i, col in enumerate(present_cols):
-                        # fraction of peers answering YES for this sub-standard
+                        xa = i + tile_gap / 2.0
+                        xb = i + 1 - tile_gap / 2.0
+                        xmid = (xa + xb) / 2.0
                         s = peers[col].astype(str).str.strip().str.lower()
-                        share = float((s.isin(YES_SET)).mean())
+                        share = float((s.isin(YES_SET)).mean())  # 0..1
                         rows.append({
                             "Series": peers_label,
                             "Label": short_label(col),
                             "i": i,
-                            "x0": float(i),
-                            "x1": float(i + 1),
+                            "xa": float(xa),
+                            "xb": float(xb),
+                            "xg": float(xa + eff_w * share),
+                            "xmid": float(xmid),
                             "share": float(share),
                         })
 
                 tile_df = pd.DataFrame(rows)
-                # x position of the green overlay end
-                tile_df["xg"] = tile_df["x0"] + tile_df["share"]
-
+                labels_df = pd.DataFrame(label_rows).drop_duplicates(subset=["Label"])
                 series_order = ["Firm (this company)"] + ([peers_label] if peers_label else [])
 
                 base = alt.Chart(tile_df)
 
-                # Red base: full tile width
+                y_enc = alt.Y(
+                    "Series:N",
+                    sort=series_order,
+                    title="",
+                    scale=alt.Scale(paddingInner=0.65, paddingOuter=0.28),  # extra vertical space between rows
+                    axis=alt.Axis(labels=True, ticks=False, domain=False)   # show row labels
+                )
+                xscale = alt.Scale(domain=[0, n_tiles], nice=False, zero=True)
+
+                # Red base (full tile)
                 red = (
                     base
-                    .mark_rect(stroke="white", strokeWidth=0.7)
+                    .mark_rect(stroke="white", strokeWidth=0.8)
                     .encode(
-                        y=alt.Y("Series:N", title="", sort=series_order, axis=None),
-                        x=alt.X(
-                            "x0:Q",
-                            title=None,
-                            scale=alt.Scale(domain=[0, n_tiles], nice=False, zero=True),
-                            axis=None,
-                        ),
-                        x2="x1:Q",
+                        y=y_enc,
+                        x=alt.X("xa:Q", scale=xscale, axis=None),
+                        x2="xb:Q",
                         color=alt.value(no_color),
+                        tooltip=[
+                            alt.Tooltip("Label:N", title="Sub-standard"),
+                            alt.Tooltip("Series:N", title="Series"),
+                            alt.Tooltip("share:Q", title="% reported", format=".0%"),
+                        ],
                     )
                 )
 
-                # Green overlay: partial width (share)
+                # Green overlay (partial fill = share)
                 green = (
                     base
-                    .mark_rect(stroke="white", strokeWidth=0.7)
+                    .mark_rect(stroke="white", strokeWidth=0.8)
                     .encode(
-                        y=alt.Y("Series:N", title="", sort=series_order, axis=None),
-                        x="x0:Q",
+                        y=y_enc,
+                        x="xa:Q",
                         x2="xg:Q",
                         color=alt.value(ok_color),
                     )
                     .transform_filter("datum.share > 0")
                 )
 
-                # Invisible rects to provide tooltips across the entire tile area
-                tool = (
-                    base
-                    .mark_rect(opacity=0)
-                    .encode(
-                        y=alt.Y("Series:N", sort=series_order, axis=None),
-                        x="x0:Q",
-                        x2="x1:Q",
-                        tooltip=[
-                            alt.Tooltip("Label:N", title="Sub-standard"),
-                            alt.Tooltip("Series:N", title="Series"),
-                            alt.Tooltip("share:Q", title="Reported", format=".0%"),
-                        ],
+                # Percent text centered in peer tiles
+                pct_text = None
+                if peers_label:
+                    pct_text = (
+                        base
+                        .transform_filter(alt.FieldEqualPredicate(field="Series", equal=peers_label))
+                        .mark_text(baseline="middle", fontSize=11)
+                        .encode(
+                            y=y_enc,
+                            x=alt.X("xmid:Q", scale=xscale),
+                            text=alt.Text("share:Q", format=".0%"),
+                            color=alt.condition("datum.share >= 0.5", alt.value("white"), alt.value("black")),
+                        )
                     )
+
+                # Assemble main bar (firm + peers rows)
+                layers = [red, green] + ([pct_text] if pct_text is not None else [])
+                bar_layer = alt.layer(*layers).properties(
+                    width="container",
+                    height=alt.Step(50),  # row height
+                    padding={"left": 12, "right": 12, "top": 6, "bottom": 4},
                 )
 
-                # Assemble and size the chart at the LAYER level
-                fig = alt.layer(red, green, tool).properties(
-                    height=alt.Step(44),  # 2 rows (Firm + Peers). Adjust if you change font/spacing.
-                    width="container",
-                    padding={"left": 12, "right": 12, "top": 6, "bottom": 18},
+                # Bottom "axis" with sub-standard labels
+                labels_chart = (
+                    alt.Chart(labels_df)
+                    .mark_text(align="center", baseline="top", dy=2)
+                    .encode(
+                        x=alt.X("xmid:Q", scale=xscale, title=None, axis=None),
+                        text=alt.Text("Label:N"),
+                    )
+                    .properties(height=26)
                 )
+
+                fig = alt.vconcat(bar_layer, labels_chart).resolve_scale(x="shared")
 
                 st.altair_chart(fig, use_container_width=True)
                 st.caption(
                     f"{n_tiles} tiles = sub-standards in this ESRS group. "
-                    "Firm: green if reported, red if not. "
-                    "Peers: green proportion equals share of peers that reported."
+                    "Firm tiles: green = reported, red = not reported. "
+                    "Peers tiles: green fill equals % of peers that reported (value shown as text)."
                     + (note if n_peers > 0 else "")
                 )
 
