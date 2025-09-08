@@ -74,7 +74,7 @@ S_STANDARDS = ["S1", "S2", "S3", "S4"]
 G_STANDARDS = ["G1"]  # extend if you add more
 PALETTE_E = ["#0b7a28", "#188f31", "#20a73c", "#27be46", "#2fd551"]  # E1..E5 greens
 PALETTE_S = ["#8f1414", "#b51d1d", "#d23030", "#ea4b4b"]             # S1..S4 reds
-PALETTE_G = ["#f2c744"]                                             # G1 yellow
+PALETTE_G = ["#f2c744"]                                              # G1 yellow
 STD_ORDER = E_STANDARDS + S_STANDARDS + G_STANDARDS
 STD_COLOR = {
     **{s: c for s, c in zip(E_STANDARDS, PALETTE_E)},
@@ -415,7 +415,6 @@ if view == "Total":
     # ===== Global Tables or Charts =====
     if display_mode == "Tables":
         # Build a per-pillar summary table (unchanged behavior)
-        chart_rows = []
         summary_rows = []
         for pillar in ["E", "S", "G"]:
             pcols = pillar_columns(pillar, groups, by_pillar)
@@ -464,51 +463,68 @@ if view == "Total":
             # Firm count
             vals = current_row[metrics_in_group].astype(str).str.strip().str.lower()
             firm_yes = int(vals.isin(YES_SET).sum())
-            perstd_rows.append({"StdCode": std_code, "Standard": label, "Series": firm_series, "Value": float(firm_yes)})
+            perstd_rows.append({
+                "StdCode": std_code,
+                "StdOrder": float(STD_ORDER.index(std_code)),
+                "Standard": label,
+                "Series": firm_series,
+                "Value": float(firm_yes)
+            })
 
             # Peers mean expected count
-            peer_yes_mean = None
             if n_peers > 0:
                 present_cols = [m for m in metrics_in_group if m in peers.columns]
                 if present_cols:
                     peer_block = peers[present_cols].astype(str).applymap(lambda x: x.strip().lower() in YES_SET)
                     if len(peer_block) > 0:
                         peer_yes_mean = float(peer_block.sum(axis=1).mean())
-            if peer_yes_mean is not None and peers_series:
-                perstd_rows.append({"StdCode": std_code, "Standard": label, "Series": peers_series, "Value": float(peer_yes_mean)})
+                        if peers_series:
+                            perstd_rows.append({
+                                "StdCode": std_code,
+                                "StdOrder": float(STD_ORDER.index(std_code)),
+                                "Standard": label,
+                                "Series": peers_series,
+                                "Value": float(peer_yes_mean)
+                            })
 
         chart_df = pd.DataFrame(perstd_rows)
         if not chart_df.empty:
-            present_codes = [c for c in STD_ORDER if (chart_df["StdCode"] == c).any()]
-            color_domain = present_codes
-            color_range  = [STD_COLOR[c] for c in present_codes]
+            # FIXED legend domain so E/S/G families always appear
+            color_domain = STD_ORDER
+            color_range  = [STD_COLOR[c] for c in STD_ORDER]
+
+            legend_cfg = alt.Legend(
+                title="Standard",
+                orient="bottom",
+                direction="horizontal",
+                columns=6,        # tweak to fit width
+                symbolSize=120,
+                labelLimit=1000,
+            )
+
+            color_enc = alt.Color(
+                "StdCode:N",
+                scale=alt.Scale(domain=color_domain, range=color_range),
+                legend=legend_cfg,
+            )
 
             y_sort = [firm_series] + ([peers_series] if peers_series else [])
             base = alt.Chart(chart_df)
 
-            bars = (
-                base
-                .mark_bar()
-                .encode(
-                    y=alt.Y("Series:N", title="", sort=y_sort),
-                    x=alt.X("Value:Q", title="Number of Disclosure Requirements reported"),
-                    color=alt.Color(
-                        "StdCode:N",
-                        scale=alt.Scale(domain=color_domain, range=color_range),
-                        legend=alt.Legend(title="Standard"),
-                    ),
-                    order=alt.Order("StdCode:N", sort="ascending"),
-                    tooltip=[
-                        alt.Tooltip("Series:N", title="Series"),
-                        alt.Tooltip("Standard:N", title="Standard"),
-                        alt.Tooltip("Value:Q", title="# DR", format=".1f"),
-                    ],
-                )
+            bars = base.mark_bar().encode(
+                y=alt.Y("Series:N", title="", sort=y_sort),
+                x=alt.X("Value:Q", title="Number of Disclosure Requirements reported"),
+                color=color_enc,
+                order=alt.Order("StdOrder:Q", sort="ascending"),
+                tooltip=[
+                    alt.Tooltip("Series:N", title="Series"),
+                    alt.Tooltip("Standard:N", title="Standard"),
+                    alt.Tooltip("Value:Q", title="# DR", format=".1f"),
+                ],
             )
 
             totals = (
-                base
-                .transform_aggregate(total="sum(Value)", groupby=["Series"])
+                base.transform_aggregate(total="sum(Value)", groupby=["Series"])
                 .mark_text(align="left", baseline="middle", dx=4)
                 .encode(
                     y=alt.Y("Series:N", sort=y_sort),
@@ -517,17 +533,19 @@ if view == "Total":
                 )
             )
 
-            fig = alt.layer(bars, totals).properties(
-                height=120, width="container",
-                padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
-            ).configure_view(stroke=None)
-
+            fig = (
+                alt.layer(bars, totals)
+                .properties(height=120, width="container",
+                            padding={"left": 12, "right": 12, "top": 6, "bottom": 6})
+                .configure_view(stroke=None)
+            )
             st.altair_chart(fig, use_container_width=True)
 
         note = "Bars show total counts of reported Disclosure Requirements, stacked by standard (E1–E5, S1–S4, G1) with shaded colors."
         if n_peers > 0:
             note += peer_note
         st.caption(note)
+
 
 # ========= PILLAR DETAIL (Tables or compact Charts) =========
 def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
@@ -568,7 +586,13 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
             # firm yes count
             vals = current_row[metrics_in_group].astype(str).str.strip().str.lower()
             firm_yes = int(vals.isin(YES_SET).sum())
-            overview_rows.append({"StdCode": std_code, "Standard": std_label, "Series": firm_series_label, "Value": float(firm_yes)})
+            overview_rows.append({
+                "StdCode": std_code,
+                "StdOrder": float(STD_ORDER.index(std_code)) if std_code in STD_ORDER else 999.0,
+                "Standard": std_label,
+                "Series": firm_series_label,
+                "Value": float(firm_yes)
+            })
 
             # peers mean expected count
             if n_peers > 0:
@@ -578,16 +602,28 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     if len(peer_block) > 0:
                         peer_yes_mean = float(peer_block.sum(axis=1).mean())
                         if peers_series_label:
-                            overview_rows.append({"StdCode": std_code, "Standard": std_label, "Series": peers_series_label, "Value": float(peer_yes_mean)})
+                            overview_rows.append({
+                                "StdCode": std_code,
+                                "StdOrder": float(STD_ORDER.index(std_code)) if std_code in STD_ORDER else 999.0,
+                                "Standard": std_label,
+                                "Series": peers_series_label,
+                                "Value": float(peer_yes_mean)
+                            })
 
         if overview_rows:
             chart_df = pd.DataFrame(overview_rows)
-            present_codes = [c for c in STD_ORDER if (chart_df["StdCode"] == c).any()]
+
+            # Domain only for the standards present in this pillar, but ordered by STD_ORDER
+            present_codes = sorted(
+                chart_df["StdCode"].unique(),
+                key=lambda c: STD_ORDER.index(c) if c in STD_ORDER else 999
+            )
             color_domain = present_codes
-            color_range  = [STD_COLOR.get(c, "#999999") for c in present_codes]
+            color_range  = [STD_COLOR.get(c, "#999999") for c in color_domain]
 
             y_sort = [firm_series_label] + ([peers_series_label] if peers_series_label else [])
             base = alt.Chart(chart_df)
+
             # For G only, force integer ticks 0..N (N = total DRs in the G pillar)
             if pillar == "G":
                 xmax = len(pillar_columns(pillar, groups, by_pillar))  # total possible DR count in this pillar
@@ -598,35 +634,40 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     axis=alt.Axis(
                         values=list(range(0, xmax + 1)),  # 0,1,2,3,...
                         tickCount=xmax + 1,
-                        format="d"                        # integer labels
+                        format="d"
                     ),
                 )
             else:
                 x_enc = alt.X("Value:Q", title="Number of Disclosure Requirements reported")
-            
-            bars = (
-                base
-                .mark_bar()
-                .encode(
-                    y=alt.Y("Series:N", title="", sort=y_sort),
-                    x=x_enc,  # <- IMPORTANT: use the conditional x encoding
-                    color=alt.Color(
-                        "StdCode:N",
-                        scale=alt.Scale(domain=color_domain, range=color_range),
-                        legend=alt.Legend(title="Standard")
-                    ),
-                    order=alt.Order("StdCode:N", sort="ascending"),
-                    tooltip=[
-                        alt.Tooltip("Series:N", title="Series"),
-                        alt.Tooltip("Standard:N", title="Standard"),
-                        alt.Tooltip("Value:Q", title="# DR", format=".1f"),
-                    ],
-                )
+
+            legend_cfg = alt.Legend(
+                title="Standard",
+                orient="bottom",
+                direction="horizontal",
+                columns=6,
+                labelLimit=1000,
             )
-            
+
+            color_enc = alt.Color(
+                "StdCode:N",
+                scale=alt.Scale(domain=color_domain, range=color_range),
+                legend=legend_cfg,
+            )
+
+            bars = base.mark_bar().encode(
+                y=alt.Y("Series:N", title="", sort=y_sort),
+                x=x_enc,  # integer ticks for G
+                color=color_enc,
+                order=alt.Order("StdOrder:Q", sort="ascending"),
+                tooltip=[
+                    alt.Tooltip("Series:N", title="Series"),
+                    alt.Tooltip("Standard:N", title="Standard"),
+                    alt.Tooltip("Value:Q", title="# DR", format=".1f"),
+                ],
+            )
+
             totals = (
-                base
-                .transform_aggregate(total="sum(Value)", groupby=["Series"])
+                base.transform_aggregate(total="sum(Value)", groupby=["Series"])
                 .mark_text(align="left", baseline="middle", dx=4)
                 .encode(
                     y=alt.Y("Series:N", sort=y_sort),
@@ -634,25 +675,26 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     text=alt.Text("total:Q", format=".1f"),
                 )
             )
-            
-            fig = alt.layer(bars, totals).properties(
-                height=120, width="container",
-                padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
-            ).configure_view(stroke=None)
 
+            fig = (
+                alt.layer(bars, totals)
+                .properties(height=120, width="container",
+                            padding={"left": 12, "right": 12, "top": 6, "bottom": 6})
+                .configure_view(stroke=None)
+            )
             st.altair_chart(fig, use_container_width=True)
             st.caption(
-                "Two bars (Firm vs Peers). Segments are the standards in this pillar (E1–E5, S1–S4, G1) with shaded colors."
+                "Two bars (Firm vs Peers). Segments are the standards in this pillar with shaded colors."
                 + (note if n_peers > 0 else "")
             )
 
         st.markdown("---")
 
-    # ===== standards detail (E1/E2/...) as before =====
+    # ===== standards detail (E1/E2/...) tiles =====
     for g in pillar_groups:
         metrics = groups[g]
 
-        # ==== Aggregate counts for expander header ====
+        # Aggregate counts for expander header
         firm_yes_count = 0
         for m in metrics:
             v = str(current_row.get(m, "")).strip().lower()
@@ -699,7 +741,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     st.caption(f"Peers reported % = share of selected peers answering 'Yes'{note}")
 
             else:
-                # === CHART MODE: labeled tile bar per ESRS group (schema-safe, single layered chart) ===
+                # === CHART MODE: labeled tile bar per ESRS group ===
                 ok_color = "#16a34a"   # green
                 no_color = "#ef4444"   # red
 
@@ -824,7 +866,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                             # i.e., xa + (tile_width * share * 0.35). This keeps it inside green and away from red.
                             xtext="datum.xa + (datum.xb - datum.xa) * datum.share * 0.35"
                         )
-                        .mark_text(baseline="middle", fontSize=11, color="black")  # <-- fixed color
+                        .mark_text(baseline="middle", fontSize=11, color="black")  # fixed color
                         .encode(
                             y=y_enc,
                             x=alt.X("xtext:Q", scale=xscale),
