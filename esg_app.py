@@ -87,9 +87,10 @@ LEGEND_KW = dict(
     title="Standard",
     orient="bottom",
     direction="horizontal",
-    columns=5,       # wrap across rows on narrow screens
+    columns=3,        # 3 per row fits laptop widths better than 5
     labelFontSize=11,
-    symbolSize=120,
+    labelLimit=140,   # avoid over-truncating labels
+    symbolSize=110,
 )
 
 # add Sector as a first-class comparison
@@ -528,11 +529,16 @@ if view == "Total":
                 )
             )
 
-            fig = alt.layer(bars, totals).properties(
-                height=120, width="container",
-                padding={"left": 12, "right": 12, "top": 6, "bottom": 30},  # was 6
-            ).configure_view(stroke=None)
-
+            fig = (
+                alt.layer(bars, totals)
+                  .properties(
+                      height=130,
+                      width="container",
+                      autosize=alt.AutoSizeParams(type="fit", contains="padding"),
+                      padding={"left": 12, "right": 12, "top": 6, "bottom": 44}
+                  )
+                  .configure_view(stroke=None)
+            )
             st.altair_chart(fig, use_container_width=True)
 
         note = "Bars show total counts of reported Disclosure Requirements, stacked by standard (E1–E5, S1–S4, G1) with shaded colors."
