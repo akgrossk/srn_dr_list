@@ -705,7 +705,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
         if peers_yes_mean is not None:
             exp_title = (
                 f"{short_title} • {n_metrics} Disclosure Requirements — reported: "
-                f"{firm_yes_count}/{n_metrics} (peers {comp_label}: {peers_yes_mean:.1f}/{n_metrics})"
+                f"{firm_yes_count}/{n_metrics} (Peer {comp_label}: {peers_yes_mean:.1f}/{n_metrics})"
             )
         else:
             exp_title = f"{short_title} • {n_metrics} Disclosure Requirements — reported: {firm_yes_count}/{n_metrics}"
