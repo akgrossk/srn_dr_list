@@ -592,76 +592,144 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     st.caption(f"Peers reported % = share of selected peers answering 'Yes'{note}")
 
             else:
-                # ====== CHART MODE (compact x/n per ESRS group) — no overlap, readable labels ======
-                pillar_colors = {"E": "#008000", "S": "#ff0000", "G": "#ffa500"}
-                bar_color = pillar_colors.get(pillar, "#666666")
+                # === CHART MODE: facet-based "tile bar" per ESRS group ===
+                ok_color = "#16a34a"   # green
+                no_color = "#ef4444"   # red
             
-                rows = [
-                    {
-                        "Series": "Firm (this company)",
-                        "Value": float(firm_yes_count),
-                        "Total": n_metrics,
-                        "Label": f"{int(firm_yes_count)}/{n_metrics}",
-                    }
-                ]
-                peers_series_label = None
-                if peers_yes_mean is not None:
-                    peers_series_label = f"Peers mean ({comp_label})"
-                    rows.append({
-                        "Series": peers_series_label,
-                        "Value": float(peers_yes_mean),
-                        "Total": n_metrics,
-                        "Label": f"{peers_yes_mean:.1f}/{n_metrics}",
-                    })
+                present_cols = [m for m in metrics if m in df.columns]
+                n_tiles = len(present_cols)
+                if n_tiles == 0:
+                    st.info("No Disclosure Requirements found for this group.")
+                    return  # or continue, depending on your loop structure
             
-                chart_df = pd.DataFrame(rows)
-                xmax = n_metrics
-                x_ticks = list(range(0, xmax + 1))
-                series_order = ["Firm (this company)"] + ([peers_series_label] if peers_series_label else [])
+                def short_label(col: str) -> str:
+                    s = str(col).strip()
+                    return s.split(" ")[0] if " " in s else s  # e.g., "E1-1"
             
-                chart = (
-                    alt.Chart(chart_df)
-                    .mark_bar()
+                def is_yes(v) -> bool:
+                    try:
+                        return str(v).strip().lower() in YES_SET
+                    except Exception:
+                        return False
+            
+                # Build tidy rows: one record per (Series, Label) with share in [0..1]
+                rows = []
+                labels_in_order = []
+                for col in present_cols:
+                    lbl = short_label(col)
+                    labels_in_order.append(lbl)
+            
+                    # Firm: 1 if reported, else 0 (blanks treated as not reported)
+                    share_firm = 1.0 if is_yes(current_row.get(col, "")) else 0.0
+                    rows.append({"Series": "Firm (this company)", "Label": lbl, "share": float(share_firm)})
+            
+                    # Peers: fraction of peers reporting this sub-standard
+                    if comparison in ("Country", "Sector", "Industry", "Custom peers") and n_peers > 0:
+                        s = peers[col].astype(str).str.strip().str.lower()
+                        share_peers = float((s.isin(YES_SET)).mean())  # 0..1
+                        rows.append({
+                            "Series": ("Peers mean" + (f" ({comp_label})" if comp_label else "")),
+                            "Label": lbl,
+                            "share": share_peers
+                        })
+            
+                tile = pd.DataFrame(rows)
+            
+                # We use per-cell coordinates 0..1 to draw tiles; provide constants for the red base
+                tile["x0"] = 0.0
+                tile["x1"] = 1.0
+                tile["xg"] = tile["share"]  # end of green overlay
+            
+                # Sort orders
+                peers_label = f"Peers mean ({comp_label})" if (("Peers mean" in tile["Series"].iloc[-1]) and comp_label) else "Peers mean"
+                series_order = ["Firm (this company)"] + ([peers_label] if (tile["Series"] == peers_label).any() else [])
+            
+                base = alt.Chart(tile)
+            
+                # Red base: fills the cell
+                red = (
+                    base
+                    .mark_rect(stroke="white", strokeWidth=0.8)
                     .encode(
-                        y=alt.Y(
-                            "Series:N",
-                            title="",
-                            sort=series_order,
-                            scale=alt.Scale(paddingInner=0.25, paddingOuter=0.25),
-                            axis=None,  # ⟵ no text/ticks left of the bars
-                        ),
-                        x=alt.X(
-                            "Value:Q",
-                            title=f"Number of of Disclosure Requirements reported (0–{n_metrics})",
-                            scale=alt.Scale(domain=[0, xmax], nice=False, zero=True),
-                            axis=alt.Axis(values=x_ticks, tickCount=len(x_ticks), format="d"),
-                        ),
-                        color=alt.value(bar_color),
-                        opacity=alt.Opacity(
-                            "Series:N",
-                            scale=alt.Scale(domain=series_order, range=[1.0] if len(series_order) == 1 else [1.0, 0.6]),
-                            legend=alt.Legend(title="", orient="bottom", direction="horizontal"),
-                        ),
+                        x=alt.X("x0:Q", scale=alt.Scale(domain=[0, 1], nice=False, zero=True), axis=None),
+                        x2="x1:Q",
+                        color=alt.value(no_color),
                         tooltip=[
+                            alt.Tooltip("Label:N", title="Sub-standard"),
                             alt.Tooltip("Series:N", title="Series"),
-                            alt.Tooltip("Value:Q", title="Number of Disclosure Requirements", format=".1f"),
-                            alt.Tooltip("Total:Q", title="Total Disclosure Requirements"),
-                            alt.Tooltip("Label:N", title="Label"),
+                            alt.Tooltip("share:Q", title="% reported", format=".0%"),
                         ],
                     )
-                    .properties(
-                        height=alt.Step(42),
-                        width="container",
-                        padding={"left": 12, "right": 40, "top": 6, "bottom": 24},  # ⟵ was 180
-                    )
                 )
-
             
-                st.altair_chart(chart, use_container_width=True)
+                # Green overlay: partial width (share)
+                green = (
+                    base
+                    .mark_rect(stroke="white", strokeWidth=0.8)
+                    .encode(
+                        x="x0:Q",
+                        x2="xg:Q",
+                        color=alt.value(ok_color),
+                    )
+                    .transform_filter("datum.share > 0")
+                )
+            
+                # Peer % text centered in peer tiles (hide if tiny)
+                pct_text = (
+                    base
+                    .transform_filter(alt.FieldEqualPredicate(field="Series", equal=peers_label))
+                    .transform_filter("datum.share >= 0.12")  # avoid clutter on tiny fills
+                    .mark_text(baseline="middle", dx=0)
+                    .encode(
+                        x=alt.X("x1:Q", scale=alt.Scale(domain=[0, 1]), axis=None),  # center via 0.5 using expr
+                        text=alt.Text("share:Q", format=".0%"),
+                        color=alt.condition("datum.share >= 0.5", alt.value("white"), alt.value("black")),
+                    )
+                    .transform_calculate(x1="0.5")  # center text in tile
+                )
+            
+                # Combine layers as the cell spec (no top-level props here)
+                cell = red + green + pct_text
+            
+                # Facet into two rows (Firm / Peers) and N columns (sub-standards)
+                fig = cell.facet(
+                    row=alt.Row(
+                        "Series:N",
+                        sort=series_order,
+                        header=alt.Header(title=None, labelFontWeight="bold", labelPadding=6),
+                    ),
+                    column=alt.Column(
+                        "Label:N",
+                        sort=labels_in_order,
+                        header=alt.Header(
+                            title=None,
+                            labelOrient="bottom",
+                            labelAngle=0,
+                            labelPadding=6,
+                            labelLimit=0  # no truncation
+                        ),
+                    ),
+                    spacing=4,   # gutter between tiles / rows
+                ).properties(
+                    # Size of each tile cell
+                    width=28,    # px per tile
+                    height=44,   # px per row cell height
+                    bounds="flush",
+                ).configure_view(
+                    continuousWidth=28,
+                    stroke=None  # remove cell borders; the white strokes between tiles remain
+                )
+            
+                st.altair_chart(fig, use_container_width=True)
                 st.caption(
-                    "Bars show the count of Disclosure Requirements reported within this ESRS group; hover to see x/n."
+                    f"{n_tiles} tiles = sub-standards in this ESRS group. "
+                    "Firm tiles: green = reported, red = not reported. "
+                    "Peers tiles: green fill equals % of peers that reported (value shown as text)."
+                    + (f" (comparison: {comp_label})" if (peers_label in series_order) else "")
                     + (note if n_peers > 0 else "")
                 )
+
+
 
 # ========= Which pillar to render =========
 if view == "E":
