@@ -799,16 +799,21 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 # Peer % text centered in peer tiles (hide when tiny)
                 pct_text = None
                 if peers_label:
+                    # Peer % text: fixed color + left-shift into the green portion
                     pct_text = (
                         base
                         .transform_filter(alt.FieldEqualPredicate(field="Series", equal=peers_label))
-                        .transform_filter("datum.share >= 0.12")
-                        .mark_text(baseline="middle", fontSize=11)
+                        .transform_filter("datum.share >= 0.10")  # hide tiny percentages to avoid clutter
+                        .transform_calculate(
+                            # Put the label 35% into the green portion (from its left edge),
+                            # i.e., xa + (tile_width * share * 0.35). This keeps it inside green and away from red.
+                            xtext="datum.xa + (datum.xb - datum.xa) * datum.share * 0.35"
+                        )
+                        .mark_text(baseline="middle", fontSize=11, color="black")  # <-- fixed color
                         .encode(
                             y=y_enc,
-                            x=alt.X("xmid:Q", scale=xscale),
+                            x=alt.X("xtext:Q", scale=xscale),
                             text=alt.Text("share:Q", format=".0%"),
-                            color=alt.condition("datum.share >= 0.5", alt.value("white"), alt.value("black")),
                         )
                     )
 
