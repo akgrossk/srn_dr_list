@@ -474,31 +474,33 @@ if view == "Total":
             # We now stack E/S/G within each Series (Firm vs Peers)
             stacked = (
                 alt.Chart(chart_df)
+                .transform_calculate(
+                    # Explicit stack order: E=0, S=1, G=2
+                    PillarOrder="{'Environment': 0, 'Social': 1, 'Governance': 2}[datum.Pillar]"
+                )
                 .mark_bar()
                 .encode(
                     y=alt.Y("Series:N", title="", sort=[firm_series] + ([peers_series] if peers_series else [])),
                     x=alt.X("Value:Q", title="Number of Disclosure Requirements reported"),
                     color=alt.Color(
                         "Pillar:N",
-                        scale=alt.Scale(domain=list(base_colors.keys()), range=list(base_colors.values())),
-                        legend=alt.Legend(title="Pillar"),
+                        # Controls legend order & color mapping
+                        scale=alt.Scale(domain=["Environment", "Social", "Governance"],
+                                        range=[base_colors["Environment"], base_colors["Social"], base_colors["Governance"]]),
+                        legend=alt.Legend(title="Pillar")
                     ),
                     tooltip=[
                         alt.Tooltip("Series:N", title="Series"),
                         alt.Tooltip("Pillar:N", title="Pillar"),
                         alt.Tooltip("Value:Q", title="# DR", format=".1f"),
                     ],
-                    href="Link:N",  # clicking a stack segment still navigates to its pillar detail
-                    order=alt.Order(
-                        # Ensure consistent E, S, G stacking order
-                        "Pillar",
-                        sort="ascending"
-                    ),
+                    href="Link:N",
+                    # Controls stack order (left-to-right for horizontal bars)
+                    order=alt.Order("PillarOrder:Q", sort="ascending"),
                 )
                 .properties(height=120, width="container")
             )
         
-            # Optional: total labels at the end of each stacked bar
             totals = (
                 stacked
                 .transform_aggregate(total="sum(Value)", groupby=["Series"])
@@ -512,12 +514,7 @@ if view == "Total":
         
             st.altair_chart(stacked + totals, use_container_width=True)
         
-        note = "Bars show total counts of Disclosure Requirements, stacked by pillar."
-        if n_peers > 0:
-            note += peer_note
-        st.caption(note)
-
-        note = "Bars show absolute counts of Disclosure Requirements per pillar."
+        note = "Bars show total counts of Disclosure Requirements, stacked by pillar (E → S → G)."
         if n_peers > 0:
             note += peer_note
         st.caption(note)
