@@ -80,6 +80,7 @@ STD_COLOR = {
     **{s: c for s, c in zip(E_STANDARDS, PALETTE_E)},
     **{s: c for s, c in zip(S_STANDARDS, PALETTE_S)},
     **{s: c for s, c in zip(G_STANDARDS, PALETTE_G)},
+STD_RANK = {code: i for i, code in enumerate(STD_ORDER)}
 }
 
 # add Sector as a first-class comparison
@@ -500,7 +501,7 @@ if view == "Total":
                             perstd_rows.append({"StdCode": std_code, "Standard": label, "Series": peers_series, "Value": float(peer_yes_mean)})
 
         chart_df = pd.DataFrame(perstd_rows)
-
+        chart_df["StdRank"] = chart_df["StdCode"].map(STD_RANK)
         # header + inline legend (use only present standards when possible)
         if not chart_df.empty:
             present_codes = [c for c in STD_ORDER if (chart_df["StdCode"] == c).any()]
@@ -523,7 +524,7 @@ if view == "Total":
                     color=alt.Color("StdCode:N",
                                     scale=alt.Scale(domain=color_domain, range=color_range),
                                     legend=None),   # legend disabled (we render inline)
-                    order=alt.Order("StdCode:N", sort="ascending"),
+                    order=alt.Order("StdRank:Q"),
                     tooltip=[
                         alt.Tooltip("Series:N", title="Series"),
                         alt.Tooltip("Standard:N", title="Standard"),
