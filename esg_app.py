@@ -87,10 +87,9 @@ LEGEND_KW = dict(
     title="Standard",
     orient="bottom",
     direction="horizontal",
-    columns=3,        # 3 per row fits laptop widths better than 5
+    columns=5,       # wrap across rows on narrow screens
     labelFontSize=11,
-    labelLimit=140,   # avoid over-truncating labels
-    symbolSize=110,
+    symbolSize=120,
 )
 
 # add Sector as a first-class comparison
@@ -529,16 +528,11 @@ if view == "Total":
                 )
             )
 
-            fig = (
-                alt.layer(bars, totals)
-                  .properties(
-                      height=130,
-                      width="container",
-                      autosize=alt.AutoSizeParams(type="fit", contains="padding"),
-                      padding={"left": 12, "right": 12, "top": 6, "bottom": 44}
-                  )
-                  .configure_view(stroke=None)
-            )
+            fig = alt.layer(bars, totals).properties(
+                height=120, width="container",
+                padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
+            ).configure_view(stroke=None)
+
             st.altair_chart(fig, use_container_width=True)
 
         note = "Bars show total counts of reported Disclosure Requirements, stacked by standard (E1–E5, S1–S4, G1) with shaded colors."
@@ -630,9 +624,8 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     color=alt.Color(
                         "StdCode:N",
                         scale=alt.Scale(domain=color_domain, range=color_range),
-                        legend=alt.Legend(**LEGEND_KW),
+                        legend=alt.Legend(title="Standard")
                     ),
-
                     order=alt.Order("StdCode:N", sort="ascending"),
                     tooltip=[
                         alt.Tooltip("Series:N", title="Series"),
