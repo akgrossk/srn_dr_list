@@ -592,103 +592,74 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     st.caption(f"Peers reported % = share of selected peers answering 'Yes'{note}")
 
             else:
-                # ====== CHART MODE: per-standard stacked bars (sum to total DRs in the group) ======
-                # Categories: Yes / No / Blank (Blank = missing/NA/anything not in YES/NO sets)
-                cat_colors = {"Yes": "#16a34a", "No": "#ef4444", "Blank": "#9ca3af"}  # green/red/gray
-                present_cols = [m for m in metrics if m in df.columns]  # safety
-
-                # --- Firm counts ---
-                firm_vals = current_row[present_cols].astype(str).str.strip().str.lower()
-                firm_yes = int(firm_vals.isin(YES_SET).sum())
-                firm_no  = int(firm_vals.isin(NO_SET).sum())
-                firm_blank = len(present_cols) - firm_yes - firm_no
-
-                # --- Peers mean counts (expected counts across DRs for the avg peer) ---
-                peers_yes_mean = peers_no_mean = peers_blank_mean = None
-                if n_peers > 0 and present_cols:
-                    pv = peers[present_cols].astype(str).applymap(lambda x: x.strip().lower())
-                    # per-metric proportions across peers
-                    yes_p = pv.apply(lambda s: s.isin(YES_SET).mean(), axis=0)
-                    no_p  = pv.apply(lambda s: s.isin(NO_SET).mean(), axis=0)
-                    blank_p = 1 - yes_p - no_p
-                    peers_yes_mean   = float(yes_p.sum())   # expected # of "Yes" across metrics
-                    peers_no_mean    = float(no_p.sum())
-                    peers_blank_mean = float(blank_p.sum())
-
-                # Build stacked rows
+                # ====== CHART MODE (compact x/n per ESRS group) — no overlap, readable labels ======
+                pillar_colors = {"E": "#008000", "S": "#ff0000", "G": "#ffa500"}
+                bar_color = pillar_colors.get(pillar, "#666666")
+            
                 rows = [
-                    {"Series": "Firm (this company)", "Category": "Yes",   "Value": float(firm_yes),   "Total": len(present_cols)},
-                    {"Series": "Firm (this company)", "Category": "No",    "Value": float(firm_no),    "Total": len(present_cols)},
-                    {"Series": "Firm (this company)", "Category": "Blank", "Value": float(firm_blank), "Total": len(present_cols)},
+                    {
+                        "Series": "Firm (this company)",
+                        "Value": float(firm_yes_count),
+                        "Total": n_metrics,
+                        "Label": f"{int(firm_yes_count)}/{n_metrics}",
+                    }
                 ]
+                peers_series_label = None
                 if peers_yes_mean is not None:
-                    rows += [
-                        {"Series": "Peers mean" + (f" ({comp_label})" if comp_label else ""), "Category": "Yes",   "Value": peers_yes_mean,   "Total": len(present_cols)},
-                        {"Series": "Peers mean" + (f" ({comp_label})" if comp_label else ""), "Category": "No",    "Value": peers_no_mean,    "Total": len(present_cols)},
-                        {"Series": "Peers mean" + (f" ({comp_label})" if comp_label else ""), "Category": "Blank", "Value": peers_blank_mean, "Total": len(present_cols)},
-                    ]
-
+                    peers_series_label = f"Peers mean ({comp_label})"
+                    rows.append({
+                        "Series": peers_series_label,
+                        "Value": float(peers_yes_mean),
+                        "Total": n_metrics,
+                        "Label": f"{peers_yes_mean:.1f}/{n_metrics}",
+                    })
+            
                 chart_df = pd.DataFrame(rows)
-
-                # explicit stack order: Yes -> No -> Blank
+                xmax = n_metrics
+                x_ticks = list(range(0, xmax + 1))
+                series_order = ["Firm (this company)"] + ([peers_series_label] if peers_series_label else [])
+            
                 chart = (
                     alt.Chart(chart_df)
-                    .transform_calculate(
-                        CatOrder="{'Yes':0,'No':1,'Blank':2}[datum.Category]"
-                    )
                     .mark_bar()
                     .encode(
                         y=alt.Y(
                             "Series:N",
                             title="",
-                            sort=["Firm (this company)"] + ([f"Peers mean ({comp_label})"] if (n_peers > 0 and comp_label) else (["Peers mean"] if n_peers > 0 else [])),
-                            axis=None,
+                            sort=series_order,
+                            scale=alt.Scale(paddingInner=0.25, paddingOuter=0.25),
+                            axis=None,  # ⟵ no text/ticks left of the bars
                         ),
                         x=alt.X(
                             "Value:Q",
-                            title=f"Disclosure Requirements in group (0–{len(present_cols)})",
-                            scale=alt.Scale(domain=[0, len(present_cols)], nice=False, zero=True),
-                            axis=alt.Axis(values=list(range(0, len(present_cols)+1)), tickCount=len(present_cols)+1, format="d"),
+                            title=f"Number of of Disclosure Requirements reported (0–{n_metrics})",
+                            scale=alt.Scale(domain=[0, xmax], nice=False, zero=True),
+                            axis=alt.Axis(values=x_ticks, tickCount=len(x_ticks), format="d"),
                         ),
-                        color=alt.Color(
-                            "Category:N",
-                            scale=alt.Scale(
-                                domain=["Yes", "No", "Blank"],
-                                range=[cat_colors["Yes"], cat_colors["No"], cat_colors["Blank"]],
-                            ),
+                        color=alt.value(bar_color),
+                        opacity=alt.Opacity(
+                            "Series:N",
+                            scale=alt.Scale(domain=series_order, range=[1.0] if len(series_order) == 1 else [1.0, 0.6]),
                             legend=alt.Legend(title="", orient="bottom", direction="horizontal"),
                         ),
-                        order=alt.Order("CatOrder:Q", sort="ascending"),
                         tooltip=[
                             alt.Tooltip("Series:N", title="Series"),
-                            alt.Tooltip("Category:N", title="Response"),
-                            alt.Tooltip("Value:Q", title="# DR", format=".1f"),
-                            alt.Tooltip("Total:Q", title="Total DR in group"),
+                            alt.Tooltip("Value:Q", title="Number of Disclosure Requirements", format=".1f"),
+                            alt.Tooltip("Total:Q", title="Total Disclosure Requirements"),
+                            alt.Tooltip("Label:N", title="Label"),
                         ],
                     )
                     .properties(
                         height=alt.Step(42),
                         width="container",
-                        padding={"left": 12, "right": 40, "top": 6, "bottom": 24},
+                        padding={"left": 12, "right": 40, "top": 6, "bottom": 24},  # ⟵ was 180
                     )
                 )
 
-                # totals at bar end
-                totals = (
-                    alt.Chart(chart_df)
-                    .transform_aggregate(total="sum(Value)", groupby=["Series"])
-                    .mark_text(align="left", baseline="middle", dx=4)
-                    .encode(
-                        y="Series:N",
-                        x="total:Q",
-                        text=alt.Text("total:Q", format=".1f"),
-                    )
-                )
-
-                st.altair_chart(chart + totals, use_container_width=True)
+            
+                st.altair_chart(chart, use_container_width=True)
                 st.caption(
-                    "Stacked bars sum to the number of Disclosure Requirements in this ESRS group; "
-                    "segments show Yes / No / Blank. Peers use expected counts (mean across selected peers)."
+                    "Bars show the count of Disclosure Requirements reported within this ESRS group; hover to see x/n."
                     + (note if n_peers > 0 else "")
                 )
 
