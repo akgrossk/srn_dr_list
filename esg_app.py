@@ -588,7 +588,41 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
 
             y_sort = [firm_series_label] + ([peers_series_label] if peers_series_label else [])
             base = alt.Chart(chart_df)
-
+            # For G only, force integer ticks 0..N (N = total DRs in the G pillar)
+            if pillar == "G":
+                xmax = len(pillar_columns(pillar, groups, by_pillar))  # total DR count in this pillar
+                x_enc = alt.X(
+                    "Value:Q",
+                    title="Number of Disclosure Requirements reported",
+                    scale=alt.Scale(domain=[0, xmax], nice=False, zero=True),
+                    axis=alt.Axis(
+                        values=list(range(0, xmax + 1)),   # 0,1,2,3,...
+                        tickCount=xmax + 1,
+                        format="d"                         # integer labels
+                    ),
+                )
+            else:
+                x_enc = alt.X("Value:Q", title="Number of Disclosure Requirements reported")
+            
+            bars = (
+                base
+                .mark_bar()
+                .encode(
+                    y=alt.Y("Series:N", title="", sort=y_sort),
+                    x=x_enc,  # <-- use the conditional x encoding here
+                    color=alt.Color(
+                        "StdCode:N",
+                        scale=alt.Scale(domain=color_domain, range=color_range),
+                        legend=alt.Legend(title="Standard")
+                    ),
+                    order=alt.Order("StdCode:N", sort="ascending"),
+                    tooltip=[
+                        alt.Tooltip("Series:N", title="Series"),
+                        alt.Tooltip("Standard:N", title="Standard"),
+                        alt.Tooltip("Value:Q", title="# DR", format=".1f"),
+                    ],
+                )
+            )
             bars = (
                 base
                 .mark_bar()
