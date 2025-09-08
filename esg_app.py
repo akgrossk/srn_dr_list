@@ -584,7 +584,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
         st.markdown("### Overview")
 
         firm_series_label = "Firm"
-        peers_series_label = f"Peers mean ({comp_label})" if (n_peers > 0) else None
+        peers_series_label = f"Peer mean: {comp_label}" if (n_peers > 0) else None
 
         overview_rows = []
         for g in pillar_groups:
@@ -769,7 +769,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 # Peers tiles (if available)
                 peers_label = None
                 if n_peers > 0:
-                    peers_label = "Peers mean" + (f" ({comp_label})" if comp_label else "")
+                    peers_label = "Peer mean" + (f" ({comp_label})" if comp_label else "")
                     for i, col in enumerate(present_cols):
                         xa = i + tile_gap / 2.0
                         xb = i + 1 - tile_gap / 2.0
