@@ -504,6 +504,10 @@ if view == "Total":
                     x=alt.X("Value:Q", title="Number of Disclosure Requirements reported"),
                     color=alt.Color(
                         "StdCode:N",
+                        scale=alt.Scale(domain=STD_ORDER, range=[STD_COLOR[c] for c in STD_ORDER]),
+                        legend=alt.Legend(**LEGEND_KW),
+                    ),
+                        "StdCode:N",
                         scale=alt.Scale(domain=color_domain, range=color_range),
                         legend=alt.Legend(title="Standard"),
                     ),
