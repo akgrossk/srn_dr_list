@@ -247,6 +247,14 @@ def render_inline_legend(codes, colors):
     )
     st.markdown(f'<div class="legend-inline">{items}</div>', unsafe_allow_html=True)
 
+def render_section_header(title: str, codes):
+    left, right = st.columns([1, 3])
+    with left:
+        st.subheader(title)
+    with right:
+        render_inline_legend(codes, STD_COLOR)
+    # spacer so the chart starts on a full-width new row
+    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
 # ========= LOAD DATA (GitHub only) =========
 st.sidebar.title("🌱 Disclosure Requirements Viewer")
@@ -401,29 +409,9 @@ def link_for(pillar_key: str) -> str:
     return "?" + urlencode(qp)
 
 # ========= COMBINED (chart/table with counts) =========
-# Header row (legend next to the title)
-left, right = st.columns([1, 3])
-with left:
-    st.subheader("Total overview")
-with right:
-    present_codes = [c for c in STD_ORDER if 'chart_df' in locals() and (chart_df["StdCode"] == c).any()] or STD_ORDER
-    render_inline_legend(present_codes, STD_COLOR)
-
-# ⬇️ important: we're now OUTSIDE the column blocks
-# add a line break / spacer so the chart starts on a new full-width row
-st.markdown("<br>", unsafe_allow_html=True)
-# or: st.divider()  (if you’re ok with a horizontal line)
-# or: st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
-
-# Full-width chart
-fig = alt.layer(bars, totals).properties(
-    height=120, width="container",
-    padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
-).configure_view(stroke=None)
-
-st.altair_chart(fig, use_container_width=True)
-
-    
+# ========= COMBINED (chart/table with counts) =========
+if view == "Total":
+    # --- figure out peers ---
     comp_col = None
     comp_label = None
     peers = None
@@ -446,15 +434,12 @@ st.altair_chart(fig, use_container_width=True)
         comp_label = "custom"
         peers, n_peers, peer_note = build_custom_peers(df, label_col, selected_custom_peers, current_row)
     
-    # --- short legend labels (for Total chart) ---
     firm_series = "Firm"
     comp_label_short = (comp_label or "").replace(" mean", "") if comp_label else None
     peers_series = f"Peers avg ({comp_label_short})" if comp_label_short else None
 
-    # ===== Global Tables or Charts =====
     if display_mode == "Tables":
-        # Build a per-pillar summary table (unchanged behavior)
-        chart_rows = []
+        # === table summary per pillar ===
         summary_rows = []
         for pillar in ["E", "S", "G"]:
             pcols = pillar_columns(pillar, groups, by_pillar)
@@ -485,6 +470,7 @@ st.altair_chart(fig, use_container_width=True)
         else:
             if "Peers — mean number of Disclosure Requirements" in tbl.columns:
                 tbl = tbl.drop(columns=["Peers — mean number of Disclosure Requirements"])
+        st.subheader("Total overview")
         st.dataframe(tbl, use_container_width=True, hide_index=True)
         note = "Rows show the number of Disclosure Requirements per pillar."
         if n_peers > 0:
@@ -492,7 +478,7 @@ st.altair_chart(fig, use_container_width=True)
         st.caption(note)
 
     else:
-        # === TOTAL view: shaded by standard; colors ONLY here ===
+        # === stacked bars (counts by standard) ===
         perstd_rows = []
         for std_code in STD_ORDER:
             if std_code not in groups:
@@ -500,28 +486,31 @@ st.altair_chart(fig, use_container_width=True)
             metrics_in_group = groups[std_code]
             label = SHORT_ESRS_LABELS.get(std_code, std_code)
 
-            # Firm count
             vals = current_row[metrics_in_group].astype(str).str.strip().str.lower()
             firm_yes = int(vals.isin(YES_SET).sum())
             perstd_rows.append({"StdCode": std_code, "Standard": label, "Series": firm_series, "Value": float(firm_yes)})
 
-            # Peers mean expected count
-            peer_yes_mean = None
             if n_peers > 0:
                 present_cols = [m for m in metrics_in_group if m in peers.columns]
                 if present_cols:
                     peer_block = peers[present_cols].astype(str).applymap(lambda x: x.strip().lower() in YES_SET)
                     if len(peer_block) > 0:
                         peer_yes_mean = float(peer_block.sum(axis=1).mean())
-            if peer_yes_mean is not None and peers_series:
-                perstd_rows.append({"StdCode": std_code, "Standard": label, "Series": peers_series, "Value": float(peer_yes_mean)})
+                        if peers_series is not None:
+                            perstd_rows.append({"StdCode": std_code, "Standard": label, "Series": peers_series, "Value": float(peer_yes_mean)})
 
         chart_df = pd.DataFrame(perstd_rows)
+
+        # header + inline legend (use only present standards when possible)
         if not chart_df.empty:
             present_codes = [c for c in STD_ORDER if (chart_df["StdCode"] == c).any()]
-            color_domain = present_codes
-            color_range  = [STD_COLOR[c] for c in present_codes]
+        else:
+            present_codes = STD_ORDER
+        render_section_header("Total overview", present_codes)
 
+        if not chart_df.empty:
+            color_domain = present_codes
+            color_range  = [STD_COLOR[c] for c in color_domain]
             y_sort = [firm_series] + ([peers_series] if peers_series else [])
             base = alt.Chart(chart_df)
 
@@ -531,11 +520,9 @@ st.altair_chart(fig, use_container_width=True)
                 .encode(
                     y=alt.Y("Series:N", title="", sort=y_sort),
                     x=alt.X("Value:Q", title="Number of Disclosure Requirements reported"),
-                    color=alt.Color(
-                        "StdCode:N",
-                        scale=alt.Scale(domain=color_domain, range=color_range),
-                        legend=None,
-                    ),
+                    color=alt.Color("StdCode:N",
+                                    scale=alt.Scale(domain=color_domain, range=color_range),
+                                    legend=None),   # legend disabled (we render inline)
                     order=alt.Order("StdCode:N", sort="ascending"),
                     tooltip=[
                         alt.Tooltip("Series:N", title="Series"),
@@ -563,10 +550,11 @@ st.altair_chart(fig, use_container_width=True)
 
             st.altair_chart(fig, use_container_width=True)
 
-        note = "Bars show total counts of reported Disclosure Requirements, stacked by standard (E1–E5, S1–S4, G1) with shaded colors."
+        note = "Bars show total counts of reported Disclosure Requirements, stacked by standard (E1–E5, S1–S4, G1)."
         if n_peers > 0:
             note += peer_note
         st.caption(note)
+
 
 # ========= PILLAR DETAIL (Tables or compact Charts) =========
 def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
