@@ -872,9 +872,9 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
 
                 st.altair_chart(fig, use_container_width=True)
                 st.caption(
-                    f"{n_tiles} tiles = sub-standards in this ESRS group. "
-                    "Firm tiles: green = reported, red = not reported. "
-                    + (f"Peers tiles: green fill equals % of peers that reported (shown as %). " if peers_label else "")
+                    f"{n_tiles} Tiles = Disclosure Requirements within this ESRS standard. "
+                    "Tiles: green = reported, red = not reported. "
+                    + (f"Peer tiles: green fill equals % of peers that reported (shown as %). " if peers_label else "")
                     + (note if peers_label else "")
                 )
 
