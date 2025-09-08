@@ -436,7 +436,7 @@ if view == "Total":
     
     firm_series = "Firm"
     comp_label_short = (comp_label or "").replace(" mean", "") if comp_label else None
-    peers_series = f"Peers avg ({comp_label_short})" if comp_label_short else None
+    peers_series = f"Peer mean:{comp_label_short}" if comp_label_short else None
 
     if display_mode == "Tables":
         # === table summary per pillar ===
