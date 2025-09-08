@@ -623,7 +623,6 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     order=alt.Order("StdCode:N", sort="ascending"),
                     tooltip=[ ... ],
                 )
-)
             )
             
             totals = (
