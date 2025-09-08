@@ -669,7 +669,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
 
             st.altair_chart(fig, use_container_width=True)
             st.caption(
-                "Two bars (Firm vs Peers). Segments are the standards in this pillar (E1–E5, S1–S4, G1) with shaded colors."
+                "Bars show total counts of reported Disclosure Requirements within this pillar."
                 + (note if n_peers > 0 else "")
             )
 
