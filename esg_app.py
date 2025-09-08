@@ -80,11 +80,11 @@ STD_COLOR = {
     **{s: c for s, c in zip(E_STANDARDS, PALETTE_E)},
     **{s: c for s, c in zip(S_STANDARDS, PALETTE_S)},
     **{s: c for s, c in zip(G_STANDARDS, PALETTE_G)},
-STD_RANK = {code: i for i, code in enumerate(STD_ORDER)}
-STD_RANK = {}
-for i, code in enumerate(STD_ORDER):
-    STD_RANK[code] = i
 }
+
+# Force stack order to follow legend order E1..E5, S1..S4, G1
+STD_RANK = {code: i for i, code in enumerate(STD_ORDER)}
+
 
 # add Sector as a first-class comparison
 COMP_TO_PARAM = {
