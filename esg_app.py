@@ -229,6 +229,25 @@ def build_custom_peers(df, label_col, selected_labels, current_row):
     note = f" (custom peers, n={len(peers)})"
     return peers, len(peers), note
 
+def render_inline_legend(codes, colors):
+    items = "".join(
+        f'<span class="swatch" style="background:{colors[c]}"></span>'
+        f'<span class="lab">{c}</span>'
+        for c in codes
+    )
+    st.markdown(
+        """
+        <style>
+        .legend-inline{display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:center; margin-top:.35rem;}
+        .legend-inline .swatch{display:inline-block;width:12px;height:12px;border-radius:2px;margin-right:.35rem;}
+        .legend-inline .lab{font-size:0.9rem;}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown(f'<div class="legend-inline">{items}</div>', unsafe_allow_html=True)
+
+
 # ========= LOAD DATA (GitHub only) =========
 st.sidebar.title("🌱 Disclosure Requirements Viewer")
 df = load_table(DEFAULT_DATA_URL)
@@ -383,7 +402,13 @@ def link_for(pillar_key: str) -> str:
 
 # ========= COMBINED (chart/table with counts) =========
 if view == "Total":
+    left, right = st.columns([1,3])
+with left:
     st.subheader("Total overview")
+with right:
+    # show only standards present in the data to keep it compact
+    present_codes = [c for c in STD_ORDER if (c in chart_df["StdCode"].unique())] if 'chart_df' in locals() else STD_ORDER
+    render_inline_legend(present_codes, STD_COLOR)
     
     comp_col = None
     comp_label = None
@@ -495,7 +520,7 @@ if view == "Total":
                     color=alt.Color(
                         "StdCode:N",
                         scale=alt.Scale(domain=color_domain, range=color_range),
-                        legend=alt.Legend(title="Standard"),
+                        legend=None,
                     ),
                     order=alt.Order("StdCode:N", sort="ascending"),
                     tooltip=[
