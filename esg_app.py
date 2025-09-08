@@ -284,13 +284,21 @@ sub = " · ".join([t for t in [isin_txt, country_txt, sector_txt, industry_txt] 
 if sub:
     st.markdown(f"<div class='firm-meta'>{sub}</div>", unsafe_allow_html=True)
 
+link_sr = str(current_row.get("Link_SR", "")).strip()
 link_ar = str(current_row.get("Link_AR", "")).strip()
-if link_ar and link_ar.lower().startswith(("http://", "https://")):
+
+def _valid_url(u: str) -> bool:
+    return u.lower().startswith(("http://", "https://"))
+
+link_url = link_sr if _valid_url(link_sr) else (link_ar if _valid_url(link_ar) else "")
+
+if link_url:
     try:
-        st.link_button("Open firm report", link_ar)
+        # Keep the same label; it will open SR if present, else AR
+        st.link_button("Open firm report", link_url)
     except Exception:
         st.markdown(
-            f'<a href="{link_ar}" target="_blank" rel="noopener noreferrer">Open firm report ↗</a>',
+            f'<a href="{link_url}" target="_blank" rel="noopener noreferrer">Open firm report ↗</a>',
             unsafe_allow_html=True,
         )
 
