@@ -81,6 +81,9 @@ STD_COLOR = {
     **{s: c for s, c in zip(S_STANDARDS, PALETTE_S)},
     **{s: c for s, c in zip(G_STANDARDS, PALETTE_G)},
 STD_RANK = {code: i for i, code in enumerate(STD_ORDER)}
+STD_RANK = {}
+for i, code in enumerate(STD_ORDER):
+    STD_RANK[code] = i
 }
 
 # add Sector as a first-class comparison
@@ -501,7 +504,8 @@ if view == "Total":
                             perstd_rows.append({"StdCode": std_code, "Standard": label, "Series": peers_series, "Value": float(peer_yes_mean)})
 
         chart_df = pd.DataFrame(perstd_rows)
-        chart_df["StdRank"] = chart_df["StdCode"].map(STD_RANK)
+        chart_df["StdRank"] = chart_df["StdCode"].map(STD_RANK).fillna(9999)
+
         # header + inline legend (use only present standards when possible)
         if not chart_df.empty:
             present_codes = [c for c in STD_ORDER if (chart_df["StdCode"] == c).any()]
