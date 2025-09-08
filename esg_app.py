@@ -420,18 +420,18 @@ if view == "Total":
 
     if comparison == "Country" and country_col:
         comp_col = country_col
-        comp_label = "country mean"
+        comp_label = "Country mean"
         peers, n_peers, peer_note = build_peers(df, comp_col, current_row)
     elif comparison == "Sector" and sector_col:
         comp_col = sector_col
-        comp_label = "sector mean"
+        comp_label = "Sector mean"
         peers, n_peers, peer_note = build_peers(df, comp_col, current_row)
     elif comparison == "Industry" and industry_col:
         comp_col = industry_col
         comp_label = "industry mean"
         peers, n_peers, peer_note = build_peers(df, comp_col, current_row)
     elif comparison == "Custom peers":
-        comp_label = "custom"
+        comp_label = "Custom"
         peers, n_peers, peer_note = build_custom_peers(df, label_col, selected_custom_peers, current_row)
     
     firm_series = "Firm"
@@ -584,7 +584,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
         st.markdown("### Overview")
 
         firm_series_label = "Firm"
-        peers_series_label = f"Peer mean: {comp_label}" if (n_peers > 0) else None
+        peers_series_label = f"Mean: {comp_label}" if (n_peers > 0) else None
 
         overview_rows = []
         for g in pillar_groups:
