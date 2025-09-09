@@ -802,7 +802,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 # Peers tiles (if available)
                 peers_label = None
                 if n_peers > 0:
-                    peers_label = "Mean:" + (f" ({comp_label})" if comp_label else "")
+                    peers_label = "Peer mean" + (f" ({comp_label})" if comp_label else "")
                     for i, col in enumerate(present_cols):
                         xa = i + tile_gap / 2.0
                         xb = i + 1 - tile_gap / 2.0
