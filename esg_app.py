@@ -475,7 +475,7 @@ if view == "Total":
                 tbl = tbl.drop(columns=["Peers — mean number of Disclosure Requirements"])
         st.subheader("Total overview")
         st.dataframe(tbl, use_container_width=True, hide_index=True)
-        note = "Rows show the number of Disclosure Requirements per pillar."
+        note = "Rows show the number of reported Disclosure Requirements per pillar."
         if n_peers > 0:
             note += peer_note
         st.caption(note)
