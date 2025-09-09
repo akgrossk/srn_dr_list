@@ -462,8 +462,7 @@ if view == "Total":
             summary_rows.append({
                 "Pillar": PILLAR_LABEL[pillar],
                 "Firm — number of Disclosure Requirements": firm_yes,
-                "Peers — mean number of Disclosure Requirements": (round(peer_yes_mean, 1) if peer_yes_mean is not None else None),
-                "Total Disclosure Requirements": total_DR,
+                "Peers — mean number of Disclosure Requirements": (round(peer_yes_mean, 1) if peer_yes_mean is not None else None)
             })
         tbl = pd.DataFrame(summary_rows)
         if n_peers > 0:
