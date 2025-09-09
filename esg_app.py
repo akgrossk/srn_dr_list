@@ -583,10 +583,9 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
         comp_label = "custom"
         peers, n_peers, note = build_custom_peers(df, label_col, selected_custom_peers, current_row)
 
-    # === PILLAR OVERVIEW (shaded by standard; colors ONLY here) ===
+    # === PILLAR OVERVIEW ===
     if display_mode == "Charts":
         st.markdown("### Overview")
-
         firm_series_label = "Firm"
         peers_series_label = f"Mean: {comp_label}" if (n_peers > 0) else None
 
@@ -619,33 +618,28 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
 
             y_sort = [firm_series_label] + ([peers_series_label] if peers_series_label else [])
             base = alt.Chart(chart_df)
+
             # For G only, force integer ticks 0..N (N = total DRs in the G pillar)
             if pillar == "G":
-                xmax = len(pillar_columns(pillar, groups, by_pillar))  # total possible DR count in this pillar
+                xmax = len(pillar_columns(pillar, groups, by_pillar))
                 x_enc = alt.X(
                     "Value:Q",
                     title="Number of Disclosure Requirements reported",
                     scale=alt.Scale(domain=[0, xmax], nice=False, zero=True),
-                    axis=alt.Axis(
-                        values=list(range(0, xmax + 1)),  # 0,1,2,3,...
-                        tickCount=xmax + 1,
-                        format="d"                        # integer labels
-                    ),
+                    axis=alt.Axis(values=list(range(0, xmax + 1)), tickCount=xmax + 1, format="d"),
                 )
             else:
                 x_enc = alt.X("Value:Q", title="Number of Disclosure Requirements reported")
-            
+
             bars = (
                 base
                 .mark_bar()
                 .encode(
                     y=alt.Y("Series:N", title="", sort=y_sort),
-                    x=x_enc,  # <- IMPORTANT: use the conditional x encoding
-                    color=alt.Color(
-                        "StdCode:N",
-                        scale=alt.Scale(domain=color_domain, range=color_range),
-                         legend=alt.Legend(title="Standard")
-                    ),
+                    x=x_enc,
+                    color=alt.Color("StdCode:N",
+                                    scale=alt.Scale(domain=color_domain, range=color_range),
+                                    legend=alt.Legend(title="Standard")),
                     order=alt.Order("StdCode:N", sort="ascending"),
                     tooltip=[
                         alt.Tooltip("Series:N", title="Series"),
@@ -654,18 +648,14 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     ],
                 )
             )
-            
+
             totals = (
                 base
                 .transform_aggregate(total="sum(Value)", groupby=["Series"])
                 .mark_text(align="left", baseline="middle", dx=4)
-                .encode(
-                    y=alt.Y("Series:N", sort=y_sort),
-                    x="total:Q",
-                    text=alt.Text("total:Q", format=".1f"),
-                )
+                .encode(y=alt.Y("Series:N", sort=y_sort), x="total:Q", text=alt.Text("total:Q", format=".1f"))
             )
-            
+
             fig = alt.layer(bars, totals).properties(
                 height=120, width="container",
                 padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
@@ -678,6 +668,45 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
             )
 
         st.markdown("---")
+
+    else:
+        # NEW: Overview summary table for Tables mode
+        st.markdown("### Overview")
+        summary_rows = []
+        for g in pillar_groups:
+            metrics_in_group = groups[g]
+            std_code = g.split("-")[0]
+            std_label = SHORT_ESRS_LABELS.get(std_code, std_code)
+
+            # firm yes count in this standard
+            vals = current_row[metrics_in_group].astype(str).str.strip().str.lower()
+            firm_yes = int(vals.isin(YES_SET).sum())
+
+            # peers mean yes count for this standard
+            peer_yes_mean = None
+            if n_peers > 0:
+                present_cols = [m for m in metrics_in_group if m in peers.columns]
+                if present_cols:
+                    peer_block = peers[present_cols].astype(str).applymap(lambda x: x.strip().lower() in YES_SET)
+                    if len(peer_block) > 0:
+                        peer_yes_mean = float(peer_block.sum(axis=1).mean())
+
+            row = {
+                "Standard": std_label,
+                "Firm — number of Disclosure Requirements": firm_yes,
+            }
+            if peer_yes_mean is not None:
+                row[f"Peers — mean number of Disclosure Requirements ({comp_label})"] = round(peer_yes_mean, 1)
+            summary_rows.append(row)
+
+        if summary_rows:
+            tbl = pd.DataFrame(summary_rows)
+            st.dataframe(tbl, use_container_width=True, hide_index=True)
+            cap = "Rows show the number of reported Disclosure Requirements per ESRS standard in this pillar."
+            if n_peers > 0:
+                cap += note
+            st.caption(cap)
+            st.markdown("---")
 
     # ===== standards detail (E1/E2/...) as before =====
     for g in pillar_groups:
