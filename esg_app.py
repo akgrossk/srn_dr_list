@@ -607,6 +607,8 @@ if view == "Total":
             st.markdown("---")
 
     # ===== standards detail (E1/E2/...) =====
+    # Safety: ensure pillar_groups exists (avoids NameError if a prior edit broke scope)
+    pillar_groups = pillar_groups if 'pillar_groups' in locals() or 'pillar_groups' in globals() else []
     for g in pillar_groups:
         metrics = groups[g]
 
