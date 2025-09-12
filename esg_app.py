@@ -431,23 +431,41 @@ sub = " · ".join([t for t in [isin_txt, country_txt, sector_txt, industry_txt] 
 if sub:
     st.markdown(f"<div class='firm-meta'>{sub}</div>", unsafe_allow_html=True)
 
+# ====== REPORT BUTTON + AUDITOR POPOVER ======
 # Prefer Sustainability Report (Link_SR); fall back to Annual Report (Link_AR)
 link_sr = str(current_row.get("Link_SR", "")).strip()
 link_ar = str(current_row.get("Link_AR", "")).strip()
+
 def _valid_url(u: str) -> bool:
-    return u.lower().startswith(("http://", "https://"))
+    try:
+        return u.lower().startswith(("http://", "https://"))
+    except Exception:
+        return False
+
 link_url = link_sr if _valid_url(link_sr) else (link_ar if _valid_url(link_ar) else "")
 
-# --- NEW: figure out the auditor value (robust to column naming) ---
-auditor_val = "—"
-for _cand in ["auditor", "Auditor", "auditor_name", "AuditFirm", "audit_firm", "External auditor", "external_auditor"]:
-    if _cand in df.columns:
-        _v = str(current_row.get(_cand, "")).strip()
-        if _v:
-            auditor_val = _v
+# Detect the auditor column robustly (any col containing 'audit', case-insensitive)
+auditor_col = None
+for c in df.columns:
+    if isinstance(c, str) and re.search(r"audit", c, flags=re.I):
+        auditor_col = c
         break
 
-# --- Buttons row: Open report + Show auditor side-by-side ---
+def _cell_str(row, col) -> str:
+    """Return a clean string for a cell or empty if NaN/None."""
+    try:
+        v = row.get(col, "")
+    except Exception:
+        v = ""
+    if pd.isna(v):
+        return ""
+    s = str(v).strip()
+    # treat "nan" and empty-like strings as empty
+    return "" if s.lower() in {"", "nan", "none"} else s
+
+auditor_val = _cell_str(current_row, auditor_col) if auditor_col else ""
+
+# Buttons row: Open report + Show auditor
 btn_col1, btn_col2, _sp = st.columns([1, 1, 6])
 
 with btn_col1:
@@ -456,20 +474,31 @@ with btn_col1:
             st.link_button("Open firm report", link_url)
         except Exception:
             st.markdown(
-                f'<a class="st-emotion-cache-0" href="{link_url}" target="_blank" rel="noopener noreferrer">Open firm report ↗</a>',
+                f'<a href="{link_url}" target="_blank" rel="noopener noreferrer">Open firm report ↗</a>',
                 unsafe_allow_html=True,
             )
     else:
         st.caption("No report link available")
 
 with btn_col2:
+    label = "Show auditor"
     # Prefer a small popover; if not supported, fall back to a button + info box
     try:
-        with st.popover("Show auditor"):
-            st.markdown(f"**Auditor:** {auditor_val}")
+        with st.popover(label):
+            if auditor_col:
+                if auditor_val:
+                    st.markdown(f"**Auditor:** {auditor_val}")
+                else:
+                    st.markdown("**Auditor:** — (not provided for this firm)")
+            else:
+                st.markdown("**Auditor:** — (no auditor column found)")
     except Exception:
-        if st.button("Show auditor"):
-            st.info(f"Auditor: {auditor_val}")
+        if st.button(label):
+            if auditor_col:
+                st.info(f"Auditor: {auditor_val or '— (not provided for this firm)'}")
+            else:
+                st.info("Auditor: — (no auditor column found)")
+
 
 
 # ========= NAV & COMPARISON =========
