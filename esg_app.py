@@ -862,8 +862,10 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
 
             else:
                 # === CHART MODE: labeled tile bar per ESRS group (schema-safe, single layered chart) ===
-                ok_color = "#16a34a"   # green
-                no_color = "#ef4444"   # red
+                # new (primary blue + light blue)
+                ok_color = "#4200ff"   # primary
+                no_color = "#e6e1ff"   # light tint for “not reported”
+
 
                 present_cols = [m for m in metrics if m in df.columns]
                 n_tiles = len(present_cols)
