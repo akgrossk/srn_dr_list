@@ -933,6 +933,12 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 tile_df["xg"] = tile_df["xa"] + eff_w * tile_df["share"]  # end of green overlay per tile
 
                 series_order = ["Firm"] + ([peers_label] if peers_label else [])
+                tile_tooltip = [
+                    alt.Tooltip("Label:N", title="Code"),
+                    alt.Tooltip("Full:N",  title="Name"),
+                    alt.Tooltip("Series:N", title="Series"),
+                    alt.Tooltip("share:Q",  title="% reported", format=".0%"),
+                ]
 
                 # Build an x-axis that shows sub-standard labels at tile centers via labelExpr
                 tick_values = [i + 0.5 for i in range(n_tiles)]
@@ -981,30 +987,31 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                         x="xa:Q",
                         x2="xg:Q",
                         color=alt.value(ok_color),
+                        tooltip=tile_tooltip,     # ✅ add this line
                     )
                     .transform_filter("datum.share > 0")
                 )
 
+
                 # Peer % text centered in peer tiles (hide when tiny)
                 pct_text = None
                 if peers_label:
-                    # Peer % text: fixed color + left-shift into the green portion
                     pct_text = (
                         base
                         .transform_filter(alt.FieldEqualPredicate(field="Series", equal=peers_label))
-                        .transform_filter("datum.share >= 0.10")  # hide tiny percentages to avoid clutter
+                        .transform_filter("datum.share >= 0.10")
                         .transform_calculate(
-                            # Put the label 35% into the green portion (from its left edge),
-                            # i.e., xa + (tile_width * share * 0.35). This keeps it inside green and away from red.
                             xtext="datum.xa + (datum.xb - datum.xa) * datum.share * 0.35"
                         )
-                        .mark_text(baseline="middle", fontSize=11, color="black")  # <-- fixed color
+                        .mark_text(baseline="middle", fontSize=11)
                         .encode(
                             y=y_enc,
                             x=alt.X("xtext:Q", scale=xscale),
                             text=alt.Text("share:Q", format=".0%"),
+                            tooltip=tile_tooltip,   # ✅ add this line
                         )
                     )
+                
 
                 px_per_tile = 28  # adjust density
                 total_width = max(240, int(px_per_tile * n_tiles))
