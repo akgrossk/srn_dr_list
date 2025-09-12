@@ -253,7 +253,9 @@ PARAM_TO_COMP = {v: k for k, v in COMP_TO_PARAM.items()}
 firm_qp  = read_query_param("firm", None)
 comp_qp  = (read_query_param("comp", "none") or "none").lower()
 peers_qp = read_query_param("peers", "")
-mode_qp  = (read_query_param("mode", DEFAULT_MODE_PARAM) or DEFAULT_MODE_PARAM).lower()
+# Choose version-default display mode without relying on order of definitions
+_default_mode = "charts" if APP_VERSION in ("v1", "v3") else "tables"
+mode_qp  = (read_query_param("mode", _default_mode) or _default_mode).lower()
 preselected_peers = [p for p in peers_qp.split(",") if p] if peers_qp else []
 
 # ========= FIRM PICKER =========
