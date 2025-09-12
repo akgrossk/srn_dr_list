@@ -68,6 +68,108 @@ SHORT_ESRS_LABELS = {
     "G1": "G1 - Governance and business conduct",
 }
 
+def parse_label_block(text: str) -> dict:
+    labels = {}
+    for raw in text.strip().splitlines():
+        if not raw.strip():
+            continue
+        # Expect "CODE<TAB>Label"
+        parts = raw.split("\t", 1)
+        if len(parts) == 2:
+            code, name = parts
+            labels[code.strip()] = name.strip()
+    return labels
+
+DR_LABELS = parse_label_block(r"""
+E1-GOV-3	Disclosure requirement related to ESRS 2 GOV-3 Integration of sustainability-related performance in incentive schemes
+E1-1	Transition plan for climate change mitigation
+E1-SBM-3	Material impacts, risks and opportunities and their interaction with strategy and business model
+E1-IRO-1	Description of the processes to identify and assess material climate-related impacts, risks and opportunities
+E1-2	Policies related to climate change mitigation and adaptation
+E1-3	Actions and resources in relation to climate change policies
+E1-4	Targets related to climate change mitigation and adaptation
+E1-6	Gross Scopes 1, 2, 3 and Total GHG emissions
+E1-7	GHG removals and GHG mitigation projects financed through carbon credits
+E1-8	Internal carbon pricing
+E1-9	Anticipated financial effects from material physical and transition risks and potential climate-related opportunities
+E2-IRO-1	Description of the processes to identify and assess material pollution-related impacts, risks and opportunities
+E2-1	Policies related to pollution
+E2-2	Actions and resources related to pollution
+E2-3	Targets related to pollution
+E2-4	Pollution of air, water and soil
+E2-5	Substances of concern and substances of very high concern
+E2-6	Anticipated financial effects from pollution-related impacts, risks and opportunities
+E3-IRO-1	Description of the processes to identify and assess material water and marine resources-related impacts, risks and opportunities
+E3-1	Policies related to water and marine resources
+E3-2	Actions and resources related to water and marine resources
+E3-3	Targets related to water and marine resources
+E3-4	Water consumption
+E3-5	Anticipated financial effects from water and marine resources-related impacts, risks and opportunities
+E4-1	Transition plan and consideration of biodiversity and ecosystems in strategy and business model
+E4-SBM-3	Material impacts, risks and opportunities and their interaction with strategy and business model
+E4-IRO-1	Description of processes to identify and assess material biodiversity and ecosystem-related impacts, risks and opportunities
+E4-2	Policies related to biodiversity and ecosystems
+E4-3	Actions and resources related to biodiversity and ecosystems
+E4-4	Targets related to biodiversity and ecosystems
+E4-5	Impact metrics related to biodiversity and ecosystems change
+E4-6	Anticipated financial effects from biodiversity and ecosystem-related impacts, risks and opportunities
+E5-IRO-1	Description of the processes to identify and assess material resource use and circular economy-related impacts, risks and opportunities
+E5-1	Policies related to resource use and circular economy
+E5-2	Actions and resources related to resource use and circular economy
+E5-3	Targets related to resource use and circular economy
+E5-4	Resource inflows
+E5-5	Resource outflows
+E5-6	Anticipated financial effects from resource use and circular economy-related impacts, risks and opportunities
+S1-SBM-2	Interests and views of stakeholders
+S1-SBM-3	Material impacts, risks and opportunities and their interaction with strategy and business model
+S1-1	Policies related to own workforce
+S1-2	Processes for engaging with own workers and workers’ representatives about impacts
+S1-3	Processes to remediate negative impacts and channels for own workers to raise concerns
+S1-4	Taking action on material impacts on own workforce, and approaches to mitigating material risks and pursuing material opportunities related to own workforce, and effectiveness of those actions
+S1-5	Targets related to managing material negative impacts, advancing positive impacts, and managing material risks and opportunities
+S1-6	Characteristics of the undertaking’s employees
+S1-7	Characteristics of non-employee workers in the undertaking’s own workforce
+S1-8	Collective bargaining coverage and social dialogue
+S1-9	Diversity metrics
+S1-10	Adequate wages
+S1-11	Social protection
+S1-12	Persons with disabilities
+S1-13	Training and skills development metrics
+S1-14	Health and safety metrics
+S1-15	Work-life balance metrics
+S1-16	Compensation metrics (pay gap and total compensation)
+S1-17	Incidents, complaints and severe human rights impacts
+S2-SBM-2	Interests and views of stakeholders
+S2-SBM-3	Material impacts, risks and opportunities and their interaction with strategy and business model
+S2-1	Policies related to value chain workers
+S2-2	Processes for engaging with value chain workers about impacts
+S2-3	Processes to remediate negative impacts and channels for value chain workers to raise concerns
+S2-4	Taking action on material impacts on value chain workers, and approaches to mitigating material risks and pursuing material opportunities related to value chain workers, and effectiveness of those actions
+S2-5	Targets related to managing material negative impacts, advancing positive impacts, and managing material risks and opportunities
+S3-SBM-2	Interests and views of stakeholders
+S3-SBM-3	Material impacts, risks and opportunities and their interaction with strategy and business model
+S3-1	Policies related to affected communities
+S3-2	Processes for engaging with affected communities about impacts
+S3-3	Processes to remediate negative impacts and channels for affected communities to raise concerns
+S3-4	Taking action on material impacts on affected communities, and approaches to mitigating material risks and pursuing material opportunities related to affected communities, and effectiveness of those actions
+S3-5	Targets related to managing material negative impacts, advancing positive impacts, and managing material risks and opportunities
+S4-SBM-2	Interests and views of stakeholders
+S4-SBM-3	Material impacts, risks and opportunities and their interaction with strategy and business model
+S4-1	Policies related to consumers and end-users
+S4-2	Processes for engaging with consumers and end-users about impacts
+S4-3	Processes to remediate negative impacts and channels for consumers and end-users to raise concerns
+S4-4	Taking action on material impacts on consumers and end-users, and approaches to mitigating material risks and pursuing material opportunities related to consumers and end-users, and effectiveness of those actions
+S4-5	Targets related to managing material negative impacts, advancing positive impacts, and managing material risks and opportunities
+G1-IRO-1	Description of the processes to identify and assess material impacts, risks and opportunities
+G1-GOV-1	The role of the administrative, supervisory and management bodies
+G1-1	Corporate culture and business conduct policies
+G1-2	Management of relationships with suppliers
+G1-3	Prevention and detection of corruption or bribery
+G1-4	Confirmed incidents of corruption or bribery
+G1-5	Political influence and lobbying activities
+""")
+
+
 # === Overview palettes (used ONLY in the overview charts) ===
 E_STANDARDS = ["E1", "E2", "E3", "E4", "E5"]
 S_STANDARDS = ["S1", "S2", "S3", "S4"]
@@ -781,6 +883,9 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
 
                 labels = [short_label(c) for c in present_cols]
 
+                def full_name(code: str) -> str:
+                    return DR_LABELS.get(code, "")
+
                 # tile geometry: we draw quantitative x with [0..n_tiles], each tile ~1 wide minus a gutter
                 tile_gap = 0.10
                 eff_w = 1.0 - tile_gap
@@ -794,7 +899,8 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     share = 1.0 if is_yes(current_row.get(col, "")) else 0.0
                     rows.append({
                         "Series": "Firm",
-                        "Label": labels[i],
+                        "Label": code,              # short (e.g., E1-1)
+                        "Full": full_name(code),    # long hover label
                         "i": i, "xa": float(xa), "xb": float(xb),
                         "xmid": float(xmid), "share": float(share)
                     })
@@ -811,7 +917,8 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                         share = float((s.isin(YES_SET)).mean())
                         rows.append({
                             "Series": peers_label,
-                            "Label": labels[i],
+                            "Label": code,               # short
+                            "Full": full_name(code),     # long
                             "i": i, "xa": float(xa), "xb": float(xb),
                             "xmid": float(xmid), "share": float(share)
                         })
@@ -851,9 +958,10 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                         x2="xb:Q",
                         color=alt.value(no_color),
                         tooltip=[
-                            alt.Tooltip("Label:N", title="Sub-standard"),
+                            alt.Tooltip("Label:N", title="Code"),
+                            alt.Tooltip("Full:N",  title="Name"),
                             alt.Tooltip("Series:N", title="Series"),
-                            alt.Tooltip("share:Q", title="% reported", format=".0%"),
+                            alt.Tooltip("share:Q",  title="% reported", format=".0%"),
                         ],
                     )
                 )
