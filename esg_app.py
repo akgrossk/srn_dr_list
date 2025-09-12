@@ -469,10 +469,16 @@ with btn_col1:
 with btn_col2:
     try:
         with st.popover("Show auditor"):
-            st.markdown(f"**Auditor:** {auditor_val or '—'}")
+            if aud_col:
+                st.markdown(f"**Auditor:** {auditor_val or '— (blank for this firm)'}")
+            else:
+                st.markdown("**Auditor:** — (column 'auditor' not found)")
     except Exception:
         if st.button("Show auditor"):
-            st.info(f"Auditor: {auditor_val or '—'}")
+            if aud_col:
+                st.info(f"Auditor: {auditor_val or '— (blank for this firm)'}")
+            else:
+                st.info("Auditor: — (column 'auditor' not found)")
 
 
 # ========= NAV & COMPARISON =========
