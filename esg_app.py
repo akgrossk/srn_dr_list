@@ -388,7 +388,6 @@ LANDING_MD = """
 
 Each **ESRS** is organized into **Disclosure Requirements (DR)** — for example, **DR E1-6** on GHG emissions — which specify the datapoints to be disclosed (e.g., **ESRS 1.44 (a): Gross Scope 1 GHG emissions**).
 
-Use the **sidebar** to choose a firm and explore its reporting across E, S, and G pillars. You can also switch between **Charts** and **Tables**, and compare against **Country**, **Sector**, **Industry**, or a **Custom** peer set.
 """
 
 # ========= FIRM PICKER =========
@@ -419,9 +418,11 @@ elif firm_id_col:
         firm_label = st.sidebar.selectbox("Firm (ID)", options, index=idx)
         if firm_label == "— Select firm —":
             st.markdown(LANDING_MD)
+            st.info("Select a firm from the sidebar to view details.")
             st.stop()
     if not firm_label:
         st.markdown(LANDING_MD)
+        st.info("Select a firm from the sidebar to view details.")
         st.stop()
     current_row = df[df[firm_id_col].astype(str) == str(firm_label)].iloc[0]
 else:
