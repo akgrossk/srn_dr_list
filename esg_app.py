@@ -1005,7 +1005,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                         .transform_calculate(
                             xtext="datum.xa + (datum.xb - datum.xa) * datum.share * 0.35"
                         )
-                        .mark_text(baseline="middle", fontSize=11)
+                        .mark_text(baseline="middle", fontSize=11, color="white")
                         .encode(
                             y=y_enc,
                             x=alt.X("xtext:Q", scale=xscale),
