@@ -382,6 +382,15 @@ peers_qp = read_query_param("peers", "")
 mode_qp  = (read_query_param("mode", "charts") or "charts").lower()
 preselected_peers = [p for p in peers_qp.split(",") if p] if peers_qp else []
 
+# --- Landing page content (shown before a firm is selected) ---
+LANDING_MD = """
+### Welcome
+
+Each **ESRS** is organized into **Disclosure Requirements (DR)** — for example, **DR E1-6** on GHG emissions — which specify the datapoints to be disclosed (e.g., **ESRS 1.44 (a): Gross Scope 1 GHG emissions**).
+
+Use the **sidebar** to choose a firm and explore its reporting across E, S, and G pillars. You can also switch between **Charts** and **Tables**, and compare against **Country**, **Sector**, **Industry**, or a **Custom** peer set.
+"""
+
 # ========= FIRM PICKER =========
 if firm_name_col:
     firms = df[firm_name_col].dropna().astype(str).unique().tolist()
@@ -395,7 +404,7 @@ if firm_name_col:
         if firm_label == "— Select firm —":
             st.stop()
     if not firm_label:
-        st.info("Select a firm from the sidebar to view details.")
+        st.markdown(LANDING_MD)
         st.stop()
     current_row = df[df[firm_name_col].astype(str) == str(firm_label)].iloc[0]
 elif firm_id_col:
@@ -408,9 +417,10 @@ elif firm_id_col:
         idx = 0 if firm_qp is None else (options.index(firm_qp) if firm_qp in options else 0)
         firm_label = st.sidebar.selectbox("Firm (ID)", options, index=idx)
         if firm_label == "— Select firm —":
+            st.markdown(LANDING_MD)
             st.stop()
     if not firm_label:
-        st.info("Select a firm from the sidebar to view details.")
+        st.markdown(LANDING_MD)
         st.stop()
     current_row = df[df[firm_id_col].astype(str) == str(firm_label)].iloc[0]
 else:
