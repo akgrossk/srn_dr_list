@@ -437,14 +437,40 @@ link_ar = str(current_row.get("Link_AR", "")).strip()
 def _valid_url(u: str) -> bool:
     return u.lower().startswith(("http://", "https://"))
 link_url = link_sr if _valid_url(link_sr) else (link_ar if _valid_url(link_ar) else "")
-if link_url:
+
+# --- NEW: figure out the auditor value (robust to column naming) ---
+auditor_val = "—"
+for _cand in ["auditor", "Auditor", "auditor_name", "AuditFirm", "audit_firm", "External auditor", "external_auditor"]:
+    if _cand in df.columns:
+        _v = str(current_row.get(_cand, "")).strip()
+        if _v:
+            auditor_val = _v
+        break
+
+# --- Buttons row: Open report + Show auditor side-by-side ---
+btn_col1, btn_col2, _sp = st.columns([1, 1, 6])
+
+with btn_col1:
+    if link_url:
+        try:
+            st.link_button("Open firm report", link_url)
+        except Exception:
+            st.markdown(
+                f'<a class="st-emotion-cache-0" href="{link_url}" target="_blank" rel="noopener noreferrer">Open firm report ↗</a>',
+                unsafe_allow_html=True,
+            )
+    else:
+        st.caption("No report link available")
+
+with btn_col2:
+    # Prefer a small popover; if not supported, fall back to a button + info box
     try:
-        st.link_button("Open firm report", link_url)
+        with st.popover("Show auditor"):
+            st.markdown(f"**Auditor:** {auditor_val}")
     except Exception:
-        st.markdown(
-            f'<a href="{link_url}" target="_blank" rel="noopener noreferrer">Open firm report ↗</a>',
-            unsafe_allow_html=True,
-        )
+        if st.button("Show auditor"):
+            st.info(f"Auditor: {auditor_val}")
+
 
 # ========= NAV & COMPARISON =========
 valid_views = ["Total", "E", "S", "G"]
