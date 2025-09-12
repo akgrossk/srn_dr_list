@@ -483,6 +483,54 @@ if comparison == "Custom peers" and label_col:
         st.sidebar.warning("Using only the first 4 selected peers.")
         selected_custom_peers = selected_custom_peers[:4]
 
+# --- SIDEBAR: peer firm list toggle -----------------------------------------
+# Build the same peer set the charts use, based on current comparison mode
+_peers_df, _n_peers, _peer_note = (None, 0, "")
+
+if comparison == "Country" and country_col:
+    _peers_df, _n_peers, _peer_note = build_peers(df, country_col, current_row)
+elif comparison == "Sector" and sector_col:
+    _peers_df, _n_peers, _peer_note = build_peers(df, sector_col, current_row)
+elif comparison == "Industry" and industry_col:
+    _peers_df, _n_peers, _peer_note = build_peers(df, industry_col, current_row)
+elif comparison == "Custom peers":
+    _peers_df, _n_peers, _peer_note = build_custom_peers(
+        df, label_col, selected_custom_peers, current_row
+    )
+
+show_peer_list = st.sidebar.checkbox("Show peer firm list", value=False)
+
+if show_peer_list:
+    if _n_peers == 0 or _peers_df is None or _peers_df.empty:
+        st.sidebar.info("No peers to display for the current selection.")
+    else:
+        # Decide which columns to show and give them clear headers
+        _name_col = label_col  # prefer firm name if available; else ID
+        _cols = []
+        _ren = {}
+        for src, dst in [
+            (_name_col, "Name"),
+            (country_col, "Country"),
+            (sector_col, "Sector"),
+            (industry_col, "Industry"),
+        ]:
+            if src and src in _peers_df.columns:
+                _cols.append(src)
+                _ren[src] = dst
+
+        _view = _peers_df[_cols].rename(columns=_ren).copy()
+
+        st.sidebar.caption(
+            f"Peers shown: {len(_view)}{_peer_note}"
+        )
+        st.sidebar.dataframe(
+            _view,
+            use_container_width=True,
+            hide_index=True,
+            height=300,
+        )
+
+
 # === ONE GLOBAL DISPLAY MODE TOGGLE (applies to Combined + Pillars) ===
 mode_options = ["Charts", "Tables"]
 mode_default_index = 0 if mode_qp == "charts" else 1
