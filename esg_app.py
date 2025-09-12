@@ -445,11 +445,11 @@ def _valid_url(u: str) -> bool:
 link_url = link_sr if _valid_url(link_sr) else (link_ar if _valid_url(link_ar) else "")
 
 # Read auditor value from the current row (column is exactly 'auditor')
+aud_col = "auditor"
 auditor_val = ""
-if "auditor" in df.columns:
-    v = current_row.get("auditor", "")
-    if not pd.isna(v):
-        auditor_val = str(v).strip()
+if aud_col in df.columns:
+    v = current_row.get(aud_col, "")
+    auditor_val = "" if (pd.isna(v)) else str(v).strip()
 
 # Buttons row: Open report + Show auditor side-by-side
 btn_col1, btn_col2, _sp = st.columns([1, 1, 6])
@@ -469,18 +469,10 @@ with btn_col1:
 with btn_col2:
     try:
         with st.popover("Show auditor"):
-            if aud_col:
-                st.markdown(f"**Auditor:** {auditor_val or '— (blank for this firm)'}")
-            else:
-                st.markdown("**Auditor:** — (column 'auditor' not found)")
+            st.markdown(f"**Auditor:** {auditor_val}")
     except Exception:
         if st.button("Show auditor"):
-            if aud_col:
-                st.info(f"Auditor: {auditor_val or '— (blank for this firm)'}")
-            else:
-                st.info("Auditor: — (column 'auditor' not found)")
-
-
+            st.info(f"Auditor: {auditor_val}")
 # ========= NAV & COMPARISON =========
 valid_views = ["Total", "E", "S", "G"]
 current_view = read_query_param("view", "Total")
