@@ -444,28 +444,14 @@ def _valid_url(u: str) -> bool:
 
 link_url = link_sr if _valid_url(link_sr) else (link_ar if _valid_url(link_ar) else "")
 
-# Detect the auditor column robustly (any col containing 'audit', case-insensitive)
-auditor_col = None
-for c in df.columns:
-    if isinstance(c, str) and re.search(r"audit", c, flags=re.I):
-        auditor_col = c
-        break
+# Read auditor value from the current row (column is exactly 'auditor')
+auditor_val = ""
+if "auditor" in df.columns:
+    v = current_row.get("auditor", "")
+    if not pd.isna(v):
+        auditor_val = str(v).strip()
 
-def _cell_str(row, col) -> str:
-    """Return a clean string for a cell or empty if NaN/None."""
-    try:
-        v = row.get(col, "")
-    except Exception:
-        v = ""
-    if pd.isna(v):
-        return ""
-    s = str(v).strip()
-    # treat "nan" and empty-like strings as empty
-    return "" if s.lower() in {"", "nan", "none"} else s
-
-auditor_val = _cell_str(current_row, auditor_col) if auditor_col else ""
-
-# Buttons row: Open report + Show auditor
+# Buttons row: Open report + Show auditor side-by-side
 btn_col1, btn_col2, _sp = st.columns([1, 1, 6])
 
 with btn_col1:
@@ -481,24 +467,12 @@ with btn_col1:
         st.caption("No report link available")
 
 with btn_col2:
-    label = "Show auditor"
-    # Prefer a small popover; if not supported, fall back to a button + info box
     try:
-        with st.popover(label):
-            if auditor_col:
-                if auditor_val:
-                    st.markdown(f"**Auditor:** {auditor_val}")
-                else:
-                    st.markdown("**Auditor:** — (not provided for this firm)")
-            else:
-                st.markdown("**Auditor:** — (no auditor column found)")
+        with st.popover("Show auditor"):
+            st.markdown(f"**Auditor:** {auditor_val or '—'}")
     except Exception:
-        if st.button(label):
-            if auditor_col:
-                st.info(f"Auditor: {auditor_val or '— (not provided for this firm)'}")
-            else:
-                st.info("Auditor: — (no auditor column found)")
-
+        if st.button("Show auditor"):
+            st.info(f"Auditor: {auditor_val or '—'}")
 
 
 # ========= NAV & COMPARISON =========
