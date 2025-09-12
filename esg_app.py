@@ -875,6 +875,10 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     s = str(col).strip()
                     return s.split(" ")[0] if " " in s else s  # e.g., "E1-1"
 
+                def full_name(code: str) -> str:
+                    return DR_LABELS.get(code, "")
+
+
                 def is_yes(v) -> bool:
                     try:
                         return str(v).strip().lower() in YES_SET
@@ -893,6 +897,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 rows = []
                 # Firm tiles
                 for i, col in enumerate(present_cols):
+                    code = short_label(col) 
                     xa = i + tile_gap / 2.0
                     xb = i + 1 - tile_gap / 2.0
                     xmid = (xa + xb) / 2.0
@@ -910,6 +915,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 if n_peers > 0:
                     peers_label = "Mean:" + f" {comp_label}" if comp_label else ""
                     for i, col in enumerate(present_cols):
+                        code = short_label(col) 
                         xa = i + tile_gap / 2.0
                         xb = i + 1 - tile_gap / 2.0
                         xmid = (xa + xb) / 2.0
