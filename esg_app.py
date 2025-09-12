@@ -971,7 +971,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                         color=alt.value(no_color),
                         tooltip=[
                             alt.Tooltip("Label:N", title="Code"),
-                            alt.Tooltip("Full:N",  title="Name"),
+                            alt.Tooltip("Full:N",  title="Content"),
                             alt.Tooltip("Series:N", title="Series"),
                             alt.Tooltip("share:Q",  title="% reported", format=".0%"),
                         ],
