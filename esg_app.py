@@ -386,7 +386,7 @@ preselected_peers = [p for p in peers_qp.split(",") if p] if peers_qp else []
 LANDING_MD = """
 ### Welcome
 
-Each **ESRS** is organized into **Disclosure Requirements (DR)** — for example, **DR E1-6** on GHG emissions — which specify the datapoints to be disclosed (e.g., **ESRS 1.44 (a): Gross Scope 1 GHG emissions**).
+This dashboard shows the Disclosure Requirements, which firms report in their ESRS reports. Each **ESRS** is organized into **Disclosure Requirements (DR)** — for example, **DR E1-6** on GHG emissions — which specify the datapoints to be disclosed (e.g., **ESRS 1.44 (a): Gross Scope 1 GHG emissions**).
 
 """
 
