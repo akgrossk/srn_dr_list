@@ -436,12 +436,10 @@ MISSING_COLOR = {
 }
 
 
-# --- Subtle diagonal hatch for *_MISS overlays ---
-MISSING_STRIPE_STEP   = 1.6    # gap between stripes along x (bigger = fewer stripes)
-MISSING_STRIPE_WIDTH  = 0.8    # stripe thickness in px (smaller = thinner)
-MISSING_STRIPE_COLOR  = "#ffffff"  # stripe color (use rgba(...) to add transparency)
-MISSING_STRIPE_SLOPE  = 7.0    # px of vertical rise per 1.0 x-unit (controls angle)
-# tip: larger slope => steeper stripes (closer to vertical)
+# --- Subtle vertical hatch for *_MISS overlays (safe across Altair versions) ---
+MISSING_STRIPE_STEP   = 2.0     # distance between stripes along x (bigger = fewer stripes)
+MISSING_STRIPE_WIDTH  = 0.25    # stripe thickness in x units (smaller = thinner)
+MISSING_STRIPE_COLOR  = "#ffffff"  # stripe color; use 'rgba(255,255,255,0.6)' for softer look
 
 
 def pillar_color(p: str) -> str:
@@ -526,6 +524,24 @@ def render_pillar_legend_with_missing(stds_in_pillar, colors, pillar):
         unsafe_allow_html=True,
     )
     st.markdown(f'<div class="legend-inline">{items}</div>', unsafe_allow_html=True)
+
+def _make_vertical_stripes(df_band, x0_col="x0", x1_col="x1",
+                           step=MISSING_STRIPE_STEP, stripe_width=MISSING_STRIPE_WIDTH):
+    """
+    Build small vertical stripe rectangles covering [x0, x1] for each row (one 'Series' band).
+    Returns rows with columns: Series, xa, xb.
+    """
+    out = []
+    for _, r in df_band.iterrows():
+        x0, x1 = float(r[x0_col]), float(r[x1_col])
+        sname = r["Series"]
+        x = x0
+        while x < x1:
+            xa = x
+            xb = min(x + stripe_width, x1)
+            out.append({"Series": sname, "xa": xa, "xb": xb})
+            x += step
+    return pd.DataFrame(out)
 
 
 # ========= LOAD DATA (GitHub only) =========
@@ -1048,13 +1064,15 @@ if view == "Total":
             # OPAQUE base rectangles (no transparency)
             rects = (
                 alt.Chart(seg)
-                  .mark_rect(stroke="#000", strokeWidth=1, strokeJoin="miter")
+                  .mark_rect(stroke="#000", strokeWidth=1, strokeJoin="miter")  # crisp separators
                   .encode(
                       y=alt.Y("Series:N", title="", sort=y_sort),
-                      x=alt.X("x0:Q", title="Number of Disclosure Requirements reported", axis=alt.Axis(grid=True)),
+                      x=alt.X("x0:Q", title="Number of Disclosure Requirements reported",
+                              axis=alt.Axis(grid=True)),
                       x2="x1:Q",
-                      color=alt.Color("StdCode:N", scale=alt.Scale(domain=color_domain, range=color_range), legend=None),
-                      order=alt.Order("StdRank:Q"),
+                      color=alt.Color("StdCode_or_Cat:N", scale=alt.Scale(domain=color_domain, range=color_range),
+                                      legend=None),
+                      order=alt.Order("StdRank_or_CatRank:Q"),
                       tooltip=[
                           alt.Tooltip("Series:N",   title="Series"),
                           alt.Tooltip("Standard:N", title="Segment"),
@@ -1065,53 +1083,31 @@ if view == "Total":
         
 
             # HATCH overlay only for missing (v2/v3); v1 stays solid
-            layers = [rects]
+            layers = [rects]  # rects = the opaque stacked bars with a black outline
+            
             if VARIANT in ("v2", "v3"):
                 miss_only = seg[seg["StdCode"].isin(MISSING_CODES)].copy()
-            
-                def _make_diag_stripes(d, step=MISSING_STRIPE_STEP):
-                    rows = []
-                    for _, r in d.iterrows():
-                        x0, x1 = float(r["x0"]), float(r["x1"])
-                        x = x0
-                        while x < x1:
-                            # diagonal tiny segment from (x, y+yo) to (x+dx, y+yo2)
-                            dx = 0.35  # short segment length along x; small keeps a crisp angle
-                            xa = x
-                            xb = min(x + dx, x1)
-                            # choose offsets so line slants upwards across the band
-                            yo  = -10    # px offset from band center for start
-                            yo2 = yo + (xb - xa) * MISSING_STRIPE_SLOPE
-                            rows.append({"Series": r["Series"], "xa": xa, "xb": xb, "yo": yo, "yo2": yo2})
-                            x += step
-                    return pd.DataFrame(rows)
-            
-                stripes_df = _make_diag_stripes(miss_only)
+                stripes_df = _make_vertical_stripes(miss_only)
                 if not stripes_df.empty:
                     stripes = (
                         alt.Chart(stripes_df)
-                          .mark_rule()
+                          .mark_rect()  # little vertical slivers
                           .encode(
-                              y=alt.Y("Series:N", title="", sort=y_sort),           # band category
-                              x=alt.X("xa:Q"),                                      # line start (x)
-                              x2="xb:Q",                                            # line end (x)
-                              yOffset="yo:Q",                                       # start offset (px)
-                              y2Offset="yo2:Q",                                     # end offset (px)
-                              stroke=alt.value(MISSING_STRIPE_COLOR),
-                              strokeWidth=alt.value(MISSING_STRIPE_WIDTH),
+                              y=alt.Y("Series:N", title="", sort=y_sort),
+                              x=alt.X("xa:Q"),
+                              x2="xb:Q",
+                              color=alt.value(MISSING_STRIPE_COLOR),
                           )
                     )
                     layers.append(stripes)
-
-
-        
-            fig = alt.layer(*layers).properties(
-                height=120, width="container",
-                padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
-            ).configure_view(stroke=None)
-        
+            
+            fig = alt.layer(*layers) \
+                .properties(height=120, width="container",
+                            padding={"left": 12, "right": 12, "top": 6, "bottom": 6}) \
+                .configure_view(stroke=None)
+            
             st.altair_chart(fig, use_container_width=True)
-        
+
             note = "Bars show total counts of reported Disclosure Requirements, stacked by standard (E1–E5, S1–S4, G1)."
             if n_peers > 0:
                 note += peer_note
@@ -1297,59 +1293,31 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 )
 
                 
-                # angled hatch only for *_MISS categories
+                layers = [rects]  # your base opaque bars with outline
+                
+                # add stripes to *_MISS only
                 miss_only = seg[seg["Cat"].str.endswith("_MISS")].copy()
-                
-                def _make_diag_stripes_pillar(d, step=MISSING_STRIPE_STEP):
-                    rows = []
-                    for _, r in d.iterrows():
-                        x0, x1 = float(r["x0"]), float(r["x1"])
-                        x = x0
-                        while x < x1:
-                            dx = 0.35
-                            xa = x
-                            xb = min(x + dx, x1)
-                            yo  = -10
-                            yo2 = yo + (xb - xa) * MISSING_STRIPE_SLOPE
-                            rows.append({"Series": r["Series"], "xa": xa, "xb": xb, "yo": yo, "yo2": yo2})
-                            x += step
-                    return pd.DataFrame(rows)
-                
-                layers = [rects]
-                stripes_df = _make_diag_stripes_pillar(miss_only)
+                stripes_df = _make_vertical_stripes(miss_only)
                 if not stripes_df.empty:
                     stripes = (
                         alt.Chart(stripes_df)
-                          .mark_rule()
+                          .mark_rect()
                           .encode(
                               y=alt.Y("Series:N", title="", sort=y_sort),
-                              x=alt.X("xa:Q"), x2="xb:Q",
-                              yOffset="yo:Q", y2Offset="yo2:Q",
-                              stroke=alt.value(MISSING_STRIPE_COLOR),
-                              strokeWidth=alt.value(MISSING_STRIPE_WIDTH),
+                              x=alt.X("xa:Q"),
+                              x2="xb:Q",
+                              color=alt.value(MISSING_STRIPE_COLOR),
                           )
                     )
                     layers.append(stripes)
-
-
-                # totals text at row end
-                totals = (
-                    alt.Chart(seg.groupby("Series", as_index=False)["x1"].max())
-                      .mark_text(align="left", baseline="middle", dx=4)
-                      .encode(
-                          y=alt.Y("Series:N", sort=y_sort),
-                          x=alt.X("x1:Q"),
-                          text=alt.Text("x1:Q", format=".1f"),
-                      )
-                )
-                layers.append(totals)
-
-                fig = alt.layer(*layers).properties(
-                    height=120, width="container",
-                    padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
-                ).configure_view(stroke=None)
-
+                
+                fig = alt.layer(*layers) \
+                    .properties(height=120, width="container",
+                                padding={"left": 12, "right": 12, "top": 6, "bottom": 6}) \
+                    .configure_view(stroke=None)
+                
                 st.altair_chart(fig, use_container_width=True)
+
 
             fixed_total = sum(STD_TOTAL_OVERRIDES.get(s, 0) for s in stds_in_pillar)
             st.caption(
