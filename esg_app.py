@@ -226,17 +226,9 @@ STD_COLOR = {
 # Color themes for standards by variant:
 STD_COLOR_V1 = STD_COLOR  # your current palette
 
-STD_COLOR_V2 = {
-    **{s: c for s, c in zip(E_STANDARDS, ["#005f73", "#0a9396", "#94d2bd", "#e9d8a6", "#ee9b00"])},
-    **{s: c for s, c in zip(S_STANDARDS, ["#9b2226", "#ae2012", "#bb3e03", "#ca6702"])},
-    **{s: "#5a189a" for s in G_STANDARDS},  # deep purple for G
-}
+STD_COLOR_V2 = STD_COLOR {
 
-STD_COLOR_V3 = {
-    **{s: c for s, c in zip(E_STANDARDS, ["#2b9348", "#55a630", "#80b918", "#aacc00", "#bfd200"])},
-    **{s: c for s, c in zip(S_STANDARDS, ["#ef476f", "#f78c6b", "#ffd166", "#95d5b2"])},
-    **{s: "#577590" for s in G_STANDARDS},  # slate
-}
+STD_COLOR_V3 = STD_COLOR 
 
 if VARIANT == "v2":
     STD_COLOR = STD_COLOR_V2
