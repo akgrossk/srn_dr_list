@@ -10,6 +10,58 @@ from io import BytesIO
 import requests
 from urllib.parse import urlencode
 
+# ========= VARIANT / TREATMENT ARMS =========
+VARIANT_KEYS = ["v1", "v2", "v3"]  # treatment arms
+DEFAULT_VARIANT = None             # None => randomize when URL lacks ?v=
+
+def read_query_param_multi(key: str, default=None):
+    try:
+        v = st.query_params.get(key, default)
+        if isinstance(v, list):
+            return v
+        return [v] if v is not None else []
+    except Exception:
+        qp = st.experimental_get_query_params()
+        return qp.get(key, [default]) if key in qp else ([default] if default is not None else [])
+
+def get_variant():
+    # 1) respect ?v= in URL if present (case-insensitive)
+    v = (read_query_param("v", "") or "").lower()
+    if v in VARIANT_KEYS:
+        st.session_state["variant"] = v
+        return v
+
+    # 2) respect previously chosen session variant
+    if "variant" in st.session_state and st.session_state["variant"] in VARIANT_KEYS:
+        v = st.session_state["variant"]
+    else:
+        # 3) default: random assignment (unless DEFAULT_VARIANT is set)
+        v = DEFAULT_VARIANT or np.random.choice(VARIANT_KEYS)
+        st.session_state["variant"] = v
+
+    # write it back to the URL so it persists/shareable
+    try:
+        st.query_params.update({"v": v})
+    except Exception:
+        cur = st.experimental_get_query_params()
+        cur["v"] = v
+        st.experimental_set_query_params(**cur)
+    return v
+
+# Optional: enable a dev override when ?dev=1 (or via st.secrets)
+DEV_MODE = False
+dev_qp = (read_query_param("dev", "") or "").strip()
+if dev_qp in ("1", "true", "yes"):
+    DEV_MODE = True
+try:
+    if st.secrets.get("DEV_MODE"):
+        DEV_MODE = True
+except Exception:
+    pass
+
+VARIANT = get_variant()
+
+
 st.set_page_config(page_title="Disclosure Requirements Viewer", page_icon="🌱", layout="wide")
 st.markdown(
     """
@@ -183,6 +235,39 @@ STD_COLOR = {
     **{s: c for s, c in zip(S_STANDARDS, PALETTE_S)},
     **{s: c for s, c in zip(G_STANDARDS, PALETTE_G)},
 }
+
+# ========= VARIANT-SPECIFIC LOOKS =========
+# You can make each arm feel different: colors, chart marks, table options, etc.
+
+# Color themes for standards by variant:
+STD_COLOR_V1 = STD_COLOR  # your current palette
+
+STD_COLOR_V2 = {
+    **{s: c for s, c in zip(E_STANDARDS, ["#005f73", "#0a9396", "#94d2bd", "#e9d8a6", "#ee9b00"])},
+    **{s: c for s, c in zip(S_STANDARDS, ["#9b2226", "#ae2012", "#bb3e03", "#ca6702"])},
+    **{s: "#5a189a" for s in G_STANDARDS},  # deep purple for G
+}
+
+STD_COLOR_V3 = {
+    **{s: c for s, c in zip(E_STANDARDS, ["#2b9348", "#55a630", "#80b918", "#aacc00", "#bfd200"])},
+    **{s: c for s, c in zip(S_STANDARDS, ["#ef476f", "#f78c6b", "#ffd166", "#95d5b2"])},
+    **{s: "#577590" for s in G_STANDARDS},  # slate
+}
+
+if VARIANT == "v2":
+    STD_COLOR = STD_COLOR_V2
+elif VARIANT == "v3":
+    STD_COLOR = STD_COLOR_V3
+# else keep v1 defaults
+
+# Tile colors (for the per-DR “green/red” tiles)
+if VARIANT == "v1":
+    TILE_OK = "#4200ff"; TILE_NO = "#d6ccff"
+elif VARIANT == "v2":
+    TILE_OK = "#00897b"; TILE_NO = "#e0f2f1"
+else:  # v3
+    TILE_OK = "#2b9348"; TILE_NO = "#ffe5ec"
+
 
 # Force stack order to follow legend order E1..E5, S1..S4, G1
 STD_RANK = {code: i for i, code in enumerate(STD_ORDER)}
@@ -364,6 +449,23 @@ def render_section_header(title: str, codes):
 
 # ========= LOAD DATA (GitHub only) =========
 st.sidebar.title("🌱 Disclosure Requirements Viewer")
+
+# Dev/testing: force a variant from the sidebar when DEV_MODE is on
+if DEV_MODE:
+    forced = st.sidebar.selectbox("Dev: force variant", VARIANT_KEYS, index=VARIANT_KEYS.index(VARIANT))
+    if forced != VARIANT:
+        VARIANT = forced
+        st.session_state["variant"] = forced
+        # persist in URL
+        try:
+            st.query_params.update({"v": forced})
+        except Exception:
+            cur = st.experimental_get_query_params()
+            cur["v"] = forced
+            st.experimental_set_query_params(**cur)
+
+st.sidebar.caption(f"Variant: **{VARIANT.upper()}**")
+
 df = load_table(DEFAULT_DATA_URL)
 if df.empty:
     st.stop()
@@ -585,6 +687,7 @@ params = {
     "firm": str(firm_label),
     "comp": COMP_TO_PARAM.get(comparison, "none"),
     "mode": "charts" if display_mode == "Charts" else "tables",
+    "v": VARIANT,  # keep variant shareable
 }
 if COMP_TO_PARAM.get(comparison) == "custom" and selected_custom_peers:
     params["peers"] = ",".join(selected_custom_peers)
@@ -950,8 +1053,9 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
             else:
                 # === CHART MODE: labeled tile bar per ESRS group (schema-safe, single layered chart) ===
                 # new (primary blue + light blue)
-                ok_color = "#4200ff"   # primary
-                no_color = "#d6ccff"   # light tint for “not reported”
+                ok_color = TILE_OK
+                no_color = TILE_NO
+
 
 
                 present_cols = [m for m in metrics if m in df.columns]
