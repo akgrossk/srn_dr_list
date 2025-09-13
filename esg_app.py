@@ -1004,7 +1004,7 @@ if view == "Total":
             fig = alt.layer(
                 layer_base,
                 layer_rep,
-                layer_diag,              # <<< use this instead of layer_stripes
+                layer_diag,              
                 layer_missing_tooltip
             ).properties(
                 height=120, width="container",
@@ -1012,7 +1012,7 @@ if view == "Total":
             ).configure_view(stroke=None)
 
 
-            fig = alt.layer(layer_base, layer_rep, layer_stripes, layer_missing_tooltip).properties(
+            fig = alt.layer(layer_base, layer_rep, layer_diag, layer_missing_tooltip).properties(
                 height=120, width="container",
                 padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
             ).configure_view(stroke=None)
