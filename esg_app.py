@@ -1053,7 +1053,7 @@ if view == "Total":
             # base opaque rectangles — no transparency, so gridlines don't show through
             rects = (
                 alt.Chart(seg)
-                  .mark_rect(stroke="#000", strokeWidth=1, strokeJoin="miter")
+                  .mark_rect(stroke="#000", strokeWidth=0.5, strokeJoin="miter")
                   .encode(
                       y=alt.Y("Series:N", title="", sort=y_sort),
                       x=alt.X("x0:Q", title="Number of Disclosure Requirements reported", axis=alt.Axis(grid=True)),
