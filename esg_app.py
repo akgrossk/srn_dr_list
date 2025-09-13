@@ -728,10 +728,11 @@ if view == "Total":
     elif comparison == "Custom peers":
         comp_label = "Custom"
         peers, n_peers, peer_note = build_custom_peers(df, label_col, selected_custom_peers, current_row)
-    
+
     firm_series = "Firm"
     comp_label_short = (comp_label or "").replace(" mean", "") if comp_label else None
-    peers_series = f"Mean: {comp_label_short}" if comp_label_short else None
+    # only define a peers series if we actually have peers
+    peers_series = f"Mean: {comp_label_short}" if (comp_label_short and n_peers > 0 and (peers is not None) and (not peers.empty)) else None
 
 
     if display_mode == "Tables":
@@ -925,22 +926,22 @@ if view == "Total":
                 firm_reported[sc] = float((vals.isin(YES_SET)).sum())
             add_series_rows("Firm", firm_reported)
         
-            # --- peers series (optional)
-            if peers_series and (peers is not None):
+            # Peers mean per standard, if any
+            if peers_series and (peers is not None) and (n_peers > 0) and (not peers.empty):
                 peer_reported = {}
                 for sc in present_codes:
                     cols = [m for m in groups[sc] if m in peers.columns]
                     if cols:
                         pb = peers[cols].astype(str).applymap(lambda x: x.strip().lower() in YES_SET)
-                        peer_reported[sc] = float(pb.sum(axis=1).mean())
+                        peer_reported[sc] = float(pb.sum(axis=1).mean()) if len(pb) > 0 else 0.0
                     else:
                         peer_reported[sc] = 0.0
                 add_series_rows(peers_series, peer_reported)
+
         
             # --- DataFrames
             base_df   = pd.DataFrame(base_rows)
             rep_df    = pd.DataFrame(rep_rows)
-            stripes_df = pd.DataFrame(stripes_rows)
             miss_pillar_df = pd.DataFrame(miss_pillar_rows)
         
             # header + legends
