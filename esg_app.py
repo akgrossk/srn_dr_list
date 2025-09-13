@@ -1058,77 +1058,91 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 rows.append({"Cat": f"{std_code}_MISS",  "StdBase": std_code, "Label": f"{label} — {hatch_word}", "Series": peers_series, "Value": peer_miss})
     
         if rows:
-            cdf = pd.DataFrame(rows)
-    
-            # Order: E1, E1_MISS, E2, E2_MISS, ...
-            cat_order = []
-            for s in stds_in_pillar:
-                cat_order.extend([s, f"{s}_MISS"])
-    
-            # Colors: reported and missing use the same base color; we show missing via hatch (strokeDash) + lower opacity
-            domain = [c for c in cat_order if (cdf["Cat"] == c).any()]
-            rng    = []
-            for c in domain:
-                base = c.replace("_MISS", "")
-                rng.append(STD_COLOR.get(base, "#999"))
-    
-            missing_cats = [f"{s}_MISS" for s in stds_in_pillar]
-            is_missing = alt.FieldOneOfPredicate(field="Cat", oneOf=missing_cats)
-    
-            y_sort = [firm_series] + ([peers_series] if peers_series else [])
-            base = alt.Chart(cdf)
-    
-            bars = (
-                base
-                .mark_bar()
-                .encode(
-                    y=alt.Y("Series:N", title="", sort=y_sort),
-                    x=alt.X("Value:Q", title="Number of Disclosure Requirements"),
-                    color=alt.Color("Cat:N", scale=alt.Scale(domain=domain, range=rng), legend=None),
-                    order=alt.Order(
-                        # custom order so each _MISS follows its standard
-                        field="Cat", type="ordinal", sort=cat_order
-                    ),
-                    opacity=alt.condition(is_missing, alt.value(0.35), alt.value(1.0)),
-                    stroke=alt.condition(is_missing, alt.Color("Cat:N", scale=alt.Scale(domain=domain, range=rng)), alt.value(None)),
-                    strokeDash=alt.condition(is_missing, alt.value([5, 3]), alt.value([0, 0])),
-                    strokeWidth=alt.condition(is_missing, alt.value(2), alt.value(0)),
-                    tooltip=[
-                        alt.Tooltip("Series:N", title="Series"),
-                        alt.Tooltip("Label:N",  title="Segment"),
-                        alt.Tooltip("Value:Q",  title="# DR", format=".1f"),
-                    ],
-                )
+            
+    if rows:
+        cdf = pd.DataFrame(rows)
+
+        # Order: E1, E1_MISS, E2, E2_MISS, ...
+        if pillar == "E":
+            stds_in_pillar = E_STANDARDS
+        elif pillar == "S":
+            stds_in_pillar = S_STANDARDS
+        else:
+            stds_in_pillar = G_STANDARDS
+
+        cat_order = []
+        for s in stds_in_pillar:
+            cat_order.extend([s, f"{s}_MISS"])
+
+        # Create a numeric rank and use that for the order channel ✅
+        rank_map = {c: i for i, c in enumerate(cat_order)}
+        cdf["CatRank"] = cdf["Cat"].map(rank_map).astype(int)
+
+        # Colors: reported & missing use same base color; hatch indicates missing
+        domain = [c for c in cat_order if (cdf["Cat"] == c).any()]
+        rng    = [STD_COLOR.get(c.replace("_MISS", ""), "#999") for c in domain]
+
+        missing_cats = [f"{s}_MISS" for s in stds_in_pillar]
+        is_missing = alt.FieldOneOfPredicate(field="Cat", oneOf=missing_cats)
+
+        y_sort = [firm_series] + ([peers_series] if peers_series else [])
+
+        base = alt.Chart(cdf)
+
+        bars = (
+            base
+            .mark_bar()
+            .encode(
+                y=alt.Y("Series:N", title="", sort=y_sort),
+                x=alt.X("Value:Q", title="Number of Disclosure Requirements"),
+                color=alt.Color("Cat:N",
+                                scale=alt.Scale(domain=domain, range=rng),
+                                legend=None),
+                order=alt.Order("CatRank:Q"),  # ✅ numeric order
+                opacity=alt.condition(is_missing, alt.value(0.35), alt.value(1.0)),
+                stroke=alt.condition(
+                    is_missing,
+                    alt.Color("Cat:N", scale=alt.Scale(domain=domain, range=rng)),
+                    alt.value(None)
+                ),
+                strokeDash=alt.condition(is_missing, alt.value([5, 3]), alt.value([0, 0])),
+                strokeWidth=alt.condition(is_missing, alt.value(2), alt.value(0)),
+                tooltip=[
+                    alt.Tooltip("Series:N", title="Series"),
+                    alt.Tooltip("Label:N",  title="Segment"),
+                    alt.Tooltip("Value:Q",  title="# DR", format=".1f"),
+                ],
             )
-    
-            # Totals at the end of each bar (should be 32/32/6 depending on pillar)
-            totals = (
-                base
-                .transform_aggregate(total="sum(Value)", groupby=["Series"])
-                .mark_text(align="left", baseline="middle", dx=4)
-                .encode(
-                    y=alt.Y("Series:N", sort=y_sort),
-                    x="total:Q",
-                    text=alt.Text("total:Q", format=".1f"),
-                )
+        )
+
+        # Totals at end of bar (E=32, S=32, G=6)
+        totals = (
+            base
+            .transform_aggregate(total="sum(Value)", groupby=["Series"])
+            .mark_text(align="left", baseline="middle", dx=4)
+            .encode(
+                y=alt.Y("Series:N", sort=y_sort),
+                x="total:Q",
+                text=alt.Text("total:Q", format=".1f"),
             )
-    
-            fig = alt.layer(bars, totals).properties(
-                height=120, width="container",
-                padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
-            ).configure_view(stroke=None)
-    
-            st.altair_chart(fig, use_container_width=True)
-    
-            # Pillar fixed total for caption
-            pillar_fixed_total = sum(STD_TOTAL_OVERRIDES.get(s, 0) for s in stds_in_pillar)
-            st.caption(
-                f"Each standard bar shows reported (solid) and {hatch_word.lower()} (hatched). "
-                f"Totals per row = {pillar_fixed_total}."
-                + (note if n_peers > 0 else "")
-            )
-    
-        st.markdown("---")
+        )
+
+        fig = alt.layer(bars, totals).properties(
+            height=120, width="container",
+            padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
+        ).configure_view(stroke=None)
+
+        st.altair_chart(fig, use_container_width=True)
+
+        pillar_fixed_total = sum(STD_TOTAL_OVERRIDES.get(s, 0) for s in stds_in_pillar)
+        st.caption(
+            f"Each standard shows reported (solid) and "
+            f"{'Not reported' if VARIANT=='v2' else 'Missing'} (hatched). "
+            f"Totals per row = {pillar_fixed_total}."
+            + (note if n_peers > 0 else "")
+        )
+
+    st.markdown("---")
 
 
     # ===== Standards detail =====
