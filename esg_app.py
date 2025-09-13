@@ -918,184 +918,159 @@ if view == "Total":
             st.caption(note)
     
         else:
-            # === CHARTS MODE on Total ===
-            # Build per-standard rows (as before)
-            perstd_rows = []
-            for std_code in STD_ORDER:
-                if std_code not in groups:
-                    continue
-                metrics_in_group = groups[std_code]
-                label = SHORT_ESRS_LABELS.get(std_code, std_code)
-        
-                vals = current_row[metrics_in_group].astype(str).str.strip().str.lower()
-                firm_yes = int(vals.isin(YES_SET).sum())
-                perstd_rows.append({"StdCode": std_code, "Standard": label, "Series": firm_series, "Value": float(firm_yes)})
-        
-                if n_peers > 0:
-                    present_cols = [m for m in metrics_in_group if m in peers.columns]
-                    if present_cols:
-                        peer_block = peers[present_cols].astype(str).applymap(lambda x: x.strip().lower() in YES_SET)
-                        if len(peer_block) > 0:
-                            peer_yes_mean = float(peer_block.sum(axis=1).mean())
-                            if peers_series is not None:
-                                perstd_rows.append({"StdCode": std_code, "Standard": label, "Series": peers_series, "Value": float(peer_yes_mean)})
-        
-            chart_df = pd.DataFrame(perstd_rows)
-        
-            # ---- NEW: add one extra segment per pillar for "missing/not reported" (only v2/v3) ----
-            NOT_LABEL = "Not reported" if VARIANT == "v2" else "Missing"
-            extra_rows = []
-            if VARIANT in ("v2", "v3"):
-                for pillar in ["E", "S", "G"]:
-                    pcols = pillar_columns(pillar, groups, by_pillar)
-                    if not pcols:
-                        continue
-                    vals = current_row[pcols].astype(str).str.strip().str.lower()
-                    firm_yes = int(vals.isin(YES_SET).sum())
-                    missing = max(len(pcols) - firm_yes, 0)
-                    if missing > 0:
-                        # Use synthetic codes so they don't conflict with real standards
-                        syn_code = f"{pillar}_MISSING"
-                        # Attach a hex color per pillar (first shade from your palettes)
-                        pillar_color = (PALETTE_E[0] if pillar == "E"
-                                        else PALETTE_S[0] if pillar == "S"
-                                        else PALETTE_G[0])
-                        extra_rows.append({
-                            "StdCode": syn_code,
-                            "Standard": f"{pillar} — {NOT_LABEL}",
-                            "Series": firm_series,    # firm-only; no peers segment for missing
-                            "Value": float(missing),
-                            "Pillar": pillar,
-                            "ColorHex": pillar_color,
-                            "Status": NOT_LABEL,      # used for hatching
-                        })
-        
-            if not chart_df.empty:
-                chart_df["StdRank"] = chart_df["StdCode"].map(STD_RANK).fillna(9999)
-            else:
-                chart_df["StdRank"] = []
-        
-            # Prepare combined dataframe:
-            # - regular standards: mark as Reported with their existing StdCode and no custom color
-            chart_df["Status"] = "Reported"
-            chart_df["Pillar"] = chart_df["StdCode"].str[0]  # E/S/G from the code
-            chart_df["ColorHex"] = chart_df["StdCode"].map(lambda c: STD_COLOR.get(c))  # may be None; we won't use for standards
-        
-            extra_df = pd.DataFrame(extra_rows)
-            combined_df = pd.concat([chart_df, extra_df], ignore_index=True)
-        
-            # Header + inline legend for standards (do NOT pass ["E","S","G"] — that caused KeyError)
-            if not chart_df.empty:
-                present_codes = [c for c in STD_ORDER if (chart_df["StdCode"] == c).any()]
-            else:
-                present_codes = STD_ORDER
-            render_section_header("Total overview", present_codes)
-        
-            if not combined_df.empty:
-                # We render a single stacked bar layer, but:
-                # - Color: use raw hex for the synthetic missing rows, and the normal scale for standards.
-                #   Easiest: always drive color by a per-row ColorHex, where:
-                #     * standards rows get their hex via STD_COLOR map (pre-filled above by mapping StdCode -> hex)
-                #     * synthetic rows already have pillar color in ColorHex
-                # - Pattern/Hatching: only on rows where Status == NOT_LABEL
-                # - Disable color legend (we show inline standards legend). Add a small "status" legend via HTML below.
-        
-                # Ensure ColorHex is filled for standards too
-                def _std_hex(code):
-                    return STD_COLOR.get(code, "#999999")
-                combined_df.loc[combined_df["ColorHex"].isna(), "ColorHex"] = combined_df.loc[combined_df["ColorHex"].isna(), "StdCode"].map(_std_hex)
-        
-                color_enc = alt.Color("ColorHex:N", scale=None, legend=None)
-        
-                y_sort = [firm_series] + ([peers_series] if peers_series else [])
-        
-                base = alt.Chart(combined_df)
-        
-                bars = (
-                    base
-                    .mark_bar()
-                    .encode(
-                        y=alt.Y("Series:N", title="", sort=y_sort),
-                        x=alt.X("Value:Q", title="Number of Disclosure Requirements reported", stack="zero"),
-                        color=color_enc,
-                        order=alt.Order("StdRank:Q"),  # synthetic rows have NaN; they will come last in stack automatically
-                        tooltip=[
-                            alt.Tooltip("Series:N", title="Series"),
-                            alt.Tooltip("Standard:N", title="Segment"),
-                            alt.Tooltip("Value:Q", title="# DR", format=".1f"),
-                        ],
-                    )
-                )
-        
-                # Try to hatch the NOT_LABEL rows with diagonal stripes (Altair/Vega-Lite 5+).
-                try:
-                    bars = bars.encode(
-                        fillPattern=alt.FillPattern(
-                            "Status:N",
-                            legend=alt.Legend(title=""),
-                            scale=alt.Scale(domain=["Reported", NOT_LABEL], range=[None, "diagonal-right-left"]),
-                        )
-                    )
-                except Exception:
-                    # Fallback: dim the missing/not reported segment
-                    bars = bars.encode(
-                        opacity=alt.condition(
-                            alt.datum.Status == NOT_LABEL,
-                            alt.value(0.45),
-                            alt.value(1.0),
-                        )
-                    )
-        
-                totals = (
-                    base
-                    .transform_aggregate(total="sum(Value)", groupby=["Series"])
-                    .mark_text(align="left", baseline="middle", dx=4)
-                    .encode(
-                        y=alt.Y("Series:N", sort=y_sort),
-                        x="total:Q",
-                        text=alt.Text("total:Q", format=".1f"),
-                    )
-                )
-        
-                fig = alt.layer(bars, totals).properties(
-                    height=120, width="container",
-                    padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
-                ).configure_view(stroke=None)
-        
-                st.altair_chart(fig, use_container_width=True)
-        
-                # Small status legend so the hatched item appears in the legend even if fillPattern isn't supported
-                st.markdown(
-                    f"""
-                    <style>
-                      .status-legend {{ display:flex; gap:1rem; align-items:center; margin-top:.25rem; }}
-                      .swatch {{ width:14px; height:14px; border-radius:2px; display:inline-block; position:relative; overflow:hidden; }}
-                      .e {{ background:{PALETTE_E[0]}; }} .s {{ background:{PALETTE_S[0]}; }} .g {{ background:{PALETTE_G[0]}; }}
-                      .stripe:before {{
-                        content:""; position:absolute; inset:0;
-                        background: repeating-linear-gradient(135deg, rgba(255,255,255,.0) 0 6px, rgba(255,255,255,.45) 6px 10px);
-                        mix-blend-mode: screen;
-                      }}
-                    </style>
-                    <div class="status-legend">
-                      <div><span class="swatch e"></span> Reported (E)</div>
-                      <div><span class="swatch s"></span> Reported (S)</div>
-                      <div><span class="swatch g"></span> Reported (G)</div>
-                      <div><span class="swatch e stripe"></span> {NOT_LABEL} (E)</div>
-                      <div><span class="swatch s stripe"></span> {NOT_LABEL} (S)</div>
-                      <div><span class="swatch g stripe"></span> {NOT_LABEL} (G)</div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-        
-            note = (
-                "Bars show total counts of reported Disclosure Requirements, stacked by standard (E1–E5, S1–S4, G1). "
-                f"The hatched segment adds the pillar-level **{NOT_LABEL.lower()}** DRs for E, S, and G."
-            )
+        # === CHARTS MODE on Total ===
+    
+        # Build per-standard rows (unchanged v1 behaviour preserved)
+        perstd_rows = []
+        for std_code in STD_ORDER:
+            if std_code not in groups:
+                continue
+            metrics_in_group = groups[std_code]
+            label = SHORT_ESRS_LABELS.get(std_code, std_code)
+    
+            vals = current_row[metrics_in_group].astype(str).str.strip().str.lower()
+            firm_yes = int(vals.isin(YES_SET).sum())
+            perstd_rows.append({"StdCode": std_code, "Standard": label, "Series": firm_series, "Value": float(firm_yes)})
+    
             if n_peers > 0:
-                note += peer_note
-            st.caption(note)
+                present_cols = [m for m in metrics_in_group if m in peers.columns]
+                if present_cols:
+                    peer_block = peers[present_cols].astype(str).applymap(lambda x: x.strip().lower() in YES_SET)
+                    if len(peer_block) > 0 and peers_series is not None:
+                        peer_yes_mean = float(peer_block.sum(axis=1).mean())
+                        perstd_rows.append({"StdCode": std_code, "Standard": label, "Series": peers_series, "Value": float(peer_yes_mean)})
+    
+        chart_df = pd.DataFrame(perstd_rows)
+        chart_df["StdRank"] = chart_df["StdCode"].map(STD_RANK).fillna(9999)
+        chart_df["Status"]  = "Reported"  # tag standards as reported
+        chart_df["Pillar"]  = chart_df["StdCode"].str[0]
+    
+        # ---- ADD: three extra synthetic segments for aggregated missing per pillar (v2/v3 only)
+        NOT_LABEL = "Not reported" if VARIANT == "v2" else "Missing"
+        extra_rows = []
+        if VARIANT in ("v2", "v3"):
+            for pillar in ["E", "S", "G"]:
+                pcols = pillar_columns(pillar, groups, by_pillar)
+                if not pcols:
+                    continue
+                vals = current_row[pcols].astype(str).str.strip().str.lower()
+                firm_yes = int(vals.isin(YES_SET).sum())
+                missing = max(len(pcols) - firm_yes, 0)
+                if missing > 0:
+                    syn_code = f"{pillar}_MISSING"  # won't collide with standards
+                    pillar_hex = PALETTE_E[0] if pillar == "E" else (PALETTE_S[0] if pillar == "S" else PALETTE_G[0])
+                    extra_rows.append({
+                        "StdCode": syn_code,
+                        "Standard": f"{pillar} {NOT_LABEL.lower()}",
+                        "Series": firm_series,
+                        "Value": float(missing),
+                        "StdRank": 99999,          # put after real standards
+                        "Status": NOT_LABEL,       # for hatching
+                        "Pillar": pillar,
+                        "ColorHex": pillar_hex,    # direct pillar color
+                    })
+    
+        extra_df   = pd.DataFrame(extra_rows)
+        combined_df = pd.concat([chart_df, extra_df], ignore_index=True)
+    
+        # === Legend header: use ONLY actual standards to avoid KeyError
+        if not chart_df.empty:
+            present_codes = [c for c in STD_ORDER if (chart_df["StdCode"] == c).any()]
+        else:
+            present_codes = STD_ORDER  # fallback
+        render_section_header("Total overview", present_codes)  
+    
+        if not combined_df.empty:
+            # Color: use hex per row (standards via STD_COLOR, synthetic already set)
+            def _std_hex(code):
+                return STD_COLOR.get(code, "#999999")
+            if "ColorHex" not in combined_df.columns:
+                combined_df["ColorHex"] = None
+            mask_nohex = combined_df["ColorHex"].isna()
+            combined_df.loc[mask_nohex, "ColorHex"] = combined_df.loc[mask_nohex, "StdCode"].map(_std_hex)
+    
+            color_enc = alt.Color("ColorHex:N", scale=None, legend=None)
+            y_sort    = [firm_series] + ([peers_series] if peers_series else [])
+            base      = alt.Chart(combined_df)
+    
+            bars = (
+                base
+                .mark_bar()
+                .encode(
+                    y=alt.Y("Series:N", title="", sort=y_sort),
+                    x=alt.X("Value:Q", title="Number of Disclosure Requirements", stack="zero"),
+                    color=color_enc,
+                    order=alt.Order("StdRank:Q"),
+                    tooltip=[
+                        alt.Tooltip("Series:N",   title="Series"),
+                        alt.Tooltip("StdCode:N",  title="Segment"),
+                        alt.Tooltip("Value:Q",    title="# DR", format=".0f"),
+                    ],
+                )
+            )
+    
+            # Hatching only on the synthetic NOT_LABEL rows
+            try:
+                bars = bars.encode(
+                    fillPattern=alt.FillPattern(
+                        "Status:N",
+                        legend=None,
+                        scale=alt.Scale(domain=["Reported", NOT_LABEL], range=[None, "diagonal-right-left"]),
+                    )
+                )
+            except Exception:
+                # Fallback if pattern not supported
+                bars = bars.encode(
+                    opacity=alt.condition(alt.datum.Status == NOT_LABEL, alt.value(0.45), alt.value(1.0))
+                )
+    
+            totals = (
+                base
+                .transform_aggregate(total="sum(Value)", groupby=["Series"])
+                .mark_text(align="left", baseline="middle", dx=4)
+                .encode(y=alt.Y("Series:N", sort=y_sort), x="total:Q", text=alt.Text("total:Q", format=".1f"))
+            )
+    
+            fig = alt.layer(bars, totals).properties(
+                height=120, width="container",
+                padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
+            ).configure_view(stroke=None)
+            st.altair_chart(fig, use_container_width=True)
+    
+            # === Add a small hatched legend for the synthetic segments (under the standards legend)
+            #     v2 -> "not reported", v3 -> "missing"
+            lab_suffix = "not reported" if VARIANT == "v2" else "missing"
+            st.markdown(
+                f"""
+                <style>
+                  .status-legend {{ display:flex; flex-wrap:wrap; gap:0.75rem 1.25rem; align-items:center; margin-top:.25rem; }}
+                  .swatch {{ width:14px; height:14px; border-radius:2px; display:inline-block; position:relative; overflow:hidden; }}
+                  .e {{ background:{PALETTE_E[0]}; }} .s {{ background:{PALETTE_S[0]}; }} .g {{ background:{PALETTE_G[0]}; }}
+                  .stripe:before {{
+                    content:""; position:absolute; inset:0;
+                    background: repeating-linear-gradient(135deg,
+                                                         rgba(255,255,255,.0) 0 6px,
+                                                         rgba(255,255,255,.45) 6px 10px);
+                    mix-blend-mode: screen;
+                  }}
+                  .status-legend .lab {{ font-size:0.9rem; margin-left:.35rem; }}
+                </style>
+                <div class="status-legend">
+                  <div><span class="swatch e stripe"></span><span class="lab">E {lab_suffix}</span></div>
+                  <div><span class="swatch s stripe"></span><span class="lab">S {lab_suffix}</span></div>
+                  <div><span class="swatch g stripe"></span><span class="lab">G {lab_suffix}</span></div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+    
+        note = (
+            "Bars show total counts of **reported Disclosure Requirements per standard** (E1–E5, S1–S4, G1). "
+            f"The hatched segments add **pillar-level {NOT_LABEL.lower()}** DRs (E/S/G)."
+        )
+        if n_peers > 0:
+            note += peer_note
+        st.caption(note)
 
     
     # ===== standards detail (E1/E2/...) as before =====
