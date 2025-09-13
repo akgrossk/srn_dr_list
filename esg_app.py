@@ -1164,161 +1164,118 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
             st.markdown("---")
 
         else:
-            # v2 / v3: framed totals + solid reported overlay (no transparency or stripes)
+            # v2 / v3: reported + hatched missing per standard; rows sum to fixed totals
             render_pillar_legend_with_missing(stds_in_pillar, STD_COLOR, pillar)
-            
+
             rows = []
             firm_series = "Firm"
             peers_series = f"Mean: {comp_label}" if n_peers > 0 else None
-            
+
             for std_code in stds_in_pillar:
                 # Collect columns of this standard
                 std_metrics = []
                 for gname in pillar_groups:
                     if gname.split("-")[0] == std_code:
                         std_metrics.extend(groups[gname])
-            
+
                 total_std = STD_TOTAL_OVERRIDES.get(std_code, len(std_metrics))
-            
+
                 # Firm counts
                 vals = current_row[std_metrics].astype(str).str.strip().str.lower()
                 firm_yes = int(vals.isin(YES_SET).sum())
-                rows.append({
-                    "Std": std_code,
-                    "Label": SHORT_ESRS_LABELS.get(std_code, std_code),
-                    "Series": firm_series,
-                    "Reported": float(firm_yes),
-                    "Total": float(total_std),
-                    "Missing": float(max(total_std - firm_yes, 0))
-                })
-            
-                # Peers mean (reported)
+                firm_miss = max(total_std - firm_yes, 0)
+
+                rows.append({"Cat": std_code,
+                             "Label": SHORT_ESRS_LABELS.get(std_code, std_code),
+                             "Series": firm_series, "Value": float(firm_yes)})
+                rows.append({"Cat": f"{std_code}_MISS",
+                             "Label": f"{SHORT_ESRS_LABELS.get(std_code, std_code)} — "
+                                      f"{'Not reported' if VARIANT=='v2' else 'Missing'}",
+                             "Series": firm_series, "Value": float(firm_miss)})
+
+                # Peers mean (reported + missing)
                 if n_peers > 0 and peers is not None:
                     present = [c for c in std_metrics if c in peers.columns]
-                    peer_mean_rep = 0.0
                     if present:
                         pb = peers[present].astype(str).applymap(lambda x: x.strip().lower() in YES_SET)
                         peer_mean_rep = float(pb.sum(axis=1).mean())
-                    rows.append({
-                        "Std": std_code,
-                        "Label": SHORT_ESRS_LABELS.get(std_code, std_code),
-                        "Series": peers_series,
-                        "Reported": float(peer_mean_rep),
-                        "Total": float(total_std),
-                        "Missing": float(max(total_std - peer_mean_rep, 0.0))
-                    })
-            
-            cdf = pd.DataFrame(rows)
-            
-            if not cdf.empty:
-                # domain/order per pillar
-                domain = stds_in_pillar
-                y_sort = [s for s in [firm_series, peers_series] if s]
-            
-                # color per standard (same as your palette)
-                std_to_color = {s: STD_COLOR.get(s, "#999") for s in domain}
-            
-                # Layer 1: TOTAL frame (stroke only)
-                total_frame = (
-                    alt.Chart(cdf)
-                    .transform_calculate(StdColor=f"datum.Std")
-                    .mark_bar(
-                        fillOpacity=0,                 # no fill = clean "empty" area for Missing
-                        strokeOpacity=1,
-                        strokeJoin="miter",
-                        strokeWidth=2
-                    )
+                    else:
+                        peer_mean_rep = 0.0
+                    peer_mean_miss = max(total_std - peer_mean_rep, 0.0)
+                    rows.append({"Cat": std_code,
+                                 "Label": SHORT_ESRS_LABELS.get(std_code, std_code),
+                                 "Series": peers_series, "Value": float(peer_mean_rep)})
+                    rows.append({"Cat": f"{std_code}_MISS",
+                                 "Label": f"{SHORT_ESRS_LABELS.get(std_code, std_code)} — "
+                                          f"{'Not reported' if VARIANT=='v2' else 'Missing'}",
+                                 "Series": peers_series, "Value": float(peer_mean_miss)})
+
+            if rows:
+                cdf = pd.DataFrame(rows)
+                # Order: E1, E1_MISS, E2, E2_MISS, ...
+                cat_order = []
+                for s in stds_in_pillar:
+                    cat_order.extend([s, f"{s}_MISS"])
+                rank_map = {c: i for i, c in enumerate(cat_order)}
+                cdf["CatRank"] = cdf["Cat"].map(rank_map).astype(int)
+
+                # Colors = base standard color (missing gets hatched styling via opacity/stroke)
+                domain = [c for c in cat_order if (cdf["Cat"] == c).any()]
+                rng    = [STD_COLOR.get(c.replace("_MISS", ""), "#999") for c in domain]
+
+                missing_cats = [f"{s}_MISS" for s in stds_in_pillar]
+                is_missing = alt.FieldOneOfPredicate(field="Cat", oneOf=missing_cats)
+                y_sort = [firm_series] + ([peers_series] if peers_series else [])
+
+                base = alt.Chart(cdf)
+                bars = (
+                    base
+                    .mark_bar(stroke="#000", strokeWidth=1, strokeOpacity=0.9, strokeJoin="miter")  # default outline
                     .encode(
                         y=alt.Y("Series:N", title="", sort=y_sort),
-                        x=alt.X("Total:Q", title="Number of Disclosure Requirements"),
-                        color=alt.Color(
-                            "Std:N",
-                            scale=alt.Scale(
-                                domain=domain,
-                                range=[std_to_color[s] for s in domain]
-                            ),
-                            legend=None
+                        x=alt.X("Value:Q", title="Number of Disclosure Requirements"),
+                        color=alt.Color("Cat:N", scale=alt.Scale(domain=domain, range=rng), legend=None),
+                        order=alt.Order("CatRank:Q"),
+                        opacity=alt.condition(is_missing, alt.value(0.35), alt.value(1.0)),
+                        # For *_MISS, override the stroke color (keeps your hatched look distinct)
+                        stroke=alt.condition(
+                            is_missing,
+                            alt.Color("Cat:N", scale=alt.Scale(domain=domain, range=rng)),
+                            alt.value("#000")
                         ),
+                        strokeDash=alt.condition(is_missing, alt.value([5, 3]), alt.value([0, 0])),
+                        strokeWidth=alt.condition(is_missing, alt.value(2), alt.value(1)),
                         tooltip=[
                             alt.Tooltip("Series:N", title="Series"),
-                            alt.Tooltip("Label:N",  title="Standard"),
-                            alt.Tooltip("Reported:Q", title="Reported", format=".1f"),
-                            alt.Tooltip("Missing:Q",  title="Missing",  format=".1f"),
-                            alt.Tooltip("Total:Q",    title="Total",    format=".0f"),
+                            alt.Tooltip("Label:N",  title="Segment"),
+                            alt.Tooltip("Value:Q",  title="# DR", format=".1f"),
                         ],
                     )
                 )
-            
-                # Layer 2: REPORTED solid fill
-                reported_fill = (
-                    alt.Chart(cdf)
-                    .mark_bar(stroke="#000", strokeWidth=1, strokeOpacity=0.85, strokeJoin="miter")
-                    .encode(
-                        y=alt.Y("Series:N", title="", sort=y_sort),
-                        x=alt.X("Reported:Q", title="Number of Disclosure Requirements"),
-                        color=alt.Color(
-                            "Std:N",
-                            scale=alt.Scale(
-                                domain=domain,
-                                range=[std_to_color[s] for s in domain]
-                            ),
-                            legend=None
-                        ),
-                        order=alt.Order("Std:N"),
-                        tooltip=[
-                            alt.Tooltip("Series:N", title="Series"),
-                            alt.Tooltip("Label:N",  title="Standard"),
-                            alt.Tooltip("Reported:Q", title="Reported", format=".1f"),
-                            alt.Tooltip("Missing:Q",  title="Missing",  format=".1f"),
-                            alt.Tooltip("Total:Q",    title="Total",    format=".0f"),
-                        ],
-                    )
+
+
+                totals = (
+                    base.transform_aggregate(total="sum(Value)", groupby=["Series"])
+                        .mark_text(align="left", baseline="middle", dx=4)
+                        .encode(y=alt.Y("Series:N", sort=y_sort),
+                                x="total:Q", text=alt.Text("total:Q", format=".1f"))
                 )
-            
-                # Optional labels: "X/Y" centered on the reported bar when it’s at least 25% long
-                labels_xy = (
-                    alt.Chart(cdf)
-                    .transform_filter("datum.Reported / datum.Total >= 0.25")
-                    .transform_calculate(lbl="datum.Reported + '/' + datum.Total")
-                    .mark_text(align="center", baseline="middle", dy=0, color="white", fontSize=11)
-                    .encode(
-                        y=alt.Y("Series:N", sort=y_sort, title=""),
-                        x=alt.X("Reported:Q"),
-                        text="lbl:N"
-                    )
-                )
-            
-                # Optional labels for short bars: “X/Y” outside the right edge when < 25%
-                labels_short = (
-                    alt.Chart(cdf)
-                    .transform_filter("datum.Reported / datum.Total < 0.25")
-                    .transform_calculate(lbl="datum.Reported + '/' + datum.Total")
-                    .mark_text(align="left", baseline="middle", dx=6, color="#333", fontSize=11)
-                    .encode(
-                        y=alt.Y("Series:N", sort=y_sort, title=""),
-                        x=alt.X("Reported:Q"),
-                        text="lbl:N"
-                    )
-                )
-            
-                fig = alt.layer(total_frame, reported_fill, labels_xy, labels_short).properties(
-                    height=120,
-                    width="container",
+
+                fig = alt.layer(bars, totals).properties(
+                    height=120, width="container",
                     padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
                 ).configure_view(stroke=None)
-            
+
                 st.altair_chart(fig, use_container_width=True)
-            
+
                 fixed_total = sum(STD_TOTAL_OVERRIDES.get(s, 0) for s in stds_in_pillar)
                 st.caption(
-                    f"Each standard shows a framed total and a solid reported portion. "
-                    f"The empty part of the frame is "
-                    f"{'Not reported' if VARIANT=='v2' else 'Missing'}. "
-                    f"Totals per row = {fixed_total}." + (note if n_peers > 0 else "")
+                    f"Each standard shows reported (solid) and "
+                    f"{'Not reported' if VARIANT=='v2' else 'Missing'} (hatched). "
+                    f"Totals per row = {fixed_total}."
+                    + (note if n_peers > 0 else "")
                 )
-            
             st.markdown("---")
-
 
 
     else:
