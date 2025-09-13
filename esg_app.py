@@ -1143,7 +1143,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 y_sort = [firm_series] + ([peers_series] if peers_series else [])
 
                 base = alt.Chart(cdf)
-                bars = base.mark_bar().encode(
+                bars = base.mark_bar(stroke="#000", strokeWidth=1, strokeOpacity=0.9, strokeJoin="miter").encode(
                     y=alt.Y("Series:N", title="", sort=y_sort),
                     x=alt.X("Value:Q", title="Number of Disclosure Requirements reported"),
                     color=alt.Color("StdCode:N",
@@ -1230,27 +1230,25 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 base = alt.Chart(cdf)
                 bars = (
                     base
-                    .mark_bar()
+                    .mark_bar(stroke="#000", strokeWidth=1, strokeOpacity=0.9, strokeJoin="miter")  # default outline
                     .encode(
                         y=alt.Y("Series:N", title="", sort=y_sort),
                         x=alt.X("Value:Q", title="Number of Disclosure Requirements"),
                         color=alt.Color("Cat:N", scale=alt.Scale(domain=domain, range=rng), legend=None),
                         order=alt.Order("CatRank:Q"),
                         opacity=alt.condition(is_missing, alt.value(0.35), alt.value(1.0)),
+                        # For *_MISS, override the stroke color (keeps your hatched look distinct)
                         stroke=alt.condition(
                             is_missing,
                             alt.Color("Cat:N", scale=alt.Scale(domain=domain, range=rng)),
-                            alt.value(None)
+                            alt.value("#000")
                         ),
                         strokeDash=alt.condition(is_missing, alt.value([5, 3]), alt.value([0, 0])),
-                        strokeWidth=alt.condition(is_missing, alt.value(2), alt.value(0)),
-                        tooltip=[
-                            alt.Tooltip("Series:N", title="Series"),
-                            alt.Tooltip("Label:N",  title="Segment"),
-                            alt.Tooltip("Value:Q",  title="# DR", format=".1f"),
-                        ],
+                        strokeWidth=alt.condition(is_missing, alt.value(2), alt.value(1)),
+                        tooltip=[ ... ],
                     )
                 )
+
 
                 totals = (
                     base.transform_aggregate(total="sum(Value)", groupby=["Series"])
