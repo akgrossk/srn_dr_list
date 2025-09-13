@@ -435,11 +435,10 @@ MISSING_COLOR = {
     "G_MISS": "#F8E690",  # light yellow
 }
 
-
-# --- Subtle vertical hatch for *_MISS overlays (safe across Altair versions) ---
-MISSING_STRIPE_STEP   = 2.0     # distance between stripes along x (bigger = fewer stripes)
-MISSING_STRIPE_WIDTH  = 0.25    # stripe thickness in x units (smaller = thinner)
-MISSING_STRIPE_COLOR  = "#ffffff"  # stripe color; use 'rgba(255,255,255,0.6)' for softer look
+# --- Hatch styling for *_MISS overlays (subtle) ---
+MISSING_STRIPE_STEP  = 1.4   # distance between stripes (bigger = fewer stripes)
+MISSING_STRIPE_WIDTH = 0.16  # stripe thickness (smaller = thinner stripes)
+MISSING_STRIPE_COLOR = "rgba(255,255,255,0.55)"  # slightly translucent white
 
 
 def pillar_color(p: str) -> str:
@@ -524,24 +523,6 @@ def render_pillar_legend_with_missing(stds_in_pillar, colors, pillar):
         unsafe_allow_html=True,
     )
     st.markdown(f'<div class="legend-inline">{items}</div>', unsafe_allow_html=True)
-
-def _make_vertical_stripes(df_band, x0_col="x0", x1_col="x1",
-                           step=MISSING_STRIPE_STEP, stripe_width=MISSING_STRIPE_WIDTH):
-    """
-    Build small vertical stripe rectangles covering [x0, x1] for each row (one 'Series' band).
-    Returns rows with columns: Series, xa, xb.
-    """
-    out = []
-    for _, r in df_band.iterrows():
-        x0, x1 = float(r[x0_col]), float(r[x1_col])
-        sname = r["Series"]
-        x = x0
-        while x < x1:
-            xa = x
-            xb = min(x + stripe_width, x1)
-            out.append({"Series": sname, "xa": xa, "xb": xb})
-            x += step
-    return pd.DataFrame(out)
 
 
 # ========= LOAD DATA (GitHub only) =========
@@ -1064,15 +1045,13 @@ if view == "Total":
             # OPAQUE base rectangles (no transparency)
             rects = (
                 alt.Chart(seg)
-                  .mark_rect(stroke="#000", strokeWidth=1, strokeJoin="miter")  # crisp separators
+                  .mark_rect(stroke="#000", strokeWidth=1, strokeJoin="miter")
                   .encode(
                       y=alt.Y("Series:N", title="", sort=y_sort),
-                      x=alt.X("x0:Q", title="Number of Disclosure Requirements reported",
-                              axis=alt.Axis(grid=True)),
+                      x=alt.X("x0:Q", title="Number of Disclosure Requirements reported", axis=alt.Axis(grid=True)),
                       x2="x1:Q",
-                      color=alt.Color("StdCode_or_Cat:N", scale=alt.Scale(domain=color_domain, range=color_range),
-                                      legend=None),
-                      order=alt.Order("StdRank_or_CatRank:Q"),
+                      color=alt.Color("StdCode:N", scale=alt.Scale(domain=color_domain, range=color_range), legend=None),
+                      order=alt.Order("StdRank:Q"),
                       tooltip=[
                           alt.Tooltip("Series:N",   title="Series"),
                           alt.Tooltip("Standard:N", title="Segment"),
@@ -1083,15 +1062,27 @@ if view == "Total":
         
 
             # HATCH overlay only for missing (v2/v3); v1 stays solid
-            layers = [rects]  # rects = the opaque stacked bars with a black outline
-            
-            if VARIANT in ("v2", "v3"):
+            layers = [rects]
+            if VARIANT in ("v2","v3"):
                 miss_only = seg[seg["StdCode"].isin(MISSING_CODES)].copy()
-                stripes_df = _make_vertical_stripes(miss_only)
+            
+                def _make_stripes_df(d, step=MISSING_STRIPE_STEP, stripe_width=MISSING_STRIPE_WIDTH):
+                    rows = []
+                    for _, r in d.iterrows():
+                        x0, x1 = float(r["x0"]), float(r["x1"])
+                        x = x0
+                        while x < x1:
+                            xa = x
+                            xb = min(x + stripe_width, x1)
+                            rows.append({"Series": r["Series"], "xa": xa, "xb": xb})
+                            x += step
+                    return pd.DataFrame(rows)
+            
+                stripes_df = _make_stripes_df(miss_only)
                 if not stripes_df.empty:
                     stripes = (
                         alt.Chart(stripes_df)
-                          .mark_rect()  # little vertical slivers
+                          .mark_rect()
                           .encode(
                               y=alt.Y("Series:N", title="", sort=y_sort),
                               x=alt.X("xa:Q"),
@@ -1100,14 +1091,15 @@ if view == "Total":
                           )
                     )
                     layers.append(stripes)
-            
-            fig = alt.layer(*layers) \
-                .properties(height=120, width="container",
-                            padding={"left": 12, "right": 12, "top": 6, "bottom": 6}) \
-                .configure_view(stroke=None)
-            
-            st.altair_chart(fig, use_container_width=True)
 
+        
+            fig = alt.layer(*layers).properties(
+                height=120, width="container",
+                padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
+            ).configure_view(stroke=None)
+        
+            st.altair_chart(fig, use_container_width=True)
+        
             note = "Bars show total counts of reported Disclosure Requirements, stacked by standard (E1–E5, S1–S4, G1)."
             if n_peers > 0:
                 note += peer_note
@@ -1292,12 +1284,25 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                       )
                 )
 
-                
-                layers = [rects]  # your base opaque bars with outline
-                
-                # add stripes to *_MISS only
+                # build diagonal stripe overlay for *_MISS (vertical micro-stripes)
                 miss_only = seg[seg["Cat"].str.endswith("_MISS")].copy()
-                stripes_df = _make_vertical_stripes(miss_only)
+                
+                def _make_stripes_df_pillar(d: pd.DataFrame,
+                                            step: float = MISSING_STRIPE_STEP,
+                                            stripe_width: float = MISSING_STRIPE_WIDTH) -> pd.DataFrame:
+                    rows_ = []
+                    for _, r in d.iterrows():
+                        x0, x1 = float(r["x0"]), float(r["x1"])
+                        x = x0
+                        while x < x1:
+                            xa = x
+                            xb = min(x + stripe_width, x1)
+                            rows_.append({"Series": r["Series"], "xa": xa, "xb": xb})
+                            x += step
+                    return pd.DataFrame(rows_)
+                
+                layers = [rects]
+                stripes_df = _make_stripes_df_pillar(miss_only)
                 if not stripes_df.empty:
                     stripes = (
                         alt.Chart(stripes_df)
@@ -1310,14 +1315,25 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                           )
                     )
                     layers.append(stripes)
-                
-                fig = alt.layer(*layers) \
-                    .properties(height=120, width="container",
-                                padding={"left": 12, "right": 12, "top": 6, "bottom": 6}) \
-                    .configure_view(stroke=None)
-                
-                st.altair_chart(fig, use_container_width=True)
 
+                # totals text at row end
+                totals = (
+                    alt.Chart(seg.groupby("Series", as_index=False)["x1"].max())
+                      .mark_text(align="left", baseline="middle", dx=4)
+                      .encode(
+                          y=alt.Y("Series:N", sort=y_sort),
+                          x=alt.X("x1:Q"),
+                          text=alt.Text("x1:Q", format=".1f"),
+                      )
+                )
+                layers.append(totals)
+
+                fig = alt.layer(*layers).properties(
+                    height=120, width="container",
+                    padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
+                ).configure_view(stroke=None)
+
+                st.altair_chart(fig, use_container_width=True)
 
             fixed_total = sum(STD_TOTAL_OVERRIDES.get(s, 0) for s in stds_in_pillar)
             st.caption(
