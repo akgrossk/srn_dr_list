@@ -1005,52 +1005,39 @@ if view == "Total":
                         })
 
         
-        chart_df = pd.DataFrame(perstd_rows)
+       
+          chart_df = pd.DataFrame(perstd_rows)
         
-        # --- order: E1..E5, E_MISS, S1..S4, S_MISS, G1, G_MISS
         custom_order = ["E1","E2","E3","E4","E5","E_MISS","S1","S2","S3","S4","S_MISS","G1","G_MISS"]
         rank_map = {c:i for i,c in enumerate(custom_order)}
         chart_df["StdRank"] = chart_df["StdCode"].map(lambda c: rank_map.get(c, 9999))
         
-        # header + legend (standards + 3 extra legend entries only in v2/v3)
         if not chart_df.empty:
             present_codes = [c for c in STD_ORDER if (chart_df["StdCode"] == c).any()]
         else:
             present_codes = STD_ORDER
         
-        render_section_header("Total overview", [])  # keep spacing/title
+        render_section_header("Total overview", [])
         if VARIANT in ("v2","v3"):
             render_inline_legend_with_missing(present_codes, STD_COLOR)
         else:
             render_inline_legend(present_codes, STD_COLOR)
         
         if not chart_df.empty:
-            # Color mapping unchanged for standards; missing segments reuse the pillar base color
             color_domain = present_codes + [c for c in MISSING_CODES if (chart_df["StdCode"] == c).any()]
             color_range = [
                 STD_COLOR[c] if c in STD_COLOR else MISSING_COLOR.get(c, "#cccccc")
                 for c in color_domain
             ]
-
-            
+        
             y_sort = [firm_series] + ([peers_series] if peers_series else [])
-
-            # --- compute stacked positions per Series so we can draw our own rects
-            seg = chart_df.copy()
-            seg = seg.sort_values(["Series", "StdRank"])
+        
+            # compute stacked x0/x1
+            seg = chart_df.sort_values(["Series", "StdRank"]).copy()
             seg["x1"] = seg.groupby("Series")["Value"].cumsum()
             seg["x0"] = seg["x1"] - seg["Value"]
-            
-            # --- colors for all segments (standards + MISS codes)
-            color_domain = [c for c in (present_codes + [m for m in MISSING_CODES if (chart_df["StdCode"] == m).any()])]
-            color_range  = [
-                (STD_COLOR[c] if c in STD_COLOR else MISSING_COLOR.get(c, "#cccccc"))
-                for c in color_domain
-            ]
-            
-            y_sort = [firm_series] + ([peers_series] if peers_series else [])
-            
-            # base opaque rectangles — no transparency, so gridlines don't show through
+        
+            # OPAQUE base rectangles (no transparency)
             rects = (
                 alt.Chart(seg)
                   .mark_rect(stroke="#000", strokeWidth=1, strokeJoin="miter")
@@ -1067,46 +1054,50 @@ if view == "Total":
                       ],
                   )
             )
-            
-            # striped overlay only for E_MISS / S_MISS / G_MISS (solid hatch look)
-            miss_only = seg[seg["StdCode"].isin(MISSING_CODES)].copy()
-            
-            def _make_stripes_df(d, step=1.0, stripe_width=0.35):
-                rows = []
-                for _, r in d.iterrows():
-                    x0, x1 = float(r["x0"]), float(r["x1"])
-                    x = x0
-                    while x < x1:
-                        xa = x
-                        xb = min(x + stripe_width, x1)
-                        rows.append({"Series": r["Series"], "xa": xa, "xb": xb})
-                        x += step
-                return pd.DataFrame(rows)
-            
-            stripes_df = _make_stripes_df(miss_only)
-            stripes = (
-                alt.Chart(stripes_df)
-                  .mark_rect()  # draw thin vertical stripes
-                  .encode(
-                      y=alt.Y("Series:N", title="", sort=y_sort),
-                      x=alt.X("xa:Q"),
-                      x2="xb:Q",
-                      color=alt.value("#ffffff")  # white stripes on top of the opaque fill
-                  )
-            )
-            
-            fig = alt.layer(rects, stripes).properties(
+        
+            # HATCH overlay only for missing (v2/v3); v1 stays solid
+            layers = [rects]
+            if VARIANT in ("v2","v3"):
+                miss_only = seg[seg["StdCode"].isin(MISSING_CODES)].copy()
+        
+                def _make_stripes_df(d, step=1.0, stripe_width=0.35):
+                    rows = []
+                    for _, r in d.iterrows():
+                        x0, x1 = float(r["x0"]), float(r["x1"])
+                        x = x0
+                        while x < x1:
+                            xa = x
+                            xb = min(x + stripe_width, x1)
+                            rows.append({"Series": r["Series"], "xa": xa, "xb": xb})
+                            x += step
+                    return pd.DataFrame(rows)
+        
+                stripes_df = _make_stripes_df(miss_only)
+                if not stripes_df.empty:
+                    stripes = (
+                        alt.Chart(stripes_df)
+                          .mark_rect()
+                          .encode(
+                              y=alt.Y("Series:N", title="", sort=y_sort),
+                              x=alt.X("xa:Q"),
+                              x2="xb:Q",
+                              color=alt.value("#ffffff")
+                          )
+                    )
+                    layers.append(stripes)
+        
+            fig = alt.layer(*layers).properties(
                 height=120, width="container",
                 padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
             ).configure_view(stroke=None)
-            
+        
             st.altair_chart(fig, use_container_width=True)
-            
+        
             note = "Bars show total counts of reported Disclosure Requirements, stacked by standard (E1–E5, S1–S4, G1)."
             if n_peers > 0:
                 note += peer_note
             st.caption(note)
-
+            
 
 def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
     # which groups belong to this pillar
@@ -1174,196 +1165,117 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                                      "Value": float(pb.sum(axis=1).mean())})
 
             if rows:
+               
                 cdf = pd.DataFrame(rows)
                 
-                # order: E1, E1_MISS, E2, E2_MISS, ...
-                cat_order = []
-                for s in stds_in_pillar:
-                    cat_order.extend([s, f"{s}_MISS"])
-                rank_map = {c: i for i, c in enumerate(cat_order)}
-                cdf["CatRank"] = cdf["Cat"].map(rank_map).astype(int)
                 
-                # colors: base color from the standard (MISS uses same base, hatch adds structure)
-                domain = [c for c in cat_order if (cdf["Cat"] == c).any()]
-                rng    = [STD_COLOR.get(c.replace("_MISS", ""), "#999") for c in domain]
-                y_sort = [firm_series] + ([peers_series] if peers_series else [])
+                            st.caption("Counts of reported Disclosure Requirements within this pillar." + (note if n_peers > 0 else ""))
+                            st.markdown("---")
                 
-                # --- compute stacked x0/x1 per Series
-                seg = cdf.sort_values(["Series", "CatRank"]).copy()
-                seg["x1"] = seg.groupby("Series")["Value"].cumsum()
-                seg["x0"] = seg["x1"] - seg["Value"]
+                        else:
+                            # v2 / v3: reported + hatched missing per standard; rows sum to fixed totals
+                            render_pillar_legend_with_missing(stds_in_pillar, STD_COLOR, pillar)
                 
-                # base opaque rectangles (reported + missing)
-                rects = (
-                    alt.Chart(seg)
-                      .mark_rect(stroke="#000", strokeWidth=1, strokeJoin="miter")
-                      .encode(
-                          y=alt.Y("Series:N", title="", sort=y_sort),
-                          x=alt.X("x0:Q", title="Number of Disclosure Requirements", axis=alt.Axis(grid=True)),
-                          x2="x1:Q",
-                          color=alt.Color("Cat:N", scale=alt.Scale(domain=domain, range=rng), legend=None),
-                          order=alt.Order("CatRank:Q"),
-                          tooltip=[
-                              alt.Tooltip("Series:N", title="Series"),
-                              alt.Tooltip("Label:N",  title="Segment"),
-                              alt.Tooltip("Value:Q",  title="# DR", format=".1f"),
-                          ],
-                      )
-                )
+                            rows = []
+                            firm_series = "Firm"
+                            peers_series = f"Mean: {comp_label}" if n_peers > 0 else None
                 
-                # striped overlay only for *_MISS
-                miss_only = seg[seg["Cat"].str.endswith("_MISS")].copy()
+                            for std_code in stds_in_pillar:
+                                # Collect columns of this standard
+                                std_metrics = []
+                                for gname in pillar_groups:
+                                    if gname.split("-")[0] == std_code:
+                                        std_metrics.extend(groups[gname])
                 
-                def _make_stripes_df_pillar(d, step=1.0, stripe_width=0.35):
-                    rows = []
-                    for _, r in d.iterrows():
-                        x0, x1 = float(r["x0"]), float(r["x1"])
-                        x = x0
-                        while x < x1:
-                            xa = x
-                            xb = min(x + stripe_width, x1)
-                            rows.append({"Series": r["Series"], "xa": xa, "xb": xb})
-                            x += step
-                    return pd.DataFrame(rows)
+                                total_std = STD_TOTAL_OVERRIDES.get(std_code, len(std_metrics))
                 
-                stripes_df = _make_stripes_df_pillar(miss_only, step=0.6, stripe_width=0.28)
-                stripes = (
-                    alt.Chart(stripes_df)
-                      .mark_rect()
-                      .encode(
-                          y=alt.Y("Series:N", title="", sort=y_sort),
-                          x=alt.X("xa:Q"),
-                          x2="xb:Q",
-                          color=alt.value("#ffffff")
-                      )
-                )
+                                # Firm counts
+                                vals = current_row[std_metrics].astype(str).str.strip().str.lower()
+                                firm_yes = int(vals.isin(YES_SET).sum())
+                                firm_miss = max(total_std - firm_yes, 0)
                 
-                # optional: totals at the end of each row
-                totals = (
-                    alt.Chart(seg.groupby("Series", as_index=False)["x1"].max())
-                      .mark_text(align="left", baseline="middle", dx=4)
-                      .encode(
-                          y=alt.Y("Series:N", sort=y_sort),
-                          x=alt.X("x1:Q"),
-                          text=alt.Text("x1:Q", format=".1f"),
-                      )
-                )
+                                rows.append({"Cat": std_code,
+                                             "Label": SHORT_ESRS_LABELS.get(std_code, std_code),
+                                             "Series": firm_series, "Value": float(firm_yes)})
+                                rows.append({"Cat": f"{std_code}_MISS",
+                                             "Label": f"{SHORT_ESRS_LABELS.get(std_code, std_code)} — "
+                                                      f"{'Not reported' if VARIANT=='v2' else 'Missing'}",
+                                             "Series": firm_series, "Value": float(firm_miss)})
                 
-                fig = alt.layer(rects, stripes, totals).properties(
-                    height=120, width="container",
-                    padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
-                ).configure_view(stroke=None)
+                                # Peers mean (reported + missing)
+                                if n_peers > 0 and peers is not None:
+                                    present = [c for c in std_metrics if c in peers.columns]
+                                    if present:
+                                        pb = peers[present].astype(str).applymap(lambda x: x.strip().lower() in YES_SET)
+                                        peer_mean_rep = float(pb.sum(axis=1).mean())
+                                    else:
+                                        peer_mean_rep = 0.0
+                                    peer_mean_miss = max(total_std - peer_mean_rep, 0.0)
+                                    rows.append({"Cat": std_code,
+                                                 "Label": SHORT_ESRS_LABELS.get(std_code, std_code),
+                                                 "Series": peers_series, "Value": float(peer_mean_rep)})
+                                    rows.append({"Cat": f"{std_code}_MISS",
+                                                 "Label": f"{SHORT_ESRS_LABELS.get(std_code, std_code)} — "
+                                                          f"{'Not reported' if VARIANT=='v2' else 'Missing'}",
+                                                 "Series": peers_series, "Value": float(peer_mean_miss)})
                 
-                st.altair_chart(fig, use_container_width=True)
-
-
-            st.caption("Counts of reported Disclosure Requirements within this pillar." + (note if n_peers > 0 else ""))
-            st.markdown("---")
-
-        else:
-            # v2 / v3: reported + hatched missing per standard; rows sum to fixed totals
-            render_pillar_legend_with_missing(stds_in_pillar, STD_COLOR, pillar)
-
-            rows = []
-            firm_series = "Firm"
-            peers_series = f"Mean: {comp_label}" if n_peers > 0 else None
-
-            for std_code in stds_in_pillar:
-                # Collect columns of this standard
-                std_metrics = []
-                for gname in pillar_groups:
-                    if gname.split("-")[0] == std_code:
-                        std_metrics.extend(groups[gname])
-
-                total_std = STD_TOTAL_OVERRIDES.get(std_code, len(std_metrics))
-
-                # Firm counts
-                vals = current_row[std_metrics].astype(str).str.strip().str.lower()
-                firm_yes = int(vals.isin(YES_SET).sum())
-                firm_miss = max(total_std - firm_yes, 0)
-
-                rows.append({"Cat": std_code,
-                             "Label": SHORT_ESRS_LABELS.get(std_code, std_code),
-                             "Series": firm_series, "Value": float(firm_yes)})
-                rows.append({"Cat": f"{std_code}_MISS",
-                             "Label": f"{SHORT_ESRS_LABELS.get(std_code, std_code)} — "
-                                      f"{'Not reported' if VARIANT=='v2' else 'Missing'}",
-                             "Series": firm_series, "Value": float(firm_miss)})
-
-                # Peers mean (reported + missing)
-                if n_peers > 0 and peers is not None:
-                    present = [c for c in std_metrics if c in peers.columns]
-                    if present:
-                        pb = peers[present].astype(str).applymap(lambda x: x.strip().lower() in YES_SET)
-                        peer_mean_rep = float(pb.sum(axis=1).mean())
-                    else:
-                        peer_mean_rep = 0.0
-                    peer_mean_miss = max(total_std - peer_mean_rep, 0.0)
-                    rows.append({"Cat": std_code,
-                                 "Label": SHORT_ESRS_LABELS.get(std_code, std_code),
-                                 "Series": peers_series, "Value": float(peer_mean_rep)})
-                    rows.append({"Cat": f"{std_code}_MISS",
-                                 "Label": f"{SHORT_ESRS_LABELS.get(std_code, std_code)} — "
-                                          f"{'Not reported' if VARIANT=='v2' else 'Missing'}",
-                                 "Series": peers_series, "Value": float(peer_mean_miss)})
-
-            if rows:
-                cdf = pd.DataFrame(rows)
-                # Order: E1, E1_MISS, E2, E2_MISS, ...
-                cat_order = []
-                for s in stds_in_pillar:
-                    cat_order.extend([s, f"{s}_MISS"])
-                rank_map = {c: i for i, c in enumerate(cat_order)}
-                cdf["CatRank"] = cdf["Cat"].map(rank_map).astype(int)
-
-                # Colors = base standard color (missing gets hatched styling via opacity/stroke)
-                domain = [c for c in cat_order if (cdf["Cat"] == c).any()]
-                rng    = [STD_COLOR.get(c.replace("_MISS", ""), "#999") for c in domain]
-
-                missing_cats = [f"{s}_MISS" for s in stds_in_pillar]
-                is_missing = alt.FieldOneOfPredicate(field="Cat", oneOf=missing_cats)
-                y_sort = [firm_series] + ([peers_series] if peers_series else [])
-
-                base = alt.Chart(cdf)
-                bars = (
-                    base
-                    .mark_bar(stroke="#000", strokeWidth=1, strokeOpacity=0.9, strokeJoin="miter")  # default outline
-                    .encode(
-                        y=alt.Y("Series:N", title="", sort=y_sort),
-                        x=alt.X("Value:Q", title="Number of Disclosure Requirements"),
-                        color=alt.Color("Cat:N", scale=alt.Scale(domain=domain, range=rng), legend=None),
-                        order=alt.Order("CatRank:Q"),
-                        opacity=alt.condition(is_missing, alt.value(0.35), alt.value(1.0)),
-                        # For *_MISS, override the stroke color (keeps your hatched look distinct)
-                        stroke=alt.condition(
-                            is_missing,
-                            alt.Color("Cat:N", scale=alt.Scale(domain=domain, range=rng)),
-                            alt.value("#000")
-                        ),
-                        strokeDash=alt.condition(is_missing, alt.value([5, 3]), alt.value([0, 0])),
-                        strokeWidth=alt.condition(is_missing, alt.value(2), alt.value(1)),
-                        tooltip=[
-                            alt.Tooltip("Series:N", title="Series"),
-                            alt.Tooltip("Label:N",  title="Segment"),
-                            alt.Tooltip("Value:Q",  title="# DR", format=".1f"),
-                        ],
-                    )
-                )
-
-
-                totals = (
-                    base.transform_aggregate(total="sum(Value)", groupby=["Series"])
-                        .mark_text(align="left", baseline="middle", dx=4)
-                        .encode(y=alt.Y("Series:N", sort=y_sort),
-                                x="total:Q", text=alt.Text("total:Q", format=".1f"))
-                )
-
-                fig = alt.layer(bars, totals).properties(
-                    height=120, width="container",
-                    padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
-                ).configure_view(stroke=None)
-
-                st.altair_chart(fig, use_container_width=True)
+                            if rows:
+                                cdf = pd.DataFrame(rows)
+                                # Order: E1, E1_MISS, E2, E2_MISS, ...
+                                cat_order = []
+                                for s in stds_in_pillar:
+                                    cat_order.extend([s, f"{s}_MISS"])
+                                rank_map = {c: i for i, c in enumerate(cat_order)}
+                                cdf["CatRank"] = cdf["Cat"].map(rank_map).astype(int)
+                
+                                # Colors = base standard color (missing gets hatched styling via opacity/stroke)
+                                domain = [c for c in cat_order if (cdf["Cat"] == c).any()]
+                                rng    = [STD_COLOR.get(c.replace("_MISS", ""), "#999") for c in domain]
+                
+                                missing_cats = [f"{s}_MISS" for s in stds_in_pillar]
+                                is_missing = alt.FieldOneOfPredicate(field="Cat", oneOf=missing_cats)
+                                y_sort = [firm_series] + ([peers_series] if peers_series else [])
+                
+                                base = alt.Chart(cdf)
+                                bars = (
+                                    base
+                                    .mark_bar(stroke="#000", strokeWidth=1, strokeOpacity=0.9, strokeJoin="miter")  # default outline
+                                    .encode(
+                                        y=alt.Y("Series:N", title="", sort=y_sort),
+                                        x=alt.X("Value:Q", title="Number of Disclosure Requirements"),
+                                        color=alt.Color("Cat:N", scale=alt.Scale(domain=domain, range=rng), legend=None),
+                                        order=alt.Order("CatRank:Q"),
+                                        opacity=alt.condition(is_missing, alt.value(0.35), alt.value(1.0)),
+                                        # For *_MISS, override the stroke color (keeps your hatched look distinct)
+                                        stroke=alt.condition(
+                                            is_missing,
+                                            alt.Color("Cat:N", scale=alt.Scale(domain=domain, range=rng)),
+                                            alt.value("#000")
+                                        ),
+                                        strokeDash=alt.condition(is_missing, alt.value([5, 3]), alt.value([0, 0])),
+                                        strokeWidth=alt.condition(is_missing, alt.value(2), alt.value(1)),
+                                        tooltip=[
+                                            alt.Tooltip("Series:N", title="Series"),
+                                            alt.Tooltip("Label:N",  title="Segment"),
+                                            alt.Tooltip("Value:Q",  title="# DR", format=".1f"),
+                                        ],
+                                    )
+                                )
+                
+                
+                                totals = (
+                                    base.transform_aggregate(total="sum(Value)", groupby=["Series"])
+                                        .mark_text(align="left", baseline="middle", dx=4)
+                                        .encode(y=alt.Y("Series:N", sort=y_sort),
+                                                x="total:Q", text=alt.Text("total:Q", format=".1f"))
+                                )
+                
+                                fig = alt.layer(bars, totals).properties(
+                                    height=120, width="container",
+                                    padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
+                                ).configure_view(stroke=None)
+                
+                                st.altair_chart(fig, use_container_width=True)
 
                 fixed_total = sum(STD_TOTAL_OVERRIDES.get(s, 0) for s in stds_in_pillar)
                 st.caption(
