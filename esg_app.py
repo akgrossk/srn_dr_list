@@ -1244,7 +1244,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                             alt.value("#000")
                         ),
                         strokeDash=alt.condition(is_missing, alt.value([3, 2]), alt.value([0, 0])),
-                        strokeWidth=alt.condition(is_missing, alt.value(2), alt.value(1)),
+                        strokeWidth=alt.condition(is_missing, alt.value(1.5), alt.value(1)),
                         tooltip=[
                             alt.Tooltip("Series:N", title="Series"),
                             alt.Tooltip("Label:N",  title="Segment"),
