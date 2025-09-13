@@ -825,30 +825,72 @@ if view == "Total":
 
 
     if display_mode == "Tables":
-        codes = [str(c).strip().split(" ")[0] for c in metrics]
-        names = [DR_LABELS.get(code, "") for code in codes]
-        firm_vals = [pretty_value(current_row.get(c, np.nan)) for c in metrics]
-
-        table = pd.DataFrame({
-            "Code": codes,
-            "Name": names,
-            "Reported": firm_vals
-        })
-
-        if n_peers > 0 and peers is not None:
-            peer_pct = []
-            for m in metrics:
-                if m in peers.columns:
-                    s = peers[m].astype(str).str.strip().str.lower()
-                    pct = (s.isin(YES_SET)).mean()
-                    peer_pct.append(f"{pct*100:.1f}%")
+        # === table summary per pillar ===
+        summary_rows = []
+        for pillar in ["E", "S", "G"]:
+            pcols = pillar_columns(pillar, groups, by_pillar)
+            total_DR = len(pcols)
+    
+            if total_DR:
+                vals = current_row[pcols].astype(str).str.strip().str.lower()
+                firm_yes = int(vals.isin(YES_SET).sum())
+                if n_peers > 0:
+                    peer_block = peers[pcols].astype(str).applymap(lambda x: x.strip().lower() in YES_SET)
+                    peer_yes_mean = float(peer_block.sum(axis=1).mean()) if len(peer_block) else None
                 else:
-                    peer_pct.append("—")
-            table[f"Peers reported % ({comp_label})"] = peer_pct
-
-        st.dataframe(table, use_container_width=True, hide_index=True)
+                    peer_yes_mean = None
+            else:
+                firm_yes = 0
+                peer_yes_mean = None
+    
+            if VARIANT == "v2":
+                row = {
+                    "Pillar": PILLAR_LABEL[pillar],
+                    "Reported disclosure requirements": firm_yes,
+                    "Missing disclosure requirements": max(total_DR - firm_yes, 0),
+                    "Total disclosure requirements": total_DR,
+                }
+                if peer_yes_mean is not None:
+                    row[f"Peers — mean reported ({comp_label})"] = round(peer_yes_mean, 1)
+    
+            elif VARIANT == "v3":
+                row = {
+                    "Pillar": PILLAR_LABEL[pillar],
+                    "Firm — number of reported Disclosure Requirements": firm_yes,
+                    "Missing disclosure requirements": max(total_DR - firm_yes, 0),
+                    "Total disclosure requirements": total_DR,
+                }
+                # (no peers column in v3 unless you want it)
+    
+            else:  # v1
+                row = {
+                    "Pillar": PILLAR_LABEL[pillar],
+                    "Firm — number of Disclosure Requirements": firm_yes,
+                }
+                if peer_yes_mean is not None:
+                    row[f"Peers — mean number of Disclosure Requirements ({comp_label})"] = round(peer_yes_mean, 1)
+    
+            summary_rows.append(row)
+    
+        tbl = pd.DataFrame(summary_rows)
+    
+        st.subheader("Total overview")
+        st.dataframe(tbl, use_container_width=True, hide_index=True)
+    
+        # Variant-specific caption
+        if VARIANT == "v2":
+            note = ("Rows show how many Disclosure Requirements the firm reported "
+                    "(**Reported disclosure requirements**), how many are unreported "
+                    "(**Missing disclosure requirements**), and the pillar’s **Total**.")
+        elif VARIANT == "v3":
+            note = ("Rows show the firm’s reported DRs (**Firm — number of reported Disclosure Requirements**), "
+                    "**Missing disclosure requirements** (= Total − Reported), and the pillar’s **Total**.")
+        else:
+            note = "Rows show the number of reported Disclosure Requirements per pillar."
         if n_peers > 0:
-            st.caption(f"Peers reported % = share of selected peers answering 'Yes' {note}")
+            note += peer_note
+        st.caption(note)
+
 
 
     
