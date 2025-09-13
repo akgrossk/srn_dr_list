@@ -906,6 +906,47 @@ if view == "Total":
         if not chart_df.empty:
             # Color mapping unchanged for standards; missing segments reuse the pillar base color
             color_domain = present_codes + [c for c in MISSING_CODES if (chart_df["StdCode"] == c).any()]
+            # palette for the 3 new segments (same family, lighter tints)
+            MISSING_COLOR = {
+                "E_MISS": "#8BE8A0",  # light green
+                "S_MISS": "#F5A3A3",  # light red
+                "G_MISS": "#F8E690",  # light yellow
+            }
+            
+            color_domain = present_codes + [c for c in MISSING_CODES if (chart_df["StdCode"] == c).any()]
+            color_range  = []
+            for c in color_domain:
+                if c in STD_COLOR:
+                    color_range.append(STD_COLOR[c])
+                else:
+                    color_range.append(MISSING_COLOR.get(c, "#cccccc"))
+            
+            y_sort = [firm_series] + ([peers_series] if peers_series else [])
+            base = alt.Chart(chart_df)
+            
+            bars = (
+                base
+                .mark_bar()
+                .encode(
+                    y=alt.Y("Series:N", title="", sort=y_sort),
+                    x=alt.X("Value:Q", title="Number of Disclosure Requirements reported", stack="zero"),
+                    color=alt.Color("StdCode:N",
+                                    scale=alt.Scale(domain=color_domain, range=color_range),
+                                    legend=None),
+                    order=alt.Order("StdRank:Q"),
+                    tooltip=[
+                        alt.Tooltip("Series:N", title="Series"),
+                        alt.Tooltip("Standard:N", title="Segment"),
+                        alt.Tooltip("Value:Q", title="# DR", format=".1f"),
+                    ],
+                )
+            ).properties(
+                height=120, width="container",
+                padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
+            ).configure_view(stroke=None)
+            
+            st.altair_chart(bars, use_container_width=True)
+
             color_range  = []
             for c in color_domain:
                 if c in STD_COLOR:              # normal E1..S4..G1
@@ -962,12 +1003,6 @@ if view == "Total":
             note += peer_note
         st.caption(note)
 
-    
-
-      
-    # ===== standards detail (E1/E2/...) as before =====
-    for g in pillar_groups:
-        metrics = groups[g]
 
         # ==== Aggregate counts for expander header ====
         firm_yes_count = 0
@@ -1343,6 +1378,44 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
             st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
             if n_peers > 0:
                 st.caption(f"Peers reported % = share of selected peers answering 'Yes' {note}")
+def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
+    _pillar_groups = by_pillar.get(pillar, [])
+    if not _pillar_groups:
+        st.info(f"No {pillar} columns found.")
+        return
+
+    # peers
+    comp_label = None
+    peers, n_peers, note = (None, 0, "")
+    if comparison == "Country" and country_col:
+        comp_label = "country"; peers, n_peers, note = build_peers(df, country_col, current_row)
+    elif comparison == "Sector" and sector_col:
+        comp_label = "sector";  peers, n_peers, note = build_peers(df, sector_col, current_row)
+    elif comparison == "Industry" and industry_col:
+        comp_label = "industry"; peers, n_peers, note = build_peers(df, industry_col, current_row)
+    elif comparison == "Custom peers":
+        comp_label = "custom";  peers, n_peers, note = build_custom_peers(df, (firm_name_col or firm_id_col), selected_custom_peers, current_row)
+
+    # simple per-standard table (keeps comparison working)
+    rows = []
+    for g in _pillar_groups:
+        metrics = groups[g]
+        std_code = g.split("-")[0]
+        std_label = SHORT_ESRS_LABELS.get(std_code, std_code)
+        vals = current_row[metrics].astype(str).str.strip().str.lower()
+        firm_yes = int(vals.isin(YES_SET).sum())
+        row = {"Standard": std_label, "Firm — reported": firm_yes}
+        if n_peers > 0:
+            present = [m for m in metrics if m in df.columns and m in (peers.columns if peers is not None else [])]
+            if present:
+                pb = peers[present].astype(str).applymap(lambda x: x.strip().lower() in YES_SET)
+                row[f"Peers — mean ({comp_label})"] = round(float(pb.sum(axis=1).mean()), 1)
+        rows.append(row)
+
+    st.markdown(f"### {title} — Overview")
+    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+    if n_peers > 0:
+        st.caption(note)
 
 # ========= Which pillar to render =========
 if view == "E":
