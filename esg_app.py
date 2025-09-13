@@ -226,7 +226,7 @@ STD_COLOR = {
 # Color themes for standards by variant:
 STD_COLOR_V1 = STD_COLOR  # your current palette
 
-STD_COLOR_V2 = STD_COLOR {
+STD_COLOR_V2 = STD_COLOR 
 
 STD_COLOR_V3 = STD_COLOR 
 
