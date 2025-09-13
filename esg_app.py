@@ -842,8 +842,10 @@ if view == "Total":
     else:   
         # === stacked bars (counts by standard) ===
         perstd_rows = []
-        pillar_reported = {"E": 0, "S": 0, "G": 0}
-        pillar_total    = {"E": 0, "S": 0, "G": 0}
+        pillar_reported  = {"E": 0, "S": 0, "G": 0}
+        pillar_total     = {"E": 0, "S": 0, "G": 0}
+        pillar_peers_rep = {"E": 0.0, "S": 0.0, "G": 0.0}  # NEW
+
         
         for std_code in STD_ORDER:
             if std_code not in groups:
@@ -867,24 +869,49 @@ if view == "Total":
                     peer_block = peers[present_cols].astype(str).applymap(lambda x: x.strip().lower() in YES_SET)
                     if len(peer_block) > 0 and peers_series is not None:
                         peer_yes_mean = float(peer_block.sum(axis=1).mean())
-                        perstd_rows.append({"StdCode": std_code, "Standard": label, "Series": peers_series, "Value": float(peer_yes_mean)})
+                        perstd_rows.append({
+                            "StdCode": std_code, "Standard": label,
+                            "Series": peers_series, "Value": float(peer_yes_mean)
+                        })
+                        pillar_peers_rep[pillar] += float(peer_yes_mean)  # NEW
+
         
         # --- append exactly three extra segments (only in v2/v3), one per pillar
         if VARIANT in ("v2", "v3"):
-            miss_vals = {
+            # Firm missing segments
+            miss_vals_firm = {
                 "E_MISS": max(pillar_total["E"] - pillar_reported["E"], 0),
                 "S_MISS": max(pillar_total["S"] - pillar_reported["S"], 0),
                 "G_MISS": max(pillar_total["G"] - pillar_reported["G"], 0),
             }
-            for code, val in miss_vals.items():
+            for code, val in miss_vals_firm.items():
                 if val > 0:
-                    pillar = code[0]  # E/S/G
+                    p = code[0]
                     perstd_rows.append({
                         "StdCode": code,
-                        "Standard": missing_label_for_variant(pillar),
+                        "Standard": missing_label_for_variant(p),
                         "Series": firm_series,
-                        "Value": float(val)
+                        "Value": float(val),
                     })
+        
+            # Peers missing segments (so Firm and Peers both stack to the same totals)
+            if n_peers > 0 and peers_series:
+                miss_vals_peers = {
+                    "E_MISS": max(pillar_total["E"] - pillar_peers_rep["E"], 0.0),
+                    "S_MISS": max(pillar_total["S"] - pillar_peers_rep["S"], 0.0),
+                    "G_MISS": max(pillar_total["G"] - pillar_peers_rep["G"], 0.0),
+                }
+                for code, val in miss_vals_peers.items():
+                    # allow zero; add only if there is any missing
+                    if val > 1e-9:
+                        p = code[0]
+                        perstd_rows.append({
+                            "StdCode": code,
+                            "Standard": missing_label_for_variant(p),
+                            "Series": peers_series,
+                            "Value": float(val),
+                        })
+
         
         chart_df = pd.DataFrame(perstd_rows)
         
