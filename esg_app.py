@@ -1,4 +1,3 @@
-# esg_app.py — DR Viewer (GitHub auto-load; Country/Industry/Custom comparison)
 # Requirements: streamlit, pandas, numpy, altair, requests, openpyxl
 
 import streamlit as st
@@ -785,294 +784,275 @@ if view == "Total":
         st.caption(note)
 
 
+      
 
     else:
-        # === CHARTS MODE ===
-        if VARIANT in ("v2", "v3"):
-            # ===== Aggregated E / S / G with patterned "not reported / missing" =====
-            NOTREPORTED_LABEL = "Not reported" if VARIANT == "v2" else "Missing"
-    
-            agg_rows = []
-            for pillar in ["E", "S", "G"]:
-                pcols = pillar_columns(pillar, groups, by_pillar)
-                total_DR = len(pcols)
-    
-                if total_DR == 0:
-                    continue
-    
-                vals = current_row[pcols].astype(str).str.strip().str.lower()
-                firm_yes = int(vals.isin(YES_SET).sum())
-                missing = max(total_DR - firm_yes, 0)
-    
-                pill_name = PILLAR_LABEL[pillar]
-                agg_rows.append({"Pillar": pillar, "PillarName": pill_name, "Status": "Reported",         "Value": float(firm_yes)})
-                agg_rows.append({"Pillar": pillar, "PillarName": pill_name, "Status": NOTREPORTED_LABEL, "Value": float(missing)})
-    
-            agg_df = pd.DataFrame(agg_rows)
-            if agg_df.empty:
-                st.info("No Disclosure Requirements detected for E, S, or G.")
-            else:
-                # Color by pillar (E green, S red, G yellow)
-                color_domain = ["E", "S", "G"]
-                color_range  = [PALETTE_E[0], PALETTE_S[0], PALETTE_G[0]]
-                # Try to use Vega-Lite fill pattern (diagonal stripes) for the not-reported/missing part.
-                # If the runtime Altair/Vega-Lite doesn't support patterns, it will gracefully fall back to solid fill.
-                base = alt.Chart(agg_df)
-    
-                bars = (
-                    base
-                    .mark_bar()
-                    .encode(
-                        y=alt.Y("PillarName:N", title="", sort=[PILLAR_LABEL[p] for p in ["E","S","G"]]),
-                        x=alt.X("Value:Q", stack="zero", title="Number of Disclosure Requirements"),
-                        color=alt.Color("Pillar:N",
-                                        scale=alt.Scale(domain=color_domain, range=color_range),
-                                        legend=alt.Legend(title="Pillar")),
-                        tooltip=[
-                            alt.Tooltip("PillarName:N", title="Pillar"),
-                            alt.Tooltip("Status:N",     title="Status"),
-                            alt.Tooltip("Value:Q",      title="# DR", format=".0f"),
-                        ],
-                    )
-                )
-    
-                # Patterned fill for the "not reported / missing" segment (diagonal stripes)
-                # Vega-Lite 5 pattern channel: fillPattern. Altair >=5 exposes it via FillPattern.
-                try:
-                    bars = bars.encode(
-                        fillPattern=alt.FillPattern(
-                            "Status:N",
-                            legend=alt.Legend(title=""),
-                            scale=alt.Scale(
-                                domain=["Reported", NOTREPORTED_LABEL],
-                                range=[None, "diagonal-right-left"]  # reported = solid, missing = ///
-                            ),
-                        )
-                    )
-                except Exception:
-                    # If fillPattern isn't supported in the runtime, fall back to lower opacity
-                    bars = bars.encode(
-                        opacity=alt.condition(
-                            alt.datum.Status == NOTREPORTED_LABEL,
-                            alt.value(0.45),
-                            alt.value(1.0),
-                        )
-                    )
-    
-                # Totals annotation at the end of each bar
-                totals = (
-                    base
-                    .transform_aggregate(Total="sum(Value)", groupby=["PillarName"])
-                    .mark_text(align="left", baseline="middle", dx=4)
-                    .encode(
-                        y=alt.Y("PillarName:N", sort=[PILLAR_LABEL[p] for p in ["E","S","G"]]),
-                        x="Total:Q",
-                        text=alt.Text("Total:Q", format=".0f"),
-                    )
-                )
-    
-                # Inline legend to show the patterned status label explicitly
-                # (Only needed when pattern is not rendered; harmless otherwise)
-                st.markdown(
-                    f"""
-                    <style>
-                      .status-legend {{ display:flex; gap:1rem; align-items:center; margin:.25rem 0 .5rem 0; }}
-                      .swatch {{
-                        width:14px; height:14px; border-radius:2px; display:inline-block; position:relative; overflow:hidden;
-                      }}
-                      .swatch.e {{ background:{PALETTE_E[0]}; }}
-                      .swatch.s {{ background:{PALETTE_S[0]}; }}
-                      .swatch.g {{ background:{PALETTE_G[0]}; }}
-                      .swatch.stripe:before {{
-                        content:""; position:absolute; inset:0;
-                        background: repeating-linear-gradient(135deg, rgba(255,255,255,.0) 0 6px, rgba(255,255,255,.45) 6px 10px);
-                        mix-blend-mode: screen;
-                      }}
-                    </style>
-                    <div class="status-legend">
-                      <div><span class="swatch e"></span> Reported (E)</div>
-                      <div><span class="swatch s"></span> Reported (S)</div>
-                      <div><span class="swatch g"></span> Reported (G)</div>
-                      <div><span class="swatch e stripe"></span> {NOTREPORTED_LABEL} (E)</div>
-                      <div><span class="swatch s stripe"></span> {NOTREPORTED_LABEL} (S)</div>
-                      <div><span class="swatch g stripe"></span> {NOTREPORTED_LABEL} (G)</div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-    
-                render_section_header("Total overview", ["E","S","G"])
-                fig = alt.layer(bars, totals).properties(
-                    height=150,
-                    width="container",
-                    padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
-                ).configure_view(stroke=None)
-    
-                st.altair_chart(fig, use_container_width=True)
-    
-            note = (
-                f"Bars show **reported** vs **{NOTREPORTED_LABEL.lower()}** Disclosure Requirements aggregated by pillar."
-            )
+        # === stacked bars (counts by standard) ===
+        perstd_rows = []
+        for std_code in STD_ORDER:
+            if std_code not in groups:
+                continue
+            metrics_in_group = groups[std_code]
+            label = SHORT_ESRS_LABELS.get(std_code, std_code)
+
+            vals = current_row[metrics_in_group].astype(str).str.strip().str.lower()
+            firm_yes = int(vals.isin(YES_SET).sum())
+            perstd_rows.append({"StdCode": std_code, "Standard": label, "Series": firm_series, "Value": float(firm_yes)})
+
             if n_peers > 0:
-                note += peer_note
-            st.caption(note)
-    
-        else:
-            # === CHARTS MODE on Total ===
-        
-            # Build per-standard rows (unchanged v1 behaviour preserved)
-            perstd_rows = []
-            for std_code in STD_ORDER:
-                if std_code not in groups:
-                    continue
-                metrics_in_group = groups[std_code]
-                label = SHORT_ESRS_LABELS.get(std_code, std_code)
-        
-                vals = current_row[metrics_in_group].astype(str).str.strip().str.lower()
-                firm_yes = int(vals.isin(YES_SET).sum())
-                perstd_rows.append({"StdCode": std_code, "Standard": label, "Series": firm_series, "Value": float(firm_yes)})
-        
-                if n_peers > 0:
-                    present_cols = [m for m in metrics_in_group if m in peers.columns]
-                    if present_cols:
-                        peer_block = peers[present_cols].astype(str).applymap(lambda x: x.strip().lower() in YES_SET)
-                        if len(peer_block) > 0 and peers_series is not None:
-                            peer_yes_mean = float(peer_block.sum(axis=1).mean())
+                present_cols = [m for m in metrics_in_group if m in peers.columns]
+                if present_cols:
+                    peer_block = peers[present_cols].astype(str).applymap(lambda x: x.strip().lower() in YES_SET)
+                    if len(peer_block) > 0:
+                        peer_yes_mean = float(peer_block.sum(axis=1).mean())
+                        if peers_series is not None:
                             perstd_rows.append({"StdCode": std_code, "Standard": label, "Series": peers_series, "Value": float(peer_yes_mean)})
-        
-            chart_df = pd.DataFrame(perstd_rows)
-            chart_df["StdRank"] = chart_df["StdCode"].map(STD_RANK).fillna(9999)
-            chart_df["Status"]  = "Reported"  # tag standards as reported
-            chart_df["Pillar"]  = chart_df["StdCode"].str[0]
-        
-            # ---- ADD: three extra synthetic segments for aggregated missing per pillar (v2/v3 only)
-            NOT_LABEL = "Not reported" if VARIANT == "v2" else "Missing"
-            extra_rows = []
-            if VARIANT in ("v2", "v3"):
-                for pillar in ["E", "S", "G"]:
-                    pcols = pillar_columns(pillar, groups, by_pillar)
-                    if not pcols:
-                        continue
-                    vals = current_row[pcols].astype(str).str.strip().str.lower()
-                    firm_yes = int(vals.isin(YES_SET).sum())
-                    missing = max(len(pcols) - firm_yes, 0)
-                    if missing > 0:
-                        syn_code = f"{pillar}_MISSING"  # won't collide with standards
-                        pillar_hex = PALETTE_E[0] if pillar == "E" else (PALETTE_S[0] if pillar == "S" else PALETTE_G[0])
-                        extra_rows.append({
-                            "StdCode": syn_code,
-                            "Standard": f"{pillar} {NOT_LABEL.lower()}",
-                            "Series": firm_series,
-                            "Value": float(missing),
-                            "StdRank": 99999,          # put after real standards
-                            "Status": NOT_LABEL,       # for hatching
-                            "Pillar": pillar,
-                            "ColorHex": pillar_hex,    # direct pillar color
-                        })
-        
-            extra_df   = pd.DataFrame(extra_rows)
-            combined_df = pd.concat([chart_df, extra_df], ignore_index=True)
-        
-            # === Legend header: use ONLY actual standards to avoid KeyError
-            if not chart_df.empty:
-                present_codes = [c for c in STD_ORDER if (chart_df["StdCode"] == c).any()]
-            else:
-                present_codes = STD_ORDER  # fallback
-            render_section_header("Total overview", present_codes)  
-        
-            if not combined_df.empty:
-                # Color: use hex per row (standards via STD_COLOR, synthetic already set)
-                def _std_hex(code):
-                    return STD_COLOR.get(code, "#999999")
-                if "ColorHex" not in combined_df.columns:
-                    combined_df["ColorHex"] = None
-                mask_nohex = combined_df["ColorHex"].isna()
-                combined_df.loc[mask_nohex, "ColorHex"] = combined_df.loc[mask_nohex, "StdCode"].map(_std_hex)
-        
-                color_enc = alt.Color("ColorHex:N", scale=None, legend=None)
-                y_sort    = [firm_series] + ([peers_series] if peers_series else [])
-                base      = alt.Chart(combined_df)
-        
-                bars = (
-                    base
-                    .mark_bar()
-                    .encode(
-                        y=alt.Y("Series:N", title="", sort=y_sort),
-                        x=alt.X("Value:Q", title="Number of Disclosure Requirements", stack="zero"),
-                        color=color_enc,
-                        order=alt.Order("StdRank:Q"),
-                        tooltip=[
-                            alt.Tooltip("Series:N",   title="Series"),
-                            alt.Tooltip("StdCode:N",  title="Segment"),
-                            alt.Tooltip("Value:Q",    title="# DR", format=".0f"),
-                        ],
-                    )
+
+        chart_df = pd.DataFrame(perstd_rows)
+        chart_df["StdRank"] = chart_df["StdCode"].map(STD_RANK).fillna(9999)
+
+        # header + inline legend (use only present standards when possible)
+        if not chart_df.empty:
+            present_codes = [c for c in STD_ORDER if (chart_df["StdCode"] == c).any()]
+        else:
+            present_codes = STD_ORDER
+        render_section_header("Total overview", present_codes)
+
+        if not chart_df.empty:
+            color_domain = present_codes
+            color_range  = [STD_COLOR[c] for c in color_domain]
+            y_sort = [firm_series] + ([peers_series] if peers_series else [])
+            base = alt.Chart(chart_df)
+
+            bars = (
+                base
+                .mark_bar()
+                .encode(
+                    y=alt.Y("Series:N", title="", sort=y_sort),
+                    x=alt.X("Value:Q", title="Number of Disclosure Requirements reported"),
+                    color=alt.Color("StdCode:N",
+                                    scale=alt.Scale(domain=color_domain, range=color_range),
+                                    legend=None),   # legend disabled (we render inline)
+                    order=alt.Order("StdRank:Q"),
+                    tooltip=[
+                        alt.Tooltip("Series:N", title="Series"),
+                        alt.Tooltip("Standard:N", title="Standard"),
+                        alt.Tooltip("Value:Q", title="# DR", format=".1f"),
+                    ],
                 )
-        
-                # Hatching only on the synthetic NOT_LABEL rows
-                try:
-                    bars = bars.encode(
-                        fillPattern=alt.FillPattern(
-                            "Status:N",
-                            legend=None,
-                            scale=alt.Scale(domain=["Reported", NOT_LABEL], range=[None, "diagonal-right-left"]),
-                        )
-                    )
-                except Exception:
-                    # Fallback if pattern not supported
-                    bars = bars.encode(
-                        opacity=alt.condition(alt.datum.Status == NOT_LABEL, alt.value(0.45), alt.value(1.0))
-                    )
-        
-                totals = (
-                    base
-                    .transform_aggregate(total="sum(Value)", groupby=["Series"])
-                    .mark_text(align="left", baseline="middle", dx=4)
-                    .encode(y=alt.Y("Series:N", sort=y_sort), x="total:Q", text=alt.Text("total:Q", format=".1f"))
-                )
-        
-                fig = alt.layer(bars, totals).properties(
-                    height=120, width="container",
-                    padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
-                ).configure_view(stroke=None)
-                st.altair_chart(fig, use_container_width=True)
-        
-                # === Add a small hatched legend for the synthetic segments (under the standards legend)
-                #     v2 -> "not reported", v3 -> "missing"
-                lab_suffix = "not reported" if VARIANT == "v2" else "missing"
-                st.markdown(
-                    f"""
-                    <style>
-                      .status-legend {{ display:flex; flex-wrap:wrap; gap:0.75rem 1.25rem; align-items:center; margin-top:.25rem; }}
-                      .swatch {{ width:14px; height:14px; border-radius:2px; display:inline-block; position:relative; overflow:hidden; }}
-                      .e {{ background:{PALETTE_E[0]}; }} .s {{ background:{PALETTE_S[0]}; }} .g {{ background:{PALETTE_G[0]}; }}
-                      .stripe:before {{
-                        content:""; position:absolute; inset:0;
-                        background: repeating-linear-gradient(135deg,
-                                                             rgba(255,255,255,.0) 0 6px,
-                                                             rgba(255,255,255,.45) 6px 10px);
-                        mix-blend-mode: screen;
-                      }}
-                      .status-legend .lab {{ font-size:0.9rem; margin-left:.35rem; }}
-                    </style>
-                    <div class="status-legend">
-                      <div><span class="swatch e stripe"></span><span class="lab">E {lab_suffix}</span></div>
-                      <div><span class="swatch s stripe"></span><span class="lab">S {lab_suffix}</span></div>
-                      <div><span class="swatch g stripe"></span><span class="lab">G {lab_suffix}</span></div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-        
-            note = (
-                "Bars show total counts of **reported Disclosure Requirements per standard** (E1–E5, S1–S4, G1). "
-                f"The hatched segments add **pillar-level {NOT_LABEL.lower()}** DRs (E/S/G)."
             )
+
+            totals = (
+                base
+                .transform_aggregate(total="sum(Value)", groupby=["Series"])
+                .mark_text(align="left", baseline="middle", dx=4)
+                .encode(
+                    y=alt.Y("Series:N", sort=y_sort),
+                    x="total:Q",
+                    text=alt.Text("total:Q", format=".1f"),
+                )
+            )
+
+            fig = alt.layer(bars, totals).properties(
+                height=120, width="container",
+                padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
+            ).configure_view(stroke=None)
+
+            st.altair_chart(fig, use_container_width=True)
+
+        note = "Bars show total counts of reported Disclosure Requirements, stacked by standard (E1–E5, S1–S4, G1)."
+        if n_peers > 0:
+            note += peer_note
+        st.caption(note)
+
+
+# ========= PILLAR DETAIL (Tables or compact Charts) =========
+def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
+    pillar_groups = by_pillar.get(pillar, [])
+    if not pillar_groups:
+        st.info(f"No {pillar} columns found.")
+        return
+
+    comp_col = None
+    comp_label = None
+    peers, n_peers, note = (None, 0, "")
+    if comparison == "Country" and country_col:
+        comp_col, comp_label = country_col, "country"
+        peers, n_peers, note = build_peers(df, comp_col, current_row)
+    elif comparison == "Sector" and sector_col:
+        comp_col, comp_label = sector_col, "sector"
+        peers, n_peers, note = build_peers(df, comp_col, current_row)
+    elif comparison == "Industry" and industry_col:
+        comp_col, comp_label = industry_col, "industry"
+        peers, n_peers, note = build_peers(df, comp_col, current_row)
+    elif comparison == "Custom peers":
+        comp_label = "custom"
+        peers, n_peers, note = build_custom_peers(df, label_col, selected_custom_peers, current_row)
+
+    # === PILLAR OVERVIEW ===
+    if display_mode == "Charts":
+        st.markdown("### Overview")
+        firm_series_label = "Firm"
+        peers_series_label = f"Mean: {comp_label}" if (n_peers > 0) else None
+
+        overview_rows = []
+        for g in pillar_groups:
+            metrics_in_group = groups[g]
+            std_code = g.split("-")[0]  # e.g., "E1"
+            std_label = SHORT_ESRS_LABELS.get(std_code, std_code)
+
+            # firm yes count
+            vals = current_row[metrics_in_group].astype(str).str.strip().str.lower()
+            firm_yes = int(vals.isin(YES_SET).sum())
+            overview_rows.append({"StdCode": std_code, "Standard": std_label, "Series": firm_series_label, "Value": float(firm_yes)})
+
+            # peers mean expected count
             if n_peers > 0:
-                note += peer_note
-            st.caption(note)
+                present_cols = [m for m in metrics_in_group if m in peers.columns]
+                if present_cols:
+                    peer_block = peers[present_cols].astype(str).applymap(lambda x: x.strip().lower() in YES_SET)
+                    if len(peer_block) > 0:
+                        peer_yes_mean = float(peer_block.sum(axis=1).mean())
+                        if peers_series_label:
+                            overview_rows.append({"StdCode": std_code, "Standard": std_label, "Series": peers_series_label, "Value": float(peer_yes_mean)})
+
+        if overview_rows:
+            chart_df = pd.DataFrame(overview_rows)
+            present_codes = [c for c in STD_ORDER if (chart_df["StdCode"] == c).any()]
+            color_domain = present_codes
+            color_range  = [STD_COLOR.get(c, "#999999") for c in present_codes]
+
+            y_sort = [firm_series_label] + ([peers_series_label] if peers_series_label else [])
+            base = alt.Chart(chart_df)
+
+            # For G only, force integer ticks 0..N (N = total DRs in the G pillar)
+            if pillar == "G":
+                xmax = len(pillar_columns(pillar, groups, by_pillar))
+                x_enc = alt.X(
+                    "Value:Q",
+                    title="Number of Disclosure Requirements reported",
+                    scale=alt.Scale(domain=[0, xmax], nice=False, zero=True),
+                    axis=alt.Axis(values=list(range(0, xmax + 1)), tickCount=xmax + 1, format="d"),
+                )
+            else:
+                x_enc = alt.X("Value:Q", title="Number of Disclosure Requirements reported")
+
+            bars = (
+                base
+                .mark_bar()
+                .encode(
+                    y=alt.Y("Series:N", title="", sort=y_sort),
+                    x=x_enc,
+                    color=alt.Color("StdCode:N",
+                                    scale=alt.Scale(domain=color_domain, range=color_range),
+                                    legend=alt.Legend(title="Standard")),
+                    order=alt.Order("StdCode:N", sort="ascending"),
+                    tooltip=[
+                        alt.Tooltip("Series:N", title="Series"),
+                        alt.Tooltip("Standard:N", title="Standard"),
+                        alt.Tooltip("Value:Q", title="# DR", format=".1f"),
+                    ],
+                )
+            )
+
+            totals = (
+                base
+                .transform_aggregate(total="sum(Value)", groupby=["Series"])
+                .mark_text(align="left", baseline="middle", dx=4)
+                .encode(y=alt.Y("Series:N", sort=y_sort), x="total:Q", text=alt.Text("total:Q", format=".1f"))
+            )
+
+            fig = alt.layer(bars, totals).properties(
+                height=120, width="container",
+                padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
+            ).configure_view(stroke=None)
+
+            st.altair_chart(fig, use_container_width=True)
+            st.caption(
+                "Bars show total counts of reported Disclosure Requirements within this pillar."
+                + (note if n_peers > 0 else "")
+            )
+
+        st.markdown("---")
+
+    else:
+        # Overview summary table for Tables mode (variant-specific columns)
+        st.markdown("### Overview")
+        summary_rows = []
+        for g in pillar_groups:
+            metrics_in_group = groups[g]
+            std_code = g.split("-")[0]
+            std_label = SHORT_ESRS_LABELS.get(std_code, std_code)
     
-        
+            total_items = len(metrics_in_group)
+    
+            # Firm reported count
+            vals = current_row[metrics_in_group].astype(str).str.strip().str.lower()
+            firm_reported = int(vals.isin(YES_SET).sum())
+    
+            # Peers mean (only used in v2, optional)
+            peer_yes_mean = None
+            if n_peers > 0:
+                present_cols = [m for m in metrics_in_group if m in peers.columns]
+                if present_cols:
+                    peer_block = peers[present_cols].astype(str).applymap(lambda x: x.strip().lower() in YES_SET)
+                    if len(peer_block) > 0:
+                        peer_yes_mean = float(peer_block.sum(axis=1).mean())
+    
+            # Build row per variant
+            if VARIANT == "v2":
+                row = {
+                    "Standard": std_label,
+                    "Reported disclosure requirements": firm_reported,
+                    "Total disclosure requirements": total_items,
+                }
+                if peer_yes_mean is not None:
+                    row[f"Peers — mean reported ({comp_label})"] = round(peer_yes_mean, 1)
+    
+            elif VARIANT == "v3":
+                missing = max(total_items - firm_reported, 0)
+                row = {
+                    "Standard": std_label,
+                    "Firm — number of reported Disclosure Requirements": firm_reported,
+                    "Missing disclosure requirements": missing,
+                    "Total disclosure requirements": total_items,
+                }
+                # intentionally no peers column in v3
+    
+            else:  # v1: original behavior
+                row = {
+                    "Standard": std_label,
+                    "Firm — number of Disclosure Requirements": firm_reported,
+                }
+                if peer_yes_mean is not None:
+                    row[f"Peers — mean number of Disclosure Requirements ({comp_label})"] = round(peer_yes_mean, 1)
+    
+            summary_rows.append(row)
+    
+        if summary_rows:
+            tbl = pd.DataFrame(summary_rows)
+            st.dataframe(tbl, use_container_width=True, hide_index=True)
+    
+            # Variant-specific caption
+            if VARIANT == "v2":
+                cap = ("Rows show how many DRs the firm reported "
+                       "(**Reported disclosure requirements**) and the standard’s "
+                       "**Total disclosure requirements**.")
+            elif VARIANT == "v3":
+                cap = ("Rows show the firm’s reported DRs (**Firm — number of reported Disclosure Requirements**), "
+                       "how many are unreported (**Missing disclosure requirements** = Total − Reported), and "
+                       "the **Total disclosure requirements** for each standard.")
+            else:
+                cap = "Rows show the number of reported Disclosure Requirements per ESRS standard in this pillar."
+    
+            if n_peers > 0:
+                cap += note
+            st.caption(cap)
+            st.markdown("---")
+
+    
+
+      
     # ===== standards detail (E1/E2/...) as before =====
     for g in pillar_groups:
         metrics = groups[g]
