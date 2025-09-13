@@ -967,8 +967,6 @@ if view == "Total":
             st.altair_chart(bars, use_container_width=True)
             
             note = "Bars show total counts of reported Disclosure Requirements, stacked by standard (E1–E5, S1–S4, G1)."
-            if VARIANT in ("v2","v3"):
-                note += " Hatched segments show items not reported in each pillar."
             if n_peers > 0:
                 note += peer_note
             st.caption(note)
