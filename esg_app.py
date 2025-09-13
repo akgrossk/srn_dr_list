@@ -1213,12 +1213,10 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     )
                 )
                 
-                fig = (
-                    alt.layer(bars, totals, separators)
-                       .properties(height=120, width="container")
-                       .configure_view(stroke=None)
-                )
+        
+                fig = alt.layer(bars, totals, separators).properties(...).configure_view(stroke=None)
                 st.altair_chart(fig, use_container_width=True)
+
 
 
 
@@ -1332,9 +1330,15 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                         ),
                         strokeDash=alt.condition(is_missing, alt.value([5, 3]), alt.value([0, 0])),
                         strokeWidth=alt.condition(is_missing, alt.value(2), alt.value(1)),
-                        tooltip=[...],
+                         tooltip=[
+                            alt.Tooltip("Series:N", title="Series"),
+                            alt.Tooltip("Label:N",  title="Segment"),
+                            alt.Tooltip("Value:Q",  title="# DR", format=".1f"),
+                        ],
+
                     )
                 )
+
                 fig = alt.layer(bars, totals).properties(
                     height=120, width="container",
                     padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
