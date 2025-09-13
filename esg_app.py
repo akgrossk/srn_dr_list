@@ -1182,6 +1182,30 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                                   x="total:Q", text=alt.Text("total:Q", format=".1f")))
                 st.altair_chart(alt.layer(bars, totals).properties(height=120, width="container")
                                 .configure_view(stroke=None), use_container_width=True)
+                # separator lines after each standard
+                rmap = {c: i for i, c in enumerate(stds_in_pillar)}
+                tmp = cdf.copy()
+                tmp["StdRank"] = tmp["StdCode"].map(rmap)
+                tmp = tmp.sort_values(["Series", "StdRank"])
+                tmp["Boundary"] = tmp.groupby("Series")["Value"].cumsum()
+                tmp["maxB"] = tmp.groupby("Series")["Boundary"].transform("max")
+                tmp = tmp[tmp["Boundary"] < tmp["maxB"]]
+                
+                separators = (
+                    alt.Chart(tmp)
+                    .mark_rule(stroke="#666", strokeWidth=1, opacity=0.55)
+                    .encode(
+                        y=alt.Y("Series:N", sort=y_sort, title=""),
+                        x=alt.X("Boundary:Q")
+                    )
+                )
+                
+                st.altair_chart(
+                    alt.layer(bars, separators, totals)
+                       .properties(height=120, width="container")
+                       .configure_view(stroke=None),
+                    use_container_width=True
+                )
 
             st.caption("Counts of reported Disclosure Requirements within this pillar." + (note if n_peers > 0 else ""))
             st.markdown("---")
@@ -1241,6 +1265,29 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     cat_order.extend([s, f"{s}_MISS"])
                 rank_map = {c: i for i, c in enumerate(cat_order)}
                 cdf["CatRank"] = cdf["Cat"].map(rank_map).astype(int)
+                # separator lines at the end of each standard (i.e., on *_MISS rows)
+                cdf_sorted = cdf.sort_values(["Series", "CatRank"]).copy()
+                cdf_sorted["Boundary"] = cdf_sorted.groupby("Series")["Value"].cumsum()
+                
+                bounds = cdf_sorted[cdf_sorted["Cat"].str.endswith("_MISS")].copy()
+                bounds["maxB"] = bounds.groupby("Series")["Boundary"].transform("max")
+                bounds = bounds[bounds["Boundary"] < bounds["maxB"]]
+                
+                separators = (
+                    alt.Chart(bounds)
+                    .mark_rule(stroke="#666", strokeWidth=1, opacity=0.55)
+                    .encode(
+                        y=alt.Y("Series:N", sort=y_sort, title=""),
+                        x=alt.X("Boundary:Q")
+                    )
+                )
+                
+                fig = alt.layer(bars, separators, totals).properties(
+                    height=120, width="container",
+                    padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
+                ).configure_view(stroke=None)
+                
+                st.altair_chart(fig, use_container_width=True)
 
                 # Colors = base standard color (missing gets hatched styling via opacity/stroke)
                 domain = [c for c in cat_order if (cdf["Cat"] == c).any()]
