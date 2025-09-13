@@ -655,13 +655,10 @@ if aud_col in df.columns:
     v = current_row.get(aud_col, "")
     auditor_val = "" if (pd.isna(v)) else str(v).strip()
 
-# Buttons row: Open report + Show auditor side-by-side
-# (A) Make the button columns wider so text doesn't wrap
-# Buttons row: Open report + Show auditor + Show ESG text characteristics
-# Buttons row: Open report • Auditor • ESG text
-btn_col1, btn_col2, btn_col3, _sp = st.columns([1.2, 1, 1.4, 6])
+# === ACTION ROW (exactly 3 buttons) ===
+col_report, col_auditor, col_text = st.columns([1.2, 1, 1.6])
 
-# Make all buttons single-line with ellipsis if too long
+# Force all buttons onto one line with ellipsis if needed
 st.markdown("""
 <style>
 .stButton > button, .stLinkButton > a {
@@ -673,40 +670,36 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-with btn_col1:
+# 1) Open firm report
+with col_report:
     if link_url:
-        st.link_button("Open report", link_url, help="Opens the firm's report")
+        st.link_button("Open firm report", link_url, help="Open the firm's sustainability/annual report")
     else:
-        # Clickable placeholder: only shows message when clicked
-        if st.button("Open report", help="Opens the firm's report"):
+        # Clickable placeholder: only shows a message when clicked
+        if st.button("Open firm report"):
             st.toast("No report link available yet.", icon="ℹ️")
 
-with btn_col2:
-    # Keep it a popover so the main button stays one line
+# 2) Show auditor
+with col_auditor:
     try:
-        with st.popover("Auditor"):
+        with st.popover("Show auditor"):
             st.markdown(f"**Auditor:** {auditor_val or '—'}")
     except Exception:
-        if st.button("Auditor"):
+        # Fallback if popovers aren't available in your Streamlit version
+        if st.button("Show auditor"):
             st.info(f"Auditor: {auditor_val or '—'}")
 
-# --- ESG text characteristics (optional URL) ---
-# Try a few likely columns for future data; keep or adjust later
-esg_link = ""
-for col in ["ESG_text_link", "Link_ESG_text", "Link_ESG", "ESG_Text_URL"]:
-    if col in df.columns:
-        candidate = str(current_row.get(col, "")).strip()
-        if candidate.lower().startswith(("http://", "https://")):
-            esg_link = candidate
-            break
+# 3) Show text characteristics (URL optional — placeholder for now)
+# Later you can fill this from a column, e.g.:
+# esg_text_url = str(current_row.get("ESG_text_link", "")).strip()
+esg_text_url = ""
 
-with btn_col3:
-    if esg_link:
-        # If you already have a URL, open it
-        st.link_button("ESG text", esg_link, help="ESG text characteristics")
+with col_text:
+    if isinstance(esg_text_url, str) and esg_text_url.lower().startswith(("http://", "https://")):
+        st.link_button("Show text characteristics", esg_text_url, help="ESG text characteristics")
     else:
-        # Clickable placeholder: only shows 'no info' after clicking
-        if st.button("ESG text", help="ESG text characteristics"):
+        # Clickable placeholder: only shows a message when clicked
+        if st.button("Show text characteristics"):
             st.toast("No info yet — add an ESG text URL when ready.", icon="📝")
 
 
