@@ -975,79 +975,79 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
         st.markdown("---")
 
     else:
-    # Overview summary table for Tables mode (variant-specific columns)
-    st.markdown("### Overview")
-    summary_rows = []
-    for g in pillar_groups:
-        metrics_in_group = groups[g]
-        std_code = g.split("-")[0]
-        std_label = SHORT_ESRS_LABELS.get(std_code, std_code)
-
-        total_items = len(metrics_in_group)
-
-        # Firm reported count
-        vals = current_row[metrics_in_group].astype(str).str.strip().str.lower()
-        firm_reported = int(vals.isin(YES_SET).sum())
-
-        # Peers mean (only used in v2, optional)
-        peer_yes_mean = None
-        if n_peers > 0:
-            present_cols = [m for m in metrics_in_group if m in peers.columns]
-            if present_cols:
-                peer_block = peers[present_cols].astype(str).applymap(lambda x: x.strip().lower() in YES_SET)
-                if len(peer_block) > 0:
-                    peer_yes_mean = float(peer_block.sum(axis=1).mean())
-
-        # Build row per variant
-        if VARIANT == "v2":
-            row = {
-                "Standard": std_label,
-                "Reported disclosure requirements": firm_reported,
-                "Total disclosure requirements": total_items,
-            }
-            if peer_yes_mean is not None:
-                row[f"Peers — mean reported ({comp_label})"] = round(peer_yes_mean, 1)
-
-        elif VARIANT == "v3":
-            missing = max(total_items - firm_reported, 0)
-            row = {
-                "Standard": std_label,
-                "Firm — number of reported Disclosure Requirements": firm_reported,
-                "Missing disclosure requirements": missing,
-                "Total disclosure requirements": total_items,
-            }
-            # intentionally no peers column in v3
-
-        else:  # v1: original behavior
-            row = {
-                "Standard": std_label,
-                "Firm — number of Disclosure Requirements": firm_reported,
-            }
-            if peer_yes_mean is not None:
-                row[f"Peers — mean number of Disclosure Requirements ({comp_label})"] = round(peer_yes_mean, 1)
-
-        summary_rows.append(row)
-
-    if summary_rows:
-        tbl = pd.DataFrame(summary_rows)
-        st.dataframe(tbl, use_container_width=True, hide_index=True)
-
-        # Variant-specific caption
-        if VARIANT == "v2":
-            cap = ("Rows show how many DRs the firm reported "
-                   "(**Reported disclosure requirements**) and the standard’s "
-                   "**Total disclosure requirements**.")
-        elif VARIANT == "v3":
-            cap = ("Rows show the firm’s reported DRs (**Firm — number of reported Disclosure Requirements**), "
-                   "how many are unreported (**Missing disclosure requirements** = Total − Reported), and "
-                   "the **Total disclosure requirements** for each standard.")
-        else:
-            cap = "Rows show the number of reported Disclosure Requirements per ESRS standard in this pillar."
-
-        if n_peers > 0:
-            cap += note
-        st.caption(cap)
-        st.markdown("---")
+        # Overview summary table for Tables mode (variant-specific columns)
+        st.markdown("### Overview")
+        summary_rows = []
+        for g in pillar_groups:
+            metrics_in_group = groups[g]
+            std_code = g.split("-")[0]
+            std_label = SHORT_ESRS_LABELS.get(std_code, std_code)
+    
+            total_items = len(metrics_in_group)
+    
+            # Firm reported count
+            vals = current_row[metrics_in_group].astype(str).str.strip().str.lower()
+            firm_reported = int(vals.isin(YES_SET).sum())
+    
+            # Peers mean (only used in v2, optional)
+            peer_yes_mean = None
+            if n_peers > 0:
+                present_cols = [m for m in metrics_in_group if m in peers.columns]
+                if present_cols:
+                    peer_block = peers[present_cols].astype(str).applymap(lambda x: x.strip().lower() in YES_SET)
+                    if len(peer_block) > 0:
+                        peer_yes_mean = float(peer_block.sum(axis=1).mean())
+    
+            # Build row per variant
+            if VARIANT == "v2":
+                row = {
+                    "Standard": std_label,
+                    "Reported disclosure requirements": firm_reported,
+                    "Total disclosure requirements": total_items,
+                }
+                if peer_yes_mean is not None:
+                    row[f"Peers — mean reported ({comp_label})"] = round(peer_yes_mean, 1)
+    
+            elif VARIANT == "v3":
+                missing = max(total_items - firm_reported, 0)
+                row = {
+                    "Standard": std_label,
+                    "Firm — number of reported Disclosure Requirements": firm_reported,
+                    "Missing disclosure requirements": missing,
+                    "Total disclosure requirements": total_items,
+                }
+                # intentionally no peers column in v3
+    
+            else:  # v1: original behavior
+                row = {
+                    "Standard": std_label,
+                    "Firm — number of Disclosure Requirements": firm_reported,
+                }
+                if peer_yes_mean is not None:
+                    row[f"Peers — mean number of Disclosure Requirements ({comp_label})"] = round(peer_yes_mean, 1)
+    
+            summary_rows.append(row)
+    
+        if summary_rows:
+            tbl = pd.DataFrame(summary_rows)
+            st.dataframe(tbl, use_container_width=True, hide_index=True)
+    
+            # Variant-specific caption
+            if VARIANT == "v2":
+                cap = ("Rows show how many DRs the firm reported "
+                       "(**Reported disclosure requirements**) and the standard’s "
+                       "**Total disclosure requirements**.")
+            elif VARIANT == "v3":
+                cap = ("Rows show the firm’s reported DRs (**Firm — number of reported Disclosure Requirements**), "
+                       "how many are unreported (**Missing disclosure requirements** = Total − Reported), and "
+                       "the **Total disclosure requirements** for each standard.")
+            else:
+                cap = "Rows show the number of reported Disclosure Requirements per ESRS standard in this pillar."
+    
+            if n_peers > 0:
+                cap += note
+            st.caption(cap)
+            st.markdown("---")
 
     
 
