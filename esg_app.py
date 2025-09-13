@@ -519,6 +519,15 @@ def render_pillar_legend_with_missing(stds_in_pillar, colors, pillar):
     )
     st.markdown(f'<div class="legend-inline">{items}</div>', unsafe_allow_html=True)
 
+# Outline (stroke) colors for each pillar
+PILLAR_STROKE = {"E": "#B4DEC2", "S": "#8f1414", "G": "#c29a00"}  # tweak to taste
+
+def stroke_for(code: str) -> str:
+    """Return the stroke color based on StdCode or *_MISS bucket."""
+    if not isinstance(code, str) or not code:
+        return PILLAR_STROKE["E"]
+    return PILLAR_STROKE.get(code[0], PILLAR_STROKE["E"])
+
 
 # ========= LOAD DATA (GitHub only) =========
 df = load_table(DEFAULT_DATA_URL)
