@@ -1347,58 +1347,6 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     + (note if peers_label else "")
                 )
 
-
-
-    
-
-
-
-
-    # ===== Standards detail =====
-    for g in _pillar_groups:
-        metrics = groups[g]
-        base_code = g.split("-")[0]
-        short_title = SHORT_ESRS_LABELS.get(base_code, base_code)
-        n_metrics = len(metrics)
-
-        firm_yes = (current_row[metrics].astype(str).str.strip().str.lower().isin(YES_SET)).sum()
-        peers_yes_mean = None
-        if n_peers > 0:
-            present_cols = [m for m in metrics if m in df.columns and m in (peers.columns if peers is not None else [])]
-            if present_cols:
-                pb = peers[present_cols].astype(str).applymap(lambda x: x.strip().lower() in YES_SET)
-                if len(pb) > 0:
-                    peers_yes_mean = float(pb.sum(axis=1).mean())
-
-        if VARIANT == "v1":
-            exp_title = f"{short_title}"
-        else:
-            if peers_yes_mean is not None:
-                exp_title = f"{short_title} • {n_metrics} Disclosure Requirements — reported: {firm_yes}/{n_metrics} (Peers {comp_label}: {peers_yes_mean:.1f}/{n_metrics})"
-            else:
-                exp_title = f"{short_title} • {n_metrics} Disclosure Requirements — reported: {firm_yes}/{n_metrics}"
-
-        with st.expander(exp_title, expanded=False):
-            # Table of DRs
-            rows = []
-            for m in metrics:
-                code = str(m).strip().split(" ")[0]
-                name = DR_LABELS.get(code, "")
-                reported = pretty_value(current_row.get(m, np.nan))
-                row = {"Code": code, "Name": name, "Reported": reported}
-                if n_peers > 0:
-                    if m in df.columns and m in (peers.columns if peers is not None else []):
-                        s = peers[m].astype(str).str.strip().str.lower()
-                        pct = (s.isin(YES_SET)).mean()
-                        row[f"Peers reported % ({comp_label})"] = f"{pct*100:.1f}%"
-                    else:
-                        row[f"Peers reported % ({comp_label})"] = "—"
-                rows.append(row)
-            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-            if n_peers > 0:
-                st.caption(f"Peers reported % = share of selected peers answering 'Yes' {note}")
-
-
 # ========= Which pillar to render =========
 if view == "E":
     render_pillar("E", "E — Environment", comparison, display_mode)
