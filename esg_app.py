@@ -1236,7 +1236,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                         x=alt.X("Value:Q", title="Number of Disclosure Requirements"),
                         color=alt.Color("Cat:N", scale=alt.Scale(domain=domain, range=rng), legend=None),
                         order=alt.Order("CatRank:Q"),
-                        opacity=alt.condition(is_missing, alt.value(0.25), alt.value(1.0)),
+                        opacity=alt.condition(is_missing, alt.value(0.5), alt.value(1.0)),
                         # For *_MISS, override the stroke color (keeps your hatched look distinct)
                         stroke=alt.condition(
                             is_missing,
