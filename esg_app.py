@@ -944,57 +944,7 @@ if view == "Total":
                 height=120, width="container",
                 padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
             ).configure_view(stroke=None)
-            
-            st.altair_chart(bars, use_container_width=True)
-
-            color_range  = []
-            for c in color_domain:
-                if c in STD_COLOR:              # normal E1..S4..G1
-                    color_range.append(STD_COLOR[c])
-                elif c == "E_MISS":
-                    color_range.append(pillar_color("E"))
-                elif c == "S_MISS":
-                    color_range.append(pillar_color("S"))
-                elif c == "G_MISS":
-                    color_range.append(pillar_color("G"))
-                else:
-                    color_range.append("#cccccc")
-        
-            y_sort = [firm_series] + ([peers_series] if peers_series else [])
-            base = alt.Chart(chart_df)
-        
-            # normal segments (identical to v1)
-            is_missing = alt.FieldOneOfPredicate(field="StdCode", oneOf=MISSING_CODES)
-            
-            bars_all = (
-                base
-                .mark_bar()
-                .encode(
-                    y=alt.Y("Series:N", title="", sort=y_sort),
-                    x=alt.X("Value:Q", title="Number of Disclosure Requirements reported", stack="zero"),
-                    color=alt.Color("StdCode:N", scale=alt.Scale(domain=color_domain, range=color_range), legend=None),
-                    order=alt.Order("StdRank:Q"),
-                    opacity=alt.condition(is_missing, alt.value(0.4), alt.value(1.0)),
-                    stroke=alt.condition(is_missing,
-                                         alt.Color("StdCode:N", scale=alt.Scale(domain=color_domain, range=color_range)),
-                                         alt.value(None)),
-                    strokeDash=alt.condition(is_missing, alt.value([5,3]), alt.value([0,0])),
-                    strokeWidth=alt.condition(is_missing, alt.value(2), alt.value(0)),
-                    tooltip=[
-                        alt.Tooltip("Series:N", title="Series"),
-                        alt.Tooltip("Standard:N", title="Segment"),
-                        alt.Tooltip("Value:Q", title="# DR", format=".1f"),
-                    ],
-                )
-            )
-            
-            fig = alt.layer(bars_all, totals).properties(
-                height=120, width="container",
-                padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
-            ).configure_view(stroke=None)
-
-        
-            st.altair_chart(fig, use_container_width=True)
+        st.altair_chart(bars, use_container_width=True)
         
         note = "Bars show total counts of reported Disclosure Requirements, stacked by standard (E1–E5, S1–S4, G1)."
         if VARIANT in ("v2","v3"):
@@ -1378,11 +1328,6 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
             st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
             if n_peers > 0:
                 st.caption(f"Peers reported % = share of selected peers answering 'Yes' {note}")
-def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
-    _pillar_groups = by_pillar.get(pillar, [])
-    if not _pillar_groups:
-        st.info(f"No {pillar} columns found.")
-        return
 
     # peers
     comp_label = None
