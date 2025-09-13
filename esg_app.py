@@ -1006,7 +1006,7 @@ if view == "Total":
 
         
        
-          chart_df = pd.DataFrame(perstd_rows)
+        chart_df = pd.DataFrame(perstd_rows)
         
         custom_order = ["E1","E2","E3","E4","E5","E_MISS","S1","S2","S3","S4","S_MISS","G1","G_MISS"]
         rank_map = {c:i for i,c in enumerate(custom_order)}
