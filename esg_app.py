@@ -656,17 +656,37 @@ if aud_col in df.columns:
     auditor_val = "" if (pd.isna(v)) else str(v).strip()
 
 # Buttons row: Open report + Show auditor side-by-side
-btn_col1, btn_col2, _sp = st.columns([1, 1, 6])
+# (A) Make the button columns wider so text doesn't wrap
+btn_col1, btn_col2, _sp = st.columns([3, 3, 6])   # was [1, 1, 6]
+
+# (B) Small CSS to prevent wrapping + let buttons fill the column
+st.markdown(
+    """
+    <style>
+      /* Make link_button fill its column and keep text on one line */
+      div[data-testid="stLinkButtonContainer"] a {
+        width: 100%;
+        display: inline-block;
+        text-align: center;
+        white-space: nowrap;
+      }
+      /* Make the popover trigger button fill its column and not wrap */
+      div[data-testid="stPopoverTarget"] button {
+        width: 100%;
+        white-space: nowrap;
+      }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 with btn_col1:
     if link_url:
         try:
+            # Streamlit >= 1.28 supports use_container_width
+            st.link_button("Open firm report", link_url, use_container_width=True)
+        except TypeError:
             st.link_button("Open firm report", link_url)
-        except Exception:
-            st.markdown(
-                f'<a href="{link_url}" target="_blank" rel="noopener noreferrer">Open firm report ↗</a>',
-                unsafe_allow_html=True,
-            )
     else:
         st.caption("No report link available")
 
@@ -675,8 +695,10 @@ with btn_col2:
         with st.popover("Show auditor"):
             st.markdown(f"**Auditor:** {auditor_val}")
     except Exception:
-        if st.button("Show auditor"):
+        # Fallback if popover isn't available
+        if st.button("Show auditor", use_container_width=True):
             st.info(f"Auditor: {auditor_val}")
+
 # ========= NAV & COMPARISON =========
 valid_views = ["Total", "E", "S", "G"]
 current_view = read_query_param("view", "Total")
