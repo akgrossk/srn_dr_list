@@ -657,36 +657,28 @@ if aud_col in df.columns:
 
 # Buttons row: Open report + Show auditor side-by-side
 # (A) Make the button columns wider so text doesn't wrap
-btn_col1, btn_col2, _sp = st.columns([3, 3, 6])   # was [1, 1, 6]
+# Buttons row: Open report + Show auditor + Show ESG text characteristics
+btn_col1, btn_col2, btn_col3, _sp = st.columns([1, 1, 1, 6])
 
-# (B) Small CSS to prevent wrapping + let buttons fill the column
-st.markdown(
-    """
-    <style>
-      /* Make link_button fill its column and keep text on one line */
-      div[data-testid="stLinkButtonContainer"] a {
-        width: 100%;
-        display: inline-block;
-        text-align: center;
-        white-space: nowrap;
-      }
-      /* Make the popover trigger button fill its column and not wrap */
-      div[data-testid="stPopoverTarget"] button {
-        width: 100%;
-        white-space: nowrap;
-      }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+# Make buttons full-width and single-line
+st.markdown("""
+<style>
+.stButton > button, .stLinkButton > a {
+  width: 100%;
+  white-space: nowrap;
+}
+</style>
+""", unsafe_allow_html=True)
 
 with btn_col1:
     if link_url:
         try:
-            # Streamlit >= 1.28 supports use_container_width
-            st.link_button("Open firm report", link_url, use_container_width=True)
-        except TypeError:
-            st.link_button("Open firm report", link_url)
+            st.link_button("Open firm report", link_url, help="Opens in a new tab")
+        except Exception:
+            st.markdown(
+                f'<a href="{link_url}" target="_blank" rel="noopener noreferrer">Open firm report ↗</a>',
+                unsafe_allow_html=True,
+            )
     else:
         st.caption("No report link available")
 
@@ -695,9 +687,25 @@ with btn_col2:
         with st.popover("Show auditor"):
             st.markdown(f"**Auditor:** {auditor_val}")
     except Exception:
-        # Fallback if popover isn't available
-        if st.button("Show auditor", use_container_width=True):
+        if st.button("Show auditor"):
             st.info(f"Auditor: {auditor_val}")
+
+# --- New: ESG text characteristics link (optional) ---
+# Try a few likely column names; adjust to match your data later
+esg_link = ""
+for col in ["ESG_text_link", "Link_ESG_text", "Link_ESG", "ESG_Text_URL"]:
+    if col in df.columns:
+        candidate = str(current_row.get(col, "")).strip()
+        if _valid_url(candidate):
+            esg_link = candidate
+            break
+
+with btn_col3:
+    if esg_link:
+        st.link_button("Show ESG text characteristics", esg_link, help="Opens in a new tab")
+    else:
+        st.button("Show ESG text characteristics", disabled=True)
+        st.caption("URL not available yet")
 
 # ========= NAV & COMPARISON =========
 valid_views = ["Total", "E", "S", "G"]
