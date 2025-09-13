@@ -844,25 +844,21 @@ if view == "Total":
             base_rows = []
             rep_rows  = []
             miss_rows = []   # for invisible (tooltip) bars covering missing segment
-            stripe_rows = [] # thin vertical rules to simulate stripes over the missing portion
-    
+            # --- replace the old stripe_rows generation ---
+            stripe_rows = []  # thin bar slivers to simulate stripes
+            
             def add_series_rows(series_label: str, reported_by_std: dict):
-                # For each standard, add:
-                # - base total rect (x0..x1, semi transparent)
-                # - reported rect (x0..xrep, solid)
-                # - missing rect (xrep..x1, invisible but tooltip-enabled)
-                # - stripe rules across (xrep..x1)
                 for sc in present_codes:
                     total_n = totals_by_std[sc]
                     x0 = float(cum_starts[sc])
                     x1 = float(x0 + total_n)
-    
+            
                     rep = float(max(min(reported_by_std.get(sc, 0.0), total_n), 0.0))
                     xr = float(x0 + rep)
                     color = STD_COLOR[sc]
                     rank  = STD_RANK.get(sc, 9999)
                     stdlab = SHORT_ESRS_LABELS.get(sc, sc)
-    
+            
                     base_rows.append({
                         "Series": series_label, "StdCode": sc, "Standard": stdlab,
                         "x0": x0, "x1": x1, "Value": total_n, "Reported": rep,
@@ -880,16 +876,20 @@ if view == "Total":
                             "x0": xr, "x1": x1, "Missing": x1 - xr,
                             "Total": total_n, "StdRank": rank, "Color": color
                         })
-                        # Generate vertical stripe positions every ~0.5 units
-                        step = 0.5
+                        # === build stripes as many thin bar slivers across [xr, x1] ===
+                        gap = 0.6        # distance between stripe starts (units)
+                        width = 0.25     # stripe thickness (units)
                         pos = xr + 0.15
                         while pos < x1 - 0.1:
                             stripe_rows.append({
                                 "Series": series_label, "StdCode": sc, "Standard": stdlab,
-                                "x": float(pos), "StdRank": rank, "Color": color
+                                "x0": float(pos), "x1": float(min(pos + width, x1)),
+                                "StdRank": rank, "Color": color
                             })
-                            pos += step
-    
+                            pos += gap
+
+            stripes_df = pd.DataFrame(stripe_rows)
+
             # Firm reported per standard
             firm_reported = {}
             for sc in present_codes:
@@ -981,17 +981,23 @@ if view == "Total":
                 )
             )
     
-            # Stripe overlay across the missing portion (vertical rules spanning the band)
-            layer_stripes = alt.Chart(stripes_df).mark_rule(strokeDash=[4,3], opacity=0.9).encode(
-                x=alt.X("x:Q"),
-                y=alt.Y("Series:N", sort=y_sort),
-                y2=alt.Y2("Series:N", band=1),
-                stroke=alt.Color("StdCode:N",
-                                 scale=alt.Scale(domain=present_codes, range=[STD_COLOR[c] for c in present_codes]),
-                                 legend=None),
-                size=alt.value(1)
+            # Stripes overlay: many thin bars across the missing portion
+            layer_stripes = (
+                alt.Chart(stripes_df)
+                .mark_bar(opacity=0.55)
+                .encode(
+                    y=alt.Y("Series:N", sort=y_sort),
+                    x=alt.X("x0:Q"),
+                    x2="x1:Q",
+                    color=alt.Color(
+                        "StdCode:N",
+                        scale=alt.Scale(domain=present_codes, range=[STD_COLOR[c] for c in present_codes]),
+                        legend=None
+                    ),
+                    order=alt.Order("StdRank:Q"),
+                )
             )
-    
+
             fig = alt.layer(layer_base, layer_rep, layer_stripes, layer_missing_tooltip).properties(
                 height=120, width="container",
                 padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
