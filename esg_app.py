@@ -419,6 +419,13 @@ def render_section_header(title: str, codes):
 
 # --- Missing segments (v2/v3 Total only) ---
 MISSING_CODES = ["E_MISS", "S_MISS", "G_MISS"]
+# exact colors for the added "missing" bars
+MISSING_COLOR = {
+    "E_MISS": "#8BE8A0",  # light green
+    "S_MISS": "#F5A3A3",  # light red
+    "G_MISS": "#F8E690",  # light yellow
+}
+
 
 def pillar_color(p: str) -> str:
     # use the *existing* pillar base color (unchanged palette)
@@ -434,17 +441,17 @@ def missing_label_for_variant(pillar: str) -> str:
 
 def render_inline_legend_with_missing(codes, colors):
     """Show normal per-standard chips + 3 extra 'missing' legend entries with exact bar colors."""
-    # normal items
+    # normal items (standards E1.., S1.., G1..)
     items = "".join(
         f'<span class="swatch" style="background:{colors[c]}"></span>'
         f'<span class="lab">{c}</span>'
         for c in codes
     )
 
-    # exact colors for missing segments
+    # exact tint swatches for the 3 missing entries
     miss_bits = []
     for p, code in zip(["E", "S", "G"], MISSING_CODES):
-        tint = MISSING_COLOR.get(code, "#cccccc")
+        tint = MISSING_COLOR.get(code, pillar_color(p))  # fallback to pillar base if key missing
         miss_bits.append(
             f'<span class="swatch" style="background:{tint}"></span>'
             f'<span class="lab">{missing_label_for_variant(p)}</span>'
@@ -454,7 +461,7 @@ def render_inline_legend_with_missing(codes, colors):
     st.markdown(
         """
         <style>
-        .legend-inline{display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:center; margin-top:.35rem;}
+        .legend-inline{display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:center;margin-top:.35rem;}
         .legend-inline .swatch{display:inline-block;width:12px;height:12px;border-radius:2px;margin-right:.35rem;}
         .legend-inline .lab{font-size:0.9rem;}
         </style>
@@ -462,6 +469,7 @@ def render_inline_legend_with_missing(codes, colors):
         unsafe_allow_html=True,
     )
     st.markdown(f'<div class="legend-inline">{items}</div>', unsafe_allow_html=True)
+
 
 
 # ========= LOAD DATA (GitHub only) =========
@@ -900,20 +908,10 @@ if view == "Total":
         if not chart_df.empty:
             # Color mapping unchanged for standards; missing segments reuse the pillar base color
             color_domain = present_codes + [c for c in MISSING_CODES if (chart_df["StdCode"] == c).any()]
-            # palette for the 3 new segments (same family, lighter tints)
-            MISSING_COLOR = {
-                "E_MISS": "#8BE8A0",  # light green
-                "S_MISS": "#F5A3A3",  # light red
-                "G_MISS": "#F8E690",  # light yellow
-            }
-            
-            color_domain = present_codes + [c for c in MISSING_CODES if (chart_df["StdCode"] == c).any()]
-            color_range  = []
-            for c in color_domain:
-                if c in STD_COLOR:
-                    color_range.append(STD_COLOR[c])
-                else:
-                    color_range.append(MISSING_COLOR.get(c, "#cccccc"))
+            color_range = [
+                STD_COLOR[c] if c in STD_COLOR else MISSING_COLOR.get(c, "#cccccc")
+                for c in color_domain
+            ]
 
             
             y_sort = [firm_series] + ([peers_series] if peers_series else [])
