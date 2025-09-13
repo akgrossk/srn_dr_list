@@ -1057,6 +1057,36 @@ if view == "Total":
                 padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
             ).configure_view(stroke=None)
             st.altair_chart(bars, use_container_width=True)
+            # --- separator lines between standards (E1 | E2 | ... | G1)
+            stds_for_bounds = [c for c in STD_ORDER if (chart_df["StdCode"] == c).any()]
+            separators = None
+            if stds_for_bounds:
+                seg = chart_df[chart_df["StdCode"].isin(stds_for_bounds)].copy()
+                seg["StdRank"] = seg["StdCode"].map(rank_map)
+                seg = seg.sort_values(["Series", "StdRank"])
+                seg["Boundary"] = seg.groupby("Series")["Value"].cumsum()
+                # drop the very last boundary for each series
+                seg["maxB"] = seg.groupby("Series")["Boundary"].transform("max")
+                seg = seg[seg["Boundary"] < seg["maxB"]]
+            
+                separators = (
+                    alt.Chart(seg)
+                    .mark_rule(stroke="#666", strokeWidth=1, opacity=0.55)
+                    .encode(
+                        y=alt.Y("Series:N", sort=y_sort, title=""),
+                        x=alt.X("Boundary:Q")
+                    )
+                )
+            
+            # layer bars + separators
+            fig = (alt.layer(bars, separators) if separators is not None else bars).properties(
+                height=120,
+                width="container",
+                padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
+            ).configure_view(stroke=None)
+            
+            st.altair_chart(fig, use_container_width=True)
+
             
             note = "Bars show total counts of reported Disclosure Requirements, stacked by standard (E1–E5, S1–S4, G1)."
             if n_peers > 0:
