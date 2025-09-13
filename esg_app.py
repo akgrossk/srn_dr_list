@@ -788,61 +788,136 @@ if view == "Total":
       
 
     else:
-        # === stacked bars (counts by standard) ===
+        # === stacked bars overview (counts by standard) ===
         perstd_rows = []
+    
+        # Choose the grey label based on variant (v2: "Not reported", v3: "Missing")
+        missing_label = "Not reported" if VARIANT == "v2" else ("Missing" if VARIANT == "v3" else "Not reported")
+    
         for std_code in STD_ORDER:
             if std_code not in groups:
                 continue
+    
             metrics_in_group = groups[std_code]
-            label = SHORT_ESRS_LABELS.get(std_code, std_code)
-
+            total_n = len(metrics_in_group)
+            if total_n == 0:
+                continue
+    
+            std_label = SHORT_ESRS_LABELS.get(std_code, std_code)
+    
+            # Firm counts
             vals = current_row[metrics_in_group].astype(str).str.strip().str.lower()
             firm_yes = int(vals.isin(YES_SET).sum())
-            perstd_rows.append({"StdCode": std_code, "Standard": label, "Series": firm_series, "Value": float(firm_yes)})
-
+            firm_missing = max(total_n - firm_yes, 0)
+    
+            # Peers (mean) if available
+            peer_yes_mean = None
             if n_peers > 0:
                 present_cols = [m for m in metrics_in_group if m in peers.columns]
                 if present_cols:
                     peer_block = peers[present_cols].astype(str).applymap(lambda x: x.strip().lower() in YES_SET)
                     if len(peer_block) > 0:
                         peer_yes_mean = float(peer_block.sum(axis=1).mean())
-                        if peers_series is not None:
-                            perstd_rows.append({"StdCode": std_code, "Standard": label, "Series": peers_series, "Value": float(peer_yes_mean)})
-
+            peer_missing_mean = (total_n - peer_yes_mean) if (peer_yes_mean is not None) else None
+    
+            # Colors: reported = standard color, missing = grey; add a colored stroke to grey to show belonging
+            std_fill = STD_COLOR[std_code]
+            grey_fill = "#e5e7eb"  # neutral grey that still contrasts the colored part
+    
+            # Series labels
+            firm_series = "Firm"
+            comp_label_short = (comp_label or "").replace(" mean", "") if comp_label else None
+            peers_series = f"Mean: {comp_label_short}" if comp_label_short and (peer_yes_mean is not None) else None
+    
+            if VARIANT in ("v2", "v3"):
+                # v2/v3: make each standard block equal to its total_n by stacking reported + missing
+                # Firm rows
+                perstd_rows.append({
+                    "StdCode": std_code, "Standard": std_label, "Series": firm_series,
+                    "Part": "Reported", "Value": float(firm_yes), "Total": total_n,
+                    "Fill": std_fill, "Stroke": std_fill, "PartOrder": 0
+                })
+                if firm_missing > 0:
+                    perstd_rows.append({
+                        "StdCode": std_code, "Standard": std_label, "Series": firm_series,
+                        "Part": missing_label, "Value": float(firm_missing), "Total": total_n,
+                        "Fill": grey_fill, "Stroke": std_fill, "PartOrder": 1
+                    })
+    
+                # Peers rows (if any)
+                if peers_series is not None:
+                    perstd_rows.append({
+                        "StdCode": std_code, "Standard": std_label, "Series": peers_series,
+                        "Part": "Reported", "Value": float(peer_yes_mean), "Total": total_n,
+                        "Fill": std_fill, "Stroke": std_fill, "PartOrder": 0
+                    })
+                    if peer_missing_mean is not None and peer_missing_mean > 0:
+                        perstd_rows.append({
+                            "StdCode": std_code, "Standard": std_label, "Series": peers_series,
+                            "Part": missing_label, "Value": float(peer_missing_mean), "Total": total_n,
+                            "Fill": grey_fill, "Stroke": std_fill, "PartOrder": 1
+                        })
+            else:
+                # v1: keep your original single-segment (reported only) behavior
+                perstd_rows.append({
+                    "StdCode": std_code, "Standard": std_label, "Series": firm_series,
+                    "Part": "Reported", "Value": float(firm_yes), "Total": total_n,
+                    "Fill": std_fill, "Stroke": std_fill, "PartOrder": 0
+                })
+                if peers_series is not None and peer_yes_mean is not None:
+                    perstd_rows.append({
+                        "StdCode": std_code, "Standard": std_label, "Series": peers_series,
+                        "Part": "Reported", "Value": float(peer_yes_mean), "Total": total_n,
+                        "Fill": std_fill, "Stroke": std_fill, "PartOrder": 0
+                    })
+    
         chart_df = pd.DataFrame(perstd_rows)
         chart_df["StdRank"] = chart_df["StdCode"].map(STD_RANK).fillna(9999)
-
+    
         # header + inline legend (use only present standards when possible)
-        if not chart_df.empty:
-            present_codes = [c for c in STD_ORDER if (chart_df["StdCode"] == c).any()]
-        else:
-            present_codes = STD_ORDER
+        present_codes = [c for c in STD_ORDER if (chart_df["StdCode"] == c).any()] if not chart_df.empty else STD_ORDER
         render_section_header("Total overview", present_codes)
-
+    
         if not chart_df.empty:
-            color_domain = present_codes
-            color_range  = [STD_COLOR[c] for c in color_domain]
-            y_sort = [firm_series] + ([peers_series] if peers_series else [])
+            # domain/range for inline legend (standards only)
+            color_domain_for_legend = present_codes
+            color_range_for_legend  = [STD_COLOR[c] for c in color_domain_for_legend]
+    
+            # y sort (Firm first, then Peers)
+            y_sort = ["Firm"]
+            if (chart_df["Series"] != "Firm").any():
+                # keep whatever peers series label was used
+                other_series = [s for s in chart_df["Series"].unique().tolist() if s != "Firm"]
+                y_sort += other_series
+    
             base = alt.Chart(chart_df)
-
+    
+            # Encode x axis
+            x_enc = alt.X("Value:Q", title="Number of Disclosure Requirements")
+    
+            # Color via precomputed hex in 'Fill' (so reported is the standard color, missing is grey)
+            # Keep legend off here; we already show standards legend inline above.
+            # Draw a thin stroke on "missing" to keep belonging to the standard obvious.
             bars = (
                 base
-                .mark_bar()
+                .mark_bar(strokeWidth=alt.ExprRef(expr="datum.Part === 'Reported' ? 0 : 1"))
                 .encode(
                     y=alt.Y("Series:N", title="", sort=y_sort),
-                    x=alt.X("Value:Q", title="Number of Disclosure Requirements reported"),
-                    color=alt.Color("StdCode:N",
-                                    scale=alt.Scale(domain=color_domain, range=color_range),
-                                    legend=None),   # legend disabled (we render inline)
-                    order=alt.Order("StdRank:Q"),
+                    x=x_enc,
+                    color=alt.Color("Fill:N", scale=None, legend=None),
+                    order=alt.Order(["StdRank:Q", "PartOrder:Q"]),
                     tooltip=[
                         alt.Tooltip("Series:N", title="Series"),
                         alt.Tooltip("Standard:N", title="Standard"),
+                        alt.Tooltip("Part:N", title="Segment"),
                         alt.Tooltip("Value:Q", title="# DR", format=".1f"),
+                        alt.Tooltip("Total:Q", title="Total in standard"),
                     ],
+                    stroke=alt.Color("Stroke:N", scale=None)
                 )
             )
-
+    
+            # Totals at end of each stacked bar (use the Total per standard sum == last stack x)
             totals = (
                 base
                 .transform_aggregate(total="sum(Value)", groupby=["Series"])
@@ -853,15 +928,23 @@ if view == "Total":
                     text=alt.Text("total:Q", format=".1f"),
                 )
             )
-
+    
             fig = alt.layer(bars, totals).properties(
                 height=120, width="container",
                 padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
             ).configure_view(stroke=None)
-
+    
             st.altair_chart(fig, use_container_width=True)
-
-        note = "Bars show total counts of reported Disclosure Requirements, stacked by standard (E1–E5, S1–S4, G1)."
+    
+        # Caption
+        if VARIANT in ("v2", "v3"):
+            note = (
+                "Each bar stacks **Reported** (colored) and "
+                f"**{missing_label}** (grey) for every ESRS standard; "
+                "the full length equals the total DRs in that standard."
+            )
+        else:
+            note = "Bars show total counts of reported Disclosure Requirements, stacked by standard (E1–E5, S1–S4, G1)."
         if n_peers > 0:
             note += peer_note
         st.caption(note)
