@@ -1035,13 +1035,22 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
         base_code = g.split("-")[0]
         short_title = SHORT_ESRS_LABELS.get(base_code, base_code)
         n_metrics = len(metrics)
-        if peers_yes_mean is not None:
-            exp_title = (
-                f"{short_title} • {n_metrics} Disclosure Requirements — reported: "
-                f"{firm_yes_count}/{n_metrics} (Peers {comp_label}: {peers_yes_mean:.1f}/{n_metrics})"
-            )
+        if VARIANT == "v1":
+            # v1: title only, no counts
+            exp_title = f"{short_title}"
         else:
-            exp_title = f"{short_title} • {n_metrics} Disclosure Requirements — reported: {firm_yes_count}/{n_metrics}"
+            # v2 & v3: include counts (and peers if available)
+            if peers_yes_mean is not None:
+                exp_title = (
+                    f"{short_title} • {n_metrics} Disclosure Requirements — reported: "
+                    f"{firm_yes_count}/{n_metrics} (Peers {comp_label}: {peers_yes_mean:.1f}/{n_metrics})"
+                )
+            else:
+                exp_title = (
+                    f"{short_title} • {n_metrics} Disclosure Requirements — reported: "
+                    f"{firm_yes_count}/{n_metrics}"
+                )
+
 
         with st.expander(exp_title, expanded=False):
             if display_mode == "Tables":
