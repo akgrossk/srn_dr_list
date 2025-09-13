@@ -124,6 +124,7 @@ E1-IRO-1	Description of the processes to identify and assess material climate-re
 E1-2	Policies related to climate change mitigation and adaptation
 E1-3	Actions and resources in relation to climate change policies
 E1-4	Targets related to climate change mitigation and adaptation
+E1-5	Energy consumption and mix
 E1-6	Gross Scopes 1, 2, 3 and Total GHG emissions
 E1-7	GHG removals and GHG mitigation projects financed through carbon credits
 E1-8	Internal carbon pricing
@@ -203,6 +204,7 @@ G1-2	Management of relationships with suppliers
 G1-3	Prevention and detection of corruption or bribery
 G1-4	Confirmed incidents of corruption or bribery
 G1-5	Political influence and lobbying activities
+G1-6	Payment practices
 """)
 
 
