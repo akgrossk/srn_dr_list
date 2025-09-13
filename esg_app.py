@@ -209,9 +209,9 @@ G1-6	Payment practices
 E_STANDARDS = ["E1", "E2", "E3", "E4", "E5"]
 S_STANDARDS = ["S1", "S2", "S3", "S4"]
 G_STANDARDS = ["G1"]  # extend if you add more
-PALETTE_E = ["#0b7a28", "#188f31", "#20a73c", "#27be46", "#2fd551"]  # E1..E5 greens
-PALETTE_S = ["#8f1414", "#b51d1d", "#d23030", "#ea4b4b"]             # S1..S4 reds
-PALETTE_G = ["#f2c744"]                                             # G1 yellow
+PALETTE_E = ["#005322", "#00672B", "#008F3C", "#00A746", "#80D3A3"]  # E1..E5 greens
+PALETTE_S = ["#D12828", "#FF1F1F", "#FF5C5C", "#F28585"]             # S1..S4 reds
+PALETTE_G = ["#F0CB51"]                                             # G1 yellow
 STD_ORDER = E_STANDARDS + S_STANDARDS + G_STANDARDS
 STD_COLOR = {
     **{s: c for s, c in zip(E_STANDARDS, PALETTE_E)},
