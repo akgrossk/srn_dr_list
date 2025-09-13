@@ -1173,7 +1173,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 
                 base = alt.Chart(cdf)
                 
-                bars = base.mark_bar().encode(
+                bars = base.mark_bar(stroke="#666", strokeWidth=1).encode(
                     y=alt.Y("Series:N", title="", sort=y_sort),
                     x=alt.X("Value:Q", title="Number of Disclosure Requirements reported"),
                     color=alt.Color("StdCode:N",
@@ -1318,27 +1318,22 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 
                 bars = (
                     base
-                    .mark_bar()
+                    .mark_bar(stroke="#666", strokeWidth=1)   # <- neutral outline for ALL segments
                     .encode(
-                        y=alt.Y("Series:N", title="", sort=y_sort),
-                        x=alt.X("Value:Q", title="Number of Disclosure Requirements"),
-                        color=alt.Color("Cat:N", scale=alt.Scale(domain=domain, range=rng), legend=None),
-                        order=alt.Order("CatRank:Q"),
+                        ...
                         opacity=alt.condition(is_missing, alt.value(0.35), alt.value(1.0)),
+                        # keep colored dashed stroke for *_MISS* (overrides the neutral stroke on those)
                         stroke=alt.condition(
                             is_missing,
                             alt.Color("Cat:N", scale=alt.Scale(domain=domain, range=rng)),
-                            alt.value(None)
+                            alt.value("#666")
                         ),
                         strokeDash=alt.condition(is_missing, alt.value([5, 3]), alt.value([0, 0])),
-                        strokeWidth=alt.condition(is_missing, alt.value(2), alt.value(0)),
-                        tooltip=[
-                            alt.Tooltip("Series:N", title="Series"),
-                            alt.Tooltip("Label:N",  title="Segment"),
-                            alt.Tooltip("Value:Q",  title="# DR", format=".1f"),
-                        ],
+                        strokeWidth=alt.condition(is_missing, alt.value(2), alt.value(1)),
+                        ...
                     )
                 )
+
                 
                 totals = (
                     base.transform_aggregate(total="sum(Value)", groupby=["Series"])
@@ -1366,12 +1361,12 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     )
                 )
                 
-                fig = alt.layer(bars, totals, separators).properties(
+                fig = alt.layer(bars, totals).properties(
                     height=120, width="container",
                     padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
                 ).configure_view(stroke=None)
-                
                 st.altair_chart(fig, use_container_width=True)
+
                 
                 fixed_total = sum(STD_TOTAL_OVERRIDES.get(s, 0) for s in stds_in_pillar)
                 st.caption(
