@@ -521,7 +521,10 @@ def render_pillar_legend_with_missing(stds_in_pillar, colors, pillar):
 
 
 # ========= LOAD DATA (GitHub only) =========
-st.sidebar.title("🌱 Disclosure Requirements Viewer")
+df = load_table(DEFAULT_DATA_URL)
+if df.empty:
+    st.stop()
+
 
 # --- Variant switcher (always visible) ---
 st.sidebar.caption(f"Variant: **{VARIANT.upper()}**")
