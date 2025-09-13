@@ -1035,35 +1035,72 @@ if view == "Total":
             
             y_sort = [firm_series] + ([peers_series] if peers_series else [])
 
-            base = alt.Chart(chart_df)
-            bars = (
-                base
-                .mark_bar(
-                    stroke="#000",          # outline color
-                    strokeWidth=1,          # outline thickness
-                    strokeOpacity=0.9,
-                    strokeJoin="miter"      # keeps corners crisp on thin segments
-                )
-                .encode(
-                    y=alt.Y("Series:N", title="", sort=y_sort),
-                    x=alt.X("Value:Q", title="Number of Disclosure Requirements reported", stack="zero"),
-                    color=alt.Color(
-                        "StdCode:N",
-                        scale=alt.Scale(domain=color_domain, range=color_range),
-                        legend=None
-                    ),
-                    order=alt.Order("StdRank:Q"),
-                    tooltip=[
-                        alt.Tooltip("Series:N", title="Series"),
-                        alt.Tooltip("Standard:N", title="Segment"),
-                        alt.Tooltip("Value:Q", title="# DR", format=".1f"),
-                    ],
-                )
-            ).properties(
+            # --- compute stacked positions per Series so we can draw our own rects
+            seg = chart_df.copy()
+            seg = seg.sort_values(["Series", "StdRank"])
+            seg["x1"] = seg.groupby("Series")["Value"].cumsum()
+            seg["x0"] = seg["x1"] - seg["Value"]
+            
+            # --- colors for all segments (standards + MISS codes)
+            color_domain = [c for c in (present_codes + [m for m in MISSING_CODES if (chart_df["StdCode"] == m).any()])]
+            color_range  = [
+                (STD_COLOR[c] if c in STD_COLOR else MISSING_COLOR.get(c, "#cccccc"))
+                for c in color_domain
+            ]
+            
+            y_sort = [firm_series] + ([peers_series] if peers_series else [])
+            
+            # base opaque rectangles — no transparency, so gridlines don't show through
+            rects = (
+                alt.Chart(seg)
+                  .mark_rect(stroke="#000", strokeWidth=1, strokeJoin="miter")
+                  .encode(
+                      y=alt.Y("Series:N", title="", sort=y_sort),
+                      x=alt.X("x0:Q", title="Number of Disclosure Requirements reported", axis=alt.Axis(grid=True)),
+                      x2="x1:Q",
+                      color=alt.Color("StdCode:N", scale=alt.Scale(domain=color_domain, range=color_range), legend=None),
+                      order=alt.Order("StdRank:Q"),
+                      tooltip=[
+                          alt.Tooltip("Series:N",   title="Series"),
+                          alt.Tooltip("Standard:N", title="Segment"),
+                          alt.Tooltip("Value:Q",    title="# DR", format=".1f"),
+                      ],
+                  )
+            )
+            
+            # striped overlay only for E_MISS / S_MISS / G_MISS (solid hatch look)
+            miss_only = seg[seg["StdCode"].isin(MISSING_CODES)].copy()
+            
+            def _make_stripes_df(d, step=1.0, stripe_width=0.35):
+                rows = []
+                for _, r in d.iterrows():
+                    x0, x1 = float(r["x0"]), float(r["x1"])
+                    x = x0
+                    while x < x1:
+                        xa = x
+                        xb = min(x + stripe_width, x1)
+                        rows.append({"Series": r["Series"], "xa": xa, "xb": xb})
+                        x += step
+                return pd.DataFrame(rows)
+            
+            stripes_df = _make_stripes_df(miss_only)
+            stripes = (
+                alt.Chart(stripes_df)
+                  .mark_rect()  # draw thin vertical stripes
+                  .encode(
+                      y=alt.Y("Series:N", title="", sort=y_sort),
+                      x=alt.X("xa:Q"),
+                      x2="xb:Q",
+                      color=alt.value("#ffffff")  # white stripes on top of the opaque fill
+                  )
+            )
+            
+            fig = alt.layer(rects, stripes).properties(
                 height=120, width="container",
                 padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
             ).configure_view(stroke=None)
-            st.altair_chart(bars, use_container_width=True)
+            
+            st.altair_chart(fig, use_container_width=True)
             
             note = "Bars show total counts of reported Disclosure Requirements, stacked by standard (E1–E5, S1–S4, G1)."
             if n_peers > 0:
