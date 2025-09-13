@@ -1039,7 +1039,7 @@ if view == "Total":
             bars = (
                 base
                 .mark_bar(
-                    stroke="#000",          # outline color
+                    stroke="#9E9E9E",          # outline color
                     strokeWidth=1,          # outline thickness
                     strokeOpacity=0.9,
                     strokeJoin="miter"      # keeps corners crisp on thin segments
