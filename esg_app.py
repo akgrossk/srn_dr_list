@@ -435,10 +435,13 @@ MISSING_COLOR = {
     "G_MISS": "#F8E690",  # light yellow
 }
 
-# --- Hatch styling for *_MISS overlays (subtle) ---
-MISSING_STRIPE_STEP  = 1   # distance between stripes (bigger = fewer stripes)
-MISSING_STRIPE_WIDTH = 0.1  # stripe thickness (smaller = thinner stripes)
-MISSING_STRIPE_COLOR = "rgba(255,255,255,0.55)"  # slightly translucent white
+
+# --- Subtle diagonal hatch for *_MISS overlays ---
+MISSING_STRIPE_STEP   = 1.6    # gap between stripes along x (bigger = fewer stripes)
+MISSING_STRIPE_WIDTH  = 0.8    # stripe thickness in px (smaller = thinner)
+MISSING_STRIPE_COLOR  = "#ffffff"  # stripe color (use rgba(...) to add transparency)
+MISSING_STRIPE_SLOPE  = 7.0    # px of vertical rise per 1.0 x-unit (controls angle)
+# tip: larger slope => steeper stripes (closer to vertical)
 
 
 def pillar_color(p: str) -> str:
@@ -1063,34 +1066,43 @@ if view == "Total":
 
             # HATCH overlay only for missing (v2/v3); v1 stays solid
             layers = [rects]
-            if VARIANT in ("v2","v3"):
+            if VARIANT in ("v2", "v3"):
                 miss_only = seg[seg["StdCode"].isin(MISSING_CODES)].copy()
             
-                def _make_stripes_df(d, step=MISSING_STRIPE_STEP, stripe_width=MISSING_STRIPE_WIDTH):
+                def _make_diag_stripes(d, step=MISSING_STRIPE_STEP):
                     rows = []
                     for _, r in d.iterrows():
                         x0, x1 = float(r["x0"]), float(r["x1"])
                         x = x0
                         while x < x1:
+                            # diagonal tiny segment from (x, y+yo) to (x+dx, y+yo2)
+                            dx = 0.35  # short segment length along x; small keeps a crisp angle
                             xa = x
-                            xb = min(x + stripe_width, x1)
-                            rows.append({"Series": r["Series"], "xa": xa, "xb": xb})
+                            xb = min(x + dx, x1)
+                            # choose offsets so line slants upwards across the band
+                            yo  = -10    # px offset from band center for start
+                            yo2 = yo + (xb - xa) * MISSING_STRIPE_SLOPE
+                            rows.append({"Series": r["Series"], "xa": xa, "xb": xb, "yo": yo, "yo2": yo2})
                             x += step
                     return pd.DataFrame(rows)
             
-                stripes_df = _make_stripes_df(miss_only)
+                stripes_df = _make_diag_stripes(miss_only)
                 if not stripes_df.empty:
                     stripes = (
                         alt.Chart(stripes_df)
-                          .mark_rect()
+                          .mark_rule()
                           .encode(
-                              y=alt.Y("Series:N", title="", sort=y_sort),
-                              x=alt.X("xa:Q"),
-                              x2="xb:Q",
-                              color=alt.value(MISSING_STRIPE_COLOR),
+                              y=alt.Y("Series:N", title="", sort=y_sort),           # band category
+                              x=alt.X("xa:Q"),                                      # line start (x)
+                              x2="xb:Q",                                            # line end (x)
+                              yOffset="yo:Q",                                       # start offset (px)
+                              y2Offset="yo2:Q",                                     # end offset (px)
+                              stroke=alt.value(MISSING_STRIPE_COLOR),
+                              strokeWidth=alt.value(MISSING_STRIPE_WIDTH),
                           )
                     )
                     layers.append(stripes)
+
 
         
             fig = alt.layer(*layers).properties(
@@ -1284,37 +1296,41 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                       )
                 )
 
-                # build diagonal stripe overlay for *_MISS (vertical micro-stripes)
+                
+                # angled hatch only for *_MISS categories
                 miss_only = seg[seg["Cat"].str.endswith("_MISS")].copy()
                 
-                def _make_stripes_df_pillar(d: pd.DataFrame,
-                                            step: float = MISSING_STRIPE_STEP,
-                                            stripe_width: float = MISSING_STRIPE_WIDTH) -> pd.DataFrame:
-                    rows_ = []
+                def _make_diag_stripes_pillar(d, step=MISSING_STRIPE_STEP):
+                    rows = []
                     for _, r in d.iterrows():
                         x0, x1 = float(r["x0"]), float(r["x1"])
                         x = x0
                         while x < x1:
+                            dx = 0.35
                             xa = x
-                            xb = min(x + stripe_width, x1)
-                            rows_.append({"Series": r["Series"], "xa": xa, "xb": xb})
+                            xb = min(x + dx, x1)
+                            yo  = -10
+                            yo2 = yo + (xb - xa) * MISSING_STRIPE_SLOPE
+                            rows.append({"Series": r["Series"], "xa": xa, "xb": xb, "yo": yo, "yo2": yo2})
                             x += step
-                    return pd.DataFrame(rows_)
+                    return pd.DataFrame(rows)
                 
                 layers = [rects]
-                stripes_df = _make_stripes_df_pillar(miss_only)
+                stripes_df = _make_diag_stripes_pillar(miss_only)
                 if not stripes_df.empty:
                     stripes = (
                         alt.Chart(stripes_df)
-                          .mark_rect()
+                          .mark_rule()
                           .encode(
                               y=alt.Y("Series:N", title="", sort=y_sort),
-                              x=alt.X("xa:Q"),
-                              x2="xb:Q",
-                              color=alt.value(MISSING_STRIPE_COLOR),
+                              x=alt.X("xa:Q"), x2="xb:Q",
+                              yOffset="yo:Q", y2Offset="yo2:Q",
+                              stroke=alt.value(MISSING_STRIPE_COLOR),
+                              strokeWidth=alt.value(MISSING_STRIPE_WIDTH),
                           )
                     )
                     layers.append(stripes)
+
 
                 # totals text at row end
                 totals = (
