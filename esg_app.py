@@ -1066,17 +1066,23 @@ if view == "Total":
             if VARIANT in ("v2","v3"):
                 miss_only = seg[seg["StdCode"].isin(MISSING_CODES)].copy()
             
-                def _make_stripes_df(d, step=MISSING_STRIPE_STEP, stripe_width=MISSING_STRIPE_WIDTH):
+                def _make_stripes_df(d):
                     rows = []
                     for _, r in d.iterrows():
                         x0, x1 = float(r["x0"]), float(r["x1"])
+                        w = max(x1 - x0, 0.0)
+                        if w <= 0:
+                            continue
+                        step = w / max(MISS_NUM_STRIPES, 1)         # number of stripes
+                        sw = min(MISSING_STRIPE_WIDTH, step * 0.8)  # stripe thickness (kept <= step)
                         x = x0
                         while x < x1:
                             xa = x
-                            xb = min(x + stripe_width, x1)
+                            xb = min(x + sw, x1)
                             rows.append({"Series": r["Series"], "xa": xa, "xb": xb})
                             x += step
                     return pd.DataFrame(rows)
+
             
                 stripes_df = _make_stripes_df(miss_only)
                 if not stripes_df.empty:
@@ -1287,20 +1293,23 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 # build diagonal stripe overlay for *_MISS (vertical micro-stripes)
                 miss_only = seg[seg["Cat"].str.endswith("_MISS")].copy()
                 
-                def _make_stripes_df_pillar(d: pd.DataFrame,
-                                            step: float = MISSING_STRIPE_STEP,
-                                            stripe_width: float = MISSING_STRIPE_WIDTH) -> pd.DataFrame:
-                    rows_ = []
+                def _make_stripes_df_pillar(d):
+                    rows = []
                     for _, r in d.iterrows():
                         x0, x1 = float(r["x0"]), float(r["x1"])
+                        w = max(x1 - x0, 0.0)
+                        if w <= 0:
+                            continue
+                        step = w / max(MISS_NUM_STRIPES, 1)
+                        sw = min(MISSING_STRIPE_WIDTH, step * 0.8)
                         x = x0
                         while x < x1:
                             xa = x
-                            xb = min(x + stripe_width, x1)
-                            rows_.append({"Series": r["Series"], "xa": xa, "xb": xb})
+                            xb = min(x + sw, x1)
+                            rows.append({"Series": r["Series"], "xa": xa, "xb": xb})
                             x += step
-                    return pd.DataFrame(rows_)
-                
+                    return pd.DataFrame(rows)
+
                 layers = [rects]
                 stripes_df = _make_stripes_df_pillar(miss_only)
                 if not stripes_df.empty:
