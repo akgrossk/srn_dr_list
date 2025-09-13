@@ -730,9 +730,6 @@ if view == "Total":
         peers, n_peers, peer_note = build_custom_peers(df, label_col, selected_custom_peers, current_row)
 
     firm_series = "Firm"
-    comp_label_short = (comp_label or "").replace(" mean", "") if comp_label else None
-    # only define a peers series if we actually have peers
-    peers_series = f"Mean: {comp_label_short}" if (comp_label_short and n_peers > 0 and (peers is not None) and (not peers.empty)) else None
 
 
     if display_mode == "Tables":
@@ -918,7 +915,7 @@ if view == "Total":
                                 "x0": float(pos), "x1": float(min(pos + width, x1)),
                             })
                             pos += gap
-        
+    
             # --- firm series
             firm_reported = {}
             for sc in present_codes:
@@ -943,6 +940,8 @@ if view == "Total":
             base_df   = pd.DataFrame(base_rows)
             rep_df    = pd.DataFrame(rep_rows)
             miss_pillar_df = pd.DataFrame(miss_pillar_rows)
+            stripes_df = pd.DataFrame(stripes_rows)
+
         
             # header + legends
             render_section_header("Total overview", present_codes)
@@ -992,21 +991,46 @@ if view == "Total":
                 )
             )
         
-            # Hatch stripes per pillar (colored by pillar representative color)
+
+
+            layers = [layer_base, layer_rep]  # start with the always-present layers
+            
+            # Hatch stripes per pillar (one contiguous missing block per pillar)
             if not stripes_df.empty:
-                stripes_df["PillarColor"] = stripes_df["Pillar"].map(pillar_color)
-            layer_stripes = (
-                alt.Chart(stripes_df)
-                .mark_bar(opacity=0.55)
+                layer_stripes = (
+                    alt.Chart(stripes_df)
+                    .mark_bar(opacity=0.55)
+                    .encode(
+                        y=alt.Y("Series:N", sort=y_sort),
+                        x=alt.X("x0:Q"),
+                        x2="x1:Q",
+                        color=alt.Color(
+                            "Pillar:N",
+                            scale=alt.Scale(domain=pillar_order, range=[pillar_color[p] for p in pillar_order]),
+                            legend=None,
+                        ),
+                    )
+                )
+                layers.append(layer_stripes)
+            
+            # Pillar-level invisible bars for missing tooltips
+            layers.append(
+                alt.Chart(miss_pillar_df)
+                .mark_bar(opacity=0)
                 .encode(
                     y=alt.Y("Series:N", sort=y_sort),
-                    x=alt.X("x0:Q"),
+                    x="x0:Q",
                     x2="x1:Q",
-                    color=alt.Color("Pillar:N",
-                                    scale=alt.Scale(domain=pillar_order, range=[pillar_color[p] for p in pillar_order]),
-                                    legend=None),
+                    tooltip=[
+                        alt.Tooltip("Series:N", title="Series"),
+                        alt.Tooltip("Pillar:N", title="Pillar"),
+                        alt.Tooltip("Missing:Q", title=f"{missing_label} DRs", format=".1f"),
+                        alt.Tooltip("Total:Q", title="Total in pillar"),
+                    ],
                 )
             )
+
+
         
             # Pillar-level invisible bars for missing tooltips
             layer_missing_tooltip = (
@@ -1024,16 +1048,12 @@ if view == "Total":
                 )
             )
         
-            fig = alt.layer(
-                layer_base,
-                layer_rep,
-                layer_stripes,
-                layer_missing_tooltip
-            ).properties(
+            fig = alt.layer(*layers).properties(
                 height=120,
                 width="container",
                 padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
             ).configure_view(stroke=None)
+
          
 
 
@@ -1140,12 +1160,19 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
             ).configure_view(stroke=None)
 
             st.altair_chart(fig, use_container_width=True)
-            st.caption(
-                "Bars show total counts of reported Disclosure Requirements within this pillar."
-                + (note if n_peers > 0 else "")
-            )
-
-        st.markdown("---")
+            
+                else:
+                    # Overview summary table for Tables mode (variant-specific columns)
+                    st.markdown("### Overview")
+                    summary_rows = []
+                    for g in pillar_groups:
+                        metrics_in_group = groups[g]
+                        std_code = g.split("-")[0]
+                        std_label = SHORT_ESRS_LABELS.get(std_code, std_code)
+                
+                        total_items = len(metrics_in_group)
+                
+                        
 
     else:
         # Overview summary table for Tables mode (variant-specific columns)
