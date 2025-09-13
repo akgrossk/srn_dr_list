@@ -1330,10 +1330,23 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 if len(pb) > 0:
                     peers_yes_mean = float(pb.sum(axis=1).mean())
 
-        if peers_yes_mean is not None:
-            exp_title = f"{short_title} • {n_metrics} Disclosure Requirements — reported: {firm_yes_count}/{n_metrics} (Peers {comp_label}: {peers_yes_mean:.1f}/{n_metrics})"
+       
+        if VARIANT == "v1":
+            # v1: show only the short name like "E1 - Climate change"
+            exp_title = short_title
         else:
-            exp_title = f"{short_title} • {n_metrics} Disclosure Requirements — reported: {firm_yes_count}/{n_metrics}"
+            # v2/v3: keep the detailed title you had
+            if peers_yes_mean is not None:
+                exp_title = (
+                    f"{short_title} • {n_metrics} Disclosure Requirements — "
+                    f"reported: {firm_yes_count}/{n_metrics} "
+                    f"(Peers {comp_label}: {peers_yes_mean:.1f}/{n_metrics})"
+                )
+            else:
+                exp_title = (
+                    f"{short_title} • {n_metrics} Disclosure Requirements — "
+                    f"reported: {firm_yes_count}/{n_metrics}"
+                )
 
         with st.expander(exp_title, expanded=False):
             if display_mode == "Tables":
