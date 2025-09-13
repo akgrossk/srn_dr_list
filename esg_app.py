@@ -1053,7 +1053,7 @@ if view == "Total":
             # base opaque rectangles — no transparency, so gridlines don't show through
             rects = (
                 alt.Chart(seg)
-                  .mark_rect(stroke="#000", strokeWidth=0.5, strokeJoin="miter")
+                  .mark_rect(stroke="#000", strokeWidth=1, strokeJoin="miter")
                   .encode(
                       y=alt.Y("Series:N", title="", sort=y_sort),
                       x=alt.X("x0:Q", title="Number of Disclosure Requirements reported", axis=alt.Axis(grid=True)),
@@ -1175,27 +1175,87 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
 
             if rows:
                 cdf = pd.DataFrame(rows)
-                color_domain = stds_in_pillar
-                color_range  = [STD_COLOR.get(c, "#999") for c in color_domain]
+                
+                # order: E1, E1_MISS, E2, E2_MISS, ...
+                cat_order = []
+                for s in stds_in_pillar:
+                    cat_order.extend([s, f"{s}_MISS"])
+                rank_map = {c: i for i, c in enumerate(cat_order)}
+                cdf["CatRank"] = cdf["Cat"].map(rank_map).astype(int)
+                
+                # colors: base color from the standard (MISS uses same base, hatch adds structure)
+                domain = [c for c in cat_order if (cdf["Cat"] == c).any()]
+                rng    = [STD_COLOR.get(c.replace("_MISS", ""), "#999") for c in domain]
                 y_sort = [firm_series] + ([peers_series] if peers_series else [])
-
-                base = alt.Chart(cdf)
-                bars = base.mark_bar(stroke="#000", strokeWidth=1, strokeOpacity=0.9, strokeJoin="miter").encode(
-                    y=alt.Y("Series:N", title="", sort=y_sort),
-                    x=alt.X("Value:Q", title="Number of Disclosure Requirements reported"),
-                    color=alt.Color("StdCode:N",
-                                    scale=alt.Scale(domain=color_domain, range=color_range),
-                                    legend=None),
-                    order=alt.Order("StdCode:N"),
-                    tooltip=[alt.Tooltip("Series:N"), alt.Tooltip("Standard:N"),
-                             alt.Tooltip("Value:Q", title="# DR", format=".1f")],
+                
+                # --- compute stacked x0/x1 per Series
+                seg = cdf.sort_values(["Series", "CatRank"]).copy()
+                seg["x1"] = seg.groupby("Series")["Value"].cumsum()
+                seg["x0"] = seg["x1"] - seg["Value"]
+                
+                # base opaque rectangles (reported + missing)
+                rects = (
+                    alt.Chart(seg)
+                      .mark_rect(stroke="#000", strokeWidth=1, strokeJoin="miter")
+                      .encode(
+                          y=alt.Y("Series:N", title="", sort=y_sort),
+                          x=alt.X("x0:Q", title="Number of Disclosure Requirements", axis=alt.Axis(grid=True)),
+                          x2="x1:Q",
+                          color=alt.Color("Cat:N", scale=alt.Scale(domain=domain, range=rng), legend=None),
+                          order=alt.Order("CatRank:Q"),
+                          tooltip=[
+                              alt.Tooltip("Series:N", title="Series"),
+                              alt.Tooltip("Label:N",  title="Segment"),
+                              alt.Tooltip("Value:Q",  title="# DR", format=".1f"),
+                          ],
+                      )
                 )
-                totals = (base.transform_aggregate(total="sum(Value)", groupby=["Series"])
-                          .mark_text(align="left", baseline="middle", dx=4)
-                          .encode(y=alt.Y("Series:N", sort=y_sort),
-                                  x="total:Q", text=alt.Text("total:Q", format=".1f")))
-                st.altair_chart(alt.layer(bars, totals).properties(height=120, width="container")
-                                .configure_view(stroke=None), use_container_width=True)
+                
+                # striped overlay only for *_MISS
+                miss_only = seg[seg["Cat"].str.endswith("_MISS")].copy()
+                
+                def _make_stripes_df_pillar(d, step=1.0, stripe_width=0.35):
+                    rows = []
+                    for _, r in d.iterrows():
+                        x0, x1 = float(r["x0"]), float(r["x1"])
+                        x = x0
+                        while x < x1:
+                            xa = x
+                            xb = min(x + stripe_width, x1)
+                            rows.append({"Series": r["Series"], "xa": xa, "xb": xb})
+                            x += step
+                    return pd.DataFrame(rows)
+                
+                stripes_df = _make_stripes_df_pillar(miss_only)
+                stripes = (
+                    alt.Chart(stripes_df)
+                      .mark_rect()
+                      .encode(
+                          y=alt.Y("Series:N", title="", sort=y_sort),
+                          x=alt.X("xa:Q"),
+                          x2="xb:Q",
+                          color=alt.value("#ffffff")
+                      )
+                )
+                
+                # optional: totals at the end of each row
+                totals = (
+                    alt.Chart(seg.groupby("Series", as_index=False)["x1"].max())
+                      .mark_text(align="left", baseline="middle", dx=4)
+                      .encode(
+                          y=alt.Y("Series:N", sort=y_sort),
+                          x=alt.X("x1:Q"),
+                          text=alt.Text("x1:Q", format=".1f"),
+                      )
+                )
+                
+                fig = alt.layer(rects, stripes, totals).properties(
+                    height=120, width="container",
+                    padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
+                ).configure_view(stroke=None)
+                
+                st.altair_chart(fig, use_container_width=True)
+
 
             st.caption("Counts of reported Disclosure Requirements within this pillar." + (note if n_peers > 0 else ""))
             st.markdown("---")
