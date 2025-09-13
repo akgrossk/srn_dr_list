@@ -1034,17 +1034,21 @@ if view == "Total":
 
             
             y_sort = [firm_series] + ([peers_series] if peers_series else [])
+
             base = alt.Chart(chart_df)
-            
             bars = (
-                base
-                .mark_bar()
+                base.mark_bar()
                 .encode(
                     y=alt.Y("Series:N", title="", sort=y_sort),
                     x=alt.X("Value:Q", title="Number of Disclosure Requirements reported", stack="zero"),
-                    color=alt.Color("StdCode:N",
-                                    scale=alt.Scale(domain=color_domain, range=color_range),
-                                    legend=None),
+                    color=alt.Color(
+                        "StdCode:N",
+                        scale=alt.Scale(
+                            domain=color_domain,
+                            range=color_range
+                        ),
+                        legend=None
+                    ),
                     order=alt.Order("StdRank:Q"),
                     tooltip=[
                         alt.Tooltip("Series:N", title="Series"),
@@ -1052,20 +1056,16 @@ if view == "Total":
                         alt.Tooltip("Value:Q", title="# DR", format=".1f"),
                     ],
                 )
-            ).properties(
-                height=120, width="container",
-                padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
-            ).configure_view(stroke=None)
-            st.altair_chart(bars, use_container_width=True)
-            # --- separator lines between standards (E1 | E2 | ... | G1)
-            stds_for_bounds = [c for c in STD_ORDER if (chart_df["StdCode"] == c).any()]
+            )
+            
+            # build separators once (no intermediate render)
             separators = None
+            stds_for_bounds = [c for c in STD_ORDER if (chart_df["StdCode"] == c).any()]
             if stds_for_bounds:
                 seg = chart_df[chart_df["StdCode"].isin(stds_for_bounds)].copy()
                 seg["StdRank"] = seg["StdCode"].map(rank_map)
                 seg = seg.sort_values(["Series", "StdRank"])
                 seg["Boundary"] = seg.groupby("Series")["Value"].cumsum()
-                # drop the very last boundary for each series
                 seg["maxB"] = seg.groupby("Series")["Boundary"].transform("max")
                 seg = seg[seg["Boundary"] < seg["maxB"]]
             
@@ -1078,15 +1078,16 @@ if view == "Total":
                     )
                 )
             
-            # layer bars + separators
-            fig = (alt.layer(bars, separators) if separators is not None else bars).properties(
-                height=120,
-                width="container",
+            layers = [bars]
+            if separators is not None:
+                layers.append(separators)
+            
+            fig = alt.layer(*layers).properties(
+                height=120, width="container",
                 padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
             ).configure_view(stroke=None)
             
             st.altair_chart(fig, use_container_width=True)
-
             
             note = "Bars show total counts of reported Disclosure Requirements, stacked by standard (E1–E5, S1–S4, G1)."
             if n_peers > 0:
@@ -1165,7 +1166,13 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 color_range  = [STD_COLOR.get(c, "#999") for c in color_domain]
                 y_sort = [firm_series] + ([peers_series] if peers_series else [])
 
+
+                color_domain = stds_in_pillar
+                color_range  = [STD_COLOR.get(c, "#999") for c in color_domain]
+                y_sort = [firm_series] + ([peers_series] if peers_series else [])
+                
                 base = alt.Chart(cdf)
+                
                 bars = base.mark_bar().encode(
                     y=alt.Y("Series:N", title="", sort=y_sort),
                     x=alt.X("Value:Q", title="Number of Disclosure Requirements reported"),
@@ -1173,15 +1180,49 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                                     scale=alt.Scale(domain=color_domain, range=color_range),
                                     legend=None),
                     order=alt.Order("StdCode:N"),
-                    tooltip=[alt.Tooltip("Series:N"), alt.Tooltip("Standard:N"),
-                             alt.Tooltip("Value:Q", title="# DR", format=".1f")],
+                    tooltip=[
+                        alt.Tooltip("Series:N"),
+                        alt.Tooltip("Standard:N"),
+                        alt.Tooltip("Value:Q", title="# DR", format=".1f")
+                    ],
                 )
-                totals = (base.transform_aggregate(total="sum(Value)", groupby=["Series"])
-                          .mark_text(align="left", baseline="middle", dx=4)
-                          .encode(y=alt.Y("Series:N", sort=y_sort),
-                                  x="total:Q", text=alt.Text("total:Q", format=".1f")))
-                st.altair_chart(alt.layer(bars, totals).properties(height=120, width="container")
-                                .configure_view(stroke=None), use_container_width=True)
+                
+                totals = (
+                    base.transform_aggregate(total="sum(Value)", groupby=["Series"])
+                        .mark_text(align="left", baseline="middle", dx=4)
+                        .encode(y=alt.Y("Series:N", sort=y_sort),
+                                x="total:Q",
+                                text=alt.Text("total:Q", format=".1f"))
+                )
+                
+                # separators
+                rmap = {c: i for i, c in enumerate(stds_in_pillar)}
+                tmp = cdf.copy()
+                tmp["StdRank"] = tmp["StdCode"].map(rmap)
+                tmp = tmp.sort_values(["Series", "StdRank"])
+                tmp["Boundary"] = tmp.groupby("Series")["Value"].cumsum()
+                tmp["maxB"] = tmp.groupby("Series")["Boundary"].transform("max")
+                tmp = tmp[tmp["Boundary"] < tmp["maxB"]]
+                
+                separators = (
+                    alt.Chart(tmp)
+                    .mark_rule(stroke="#666", strokeWidth=1, opacity=0.55)
+                    .encode(
+                        y=alt.Y("Series:N", sort=y_sort, title=""),
+                        x=alt.X("Boundary:Q")
+                    )
+                )
+                
+                fig = (
+                    alt.layer(bars, totals, separators)
+                       .properties(height=120, width="container")
+                       .configure_view(stroke=None)
+                )
+                st.altair_chart(fig, use_container_width=True)
+
+
+
+                
                 # separator lines after each standard
                 rmap = {c: i for i, c in enumerate(stds_in_pillar)}
                 tmp = cdf.copy()
@@ -1258,90 +1299,88 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                                  "Series": peers_series, "Value": float(peer_mean_miss)})
 
             if rows:
-                cdf = pd.DataFrame(rows)
-                # Order: E1, E1_MISS, E2, E2_MISS, ...
-                cat_order = []
-                for s in stds_in_pillar:
-                    cat_order.extend([s, f"{s}_MISS"])
-                rank_map = {c: i for i, c in enumerate(cat_order)}
-                cdf["CatRank"] = cdf["Cat"].map(rank_map).astype(int)
-                # separator lines at the end of each standard (i.e., on *_MISS rows)
-                cdf_sorted = cdf.sort_values(["Series", "CatRank"]).copy()
-                cdf_sorted["Boundary"] = cdf_sorted.groupby("Series")["Value"].cumsum()
-                
-                bounds = cdf_sorted[cdf_sorted["Cat"].str.endswith("_MISS")].copy()
-                bounds["maxB"] = bounds.groupby("Series")["Boundary"].transform("max")
-                bounds = bounds[bounds["Boundary"] < bounds["maxB"]]
-                
-                separators = (
-                    alt.Chart(bounds)
-                    .mark_rule(stroke="#666", strokeWidth=1, opacity=0.55)
+            cdf = pd.DataFrame(rows)
+            
+            # order & colors
+            cat_order = []
+            for s in stds_in_pillar:
+                cat_order.extend([s, f"{s}_MISS"])
+            rank_map = {c: i for i, c in enumerate(cat_order)}
+            cdf["CatRank"] = cdf["Cat"].map(rank_map).astype(int)
+            
+            domain = [c for c in cat_order if (cdf["Cat"] == c).any()]
+            rng    = [STD_COLOR.get(c.replace("_MISS", ""), "#999") for c in domain]
+            missing_cats = [f"{s}_MISS" for s in stds_in_pillar]
+            is_missing = alt.FieldOneOfPredicate(field="Cat", oneOf=missing_cats)
+            y_sort = [firm_series] + ([peers_series] if peers_series else [])
+            
+            base = alt.Chart(cdf)
+            
+            bars = (
+                base
+                .mark_bar()
+                .encode(
+                    y=alt.Y("Series:N", title="", sort=y_sort),
+                    x=alt.X("Value:Q", title="Number of Disclosure Requirements"),
+                    color=alt.Color("Cat:N", scale=alt.Scale(domain=domain, range=rng), legend=None),
+                    order=alt.Order("CatRank:Q"),
+                    opacity=alt.condition(is_missing, alt.value(0.35), alt.value(1.0)),
+                    stroke=alt.condition(
+                        is_missing,
+                        alt.Color("Cat:N", scale=alt.Scale(domain=domain, range=rng)),
+                        alt.value(None)
+                    ),
+                    strokeDash=alt.condition(is_missing, alt.value([5, 3]), alt.value([0, 0])),
+                    strokeWidth=alt.condition(is_missing, alt.value(2), alt.value(0)),
+                    tooltip=[
+                        alt.Tooltip("Series:N", title="Series"),
+                        alt.Tooltip("Label:N",  title="Segment"),
+                        alt.Tooltip("Value:Q",  title="# DR", format=".1f"),
+                    ],
+                )
+            )
+            
+            totals = (
+                base.transform_aggregate(total="sum(Value)", groupby=["Series"])
+                    .mark_text(align="left", baseline="middle", dx=4)
                     .encode(
-                        y=alt.Y("Series:N", sort=y_sort, title=""),
-                        x=alt.X("Boundary:Q")
+                        y=alt.Y("Series:N", sort=y_sort),
+                        x="total:Q",
+                        text=alt.Text("total:Q", format=".1f")
                     )
+            )
+            
+            # separators at the end of each standard (the *_MISS bar)
+            cdf_sorted = cdf.sort_values(["Series", "CatRank"]).copy()
+            cdf_sorted["Boundary"] = cdf_sorted.groupby("Series")["Value"].cumsum()
+            bounds = cdf_sorted[cdf_sorted["Cat"].str.endswith("_MISS")].copy()
+            bounds["maxB"] = bounds.groupby("Series")["Boundary"].transform("max")
+            bounds = bounds[bounds["Boundary"] < bounds["maxB"]]
+            
+            separators = (
+                alt.Chart(bounds)
+                .mark_rule(stroke="#666", strokeWidth=1, opacity=0.55)
+                .encode(
+                    y=alt.Y("Series:N", sort=y_sort, title=""),
+                    x=alt.X("Boundary:Q")
                 )
-                
-                fig = alt.layer(bars, separators, totals).properties(
-                    height=120, width="container",
-                    padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
-                ).configure_view(stroke=None)
-                
-                st.altair_chart(fig, use_container_width=True)
+            )
+            
+            fig = alt.layer(bars, totals, separators).properties(
+                height=120, width="container",
+                padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
+            ).configure_view(stroke=None)
+            
+            st.altair_chart(fig, use_container_width=True)
+            
+            fixed_total = sum(STD_TOTAL_OVERRIDES.get(s, 0) for s in stds_in_pillar)
+            st.caption(
+                f"Each standard shows reported (solid) and "
+                f"{'Not reported' if VARIANT=='v2' else 'Missing'} (hatched). "
+                f"Totals per row = {fixed_total}."
+                + (note if n_peers > 0 else "")
+            )
 
-                # Colors = base standard color (missing gets hatched styling via opacity/stroke)
-                domain = [c for c in cat_order if (cdf["Cat"] == c).any()]
-                rng    = [STD_COLOR.get(c.replace("_MISS", ""), "#999") for c in domain]
-
-                missing_cats = [f"{s}_MISS" for s in stds_in_pillar]
-                is_missing = alt.FieldOneOfPredicate(field="Cat", oneOf=missing_cats)
-                y_sort = [firm_series] + ([peers_series] if peers_series else [])
-
-                base = alt.Chart(cdf)
-                bars = (
-                    base
-                    .mark_bar()
-                    .encode(
-                        y=alt.Y("Series:N", title="", sort=y_sort),
-                        x=alt.X("Value:Q", title="Number of Disclosure Requirements"),
-                        color=alt.Color("Cat:N", scale=alt.Scale(domain=domain, range=rng), legend=None),
-                        order=alt.Order("CatRank:Q"),
-                        opacity=alt.condition(is_missing, alt.value(0.35), alt.value(1.0)),
-                        stroke=alt.condition(
-                            is_missing,
-                            alt.Color("Cat:N", scale=alt.Scale(domain=domain, range=rng)),
-                            alt.value(None)
-                        ),
-                        strokeDash=alt.condition(is_missing, alt.value([5, 3]), alt.value([0, 0])),
-                        strokeWidth=alt.condition(is_missing, alt.value(2), alt.value(0)),
-                        tooltip=[
-                            alt.Tooltip("Series:N", title="Series"),
-                            alt.Tooltip("Label:N",  title="Segment"),
-                            alt.Tooltip("Value:Q",  title="# DR", format=".1f"),
-                        ],
-                    )
-                )
-
-                totals = (
-                    base.transform_aggregate(total="sum(Value)", groupby=["Series"])
-                        .mark_text(align="left", baseline="middle", dx=4)
-                        .encode(y=alt.Y("Series:N", sort=y_sort),
-                                x="total:Q", text=alt.Text("total:Q", format=".1f"))
-                )
-
-                fig = alt.layer(bars, totals).properties(
-                    height=120, width="container",
-                    padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
-                ).configure_view(stroke=None)
-
-                st.altair_chart(fig, use_container_width=True)
-
-                fixed_total = sum(STD_TOTAL_OVERRIDES.get(s, 0) for s in stds_in_pillar)
-                st.caption(
-                    f"Each standard shows reported (solid) and "
-                    f"{'Not reported' if VARIANT=='v2' else 'Missing'} (hatched). "
-                    f"Totals per row = {fixed_total}."
-                    + (note if n_peers > 0 else "")
                 )
             st.markdown("---")
 
