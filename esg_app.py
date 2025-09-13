@@ -229,14 +229,20 @@ STD_TOTAL_OVERRIDES = {
 }
 
 # ========= VARIANT-SPECIFIC LOOKS =========
-STD_COLOR_V1 = STD_COLOR
-STD_COLOR_V2 = STD_COLOR
-STD_COLOR_V3 = STD_COLOR
+# You can make each arm feel different: colors, chart marks, table options, etc.
+
+# Color themes for standards by variant:
+STD_COLOR_V1 = STD_COLOR  # your current palette
+
+STD_COLOR_V2 = STD_COLOR 
+
+STD_COLOR_V3 = STD_COLOR 
 
 if VARIANT == "v2":
     STD_COLOR = STD_COLOR_V2
 elif VARIANT == "v3":
     STD_COLOR = STD_COLOR_V3
+# else keep v1 defaults
 
 # Tile colors (for the per-DR “green/red” tiles)
 TILE_OK = "#4200ff"
@@ -244,6 +250,7 @@ TILE_NO = "#d6ccff"
 
 # Force stack order to follow legend order E1..E5, S1..S4, G1
 STD_RANK = {code: i for i, code in enumerate(STD_ORDER)}
+
 
 # add Sector as a first-class comparison
 COMP_TO_PARAM = {
@@ -416,6 +423,7 @@ def render_section_header(title: str, codes):
         st.subheader(title)
     with right:
         render_inline_legend(codes, STD_COLOR)
+    # spacer so the chart starts on a full-width new row
     st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
 # --- Missing segments (v2/v3 Total only) ---
@@ -426,6 +434,7 @@ MISSING_COLOR = {
     "S_MISS": "#F5A3A3",  # light red
     "G_MISS": "#F8E690",  # light yellow
 }
+
 
 def pillar_color(p: str) -> str:
     # use the *existing* pillar base color (unchanged palette)
@@ -682,6 +691,7 @@ with btn_col2:
             st.info(f"Auditor: {auditor_val or '—'}")
 
 # 3) Show text characteristics (URL optional — placeholder for now)
+# Try a few likely column names; adjust to match your data later
 esg_link = ""
 for col in ["ESG_text_link", "Link_ESG_text", "Link_ESG", "ESG_Text_URL"]:
     if col in df.columns:
@@ -739,6 +749,7 @@ if comparison == "Custom peers" and label_col:
         selected_custom_peers = selected_custom_peers[:4]
 
 # --- SIDEBAR: peer firm list toggle -----------------------------------------
+# Build the same peer set the charts use, based on current comparison mode
 _peers_df, _n_peers, _peer_note = (None, 0, "")
 
 if comparison == "Country" and country_col:
@@ -758,7 +769,8 @@ if show_peer_list:
     if _n_peers == 0 or _peers_df is None or _peers_df.empty:
         st.sidebar.info("No peers to display for the current selection.")
     else:
-        _name_col = label_col
+        # Decide which columns to show and give them clear headers
+        _name_col = label_col  # prefer firm name if available; else ID
         _cols = []
         _ren = {}
         for src, dst in [
@@ -845,6 +857,7 @@ if view == "Total":
     comp_label_short = (comp_label or "").replace(" mean", "") if comp_label else None
     peers_series = f"Mean: {comp_label_short}" if comp_label_short else None
 
+
     if display_mode == "Tables":
         # === table summary per pillar ===
         summary_rows = []
@@ -881,6 +894,7 @@ if view == "Total":
                     "Missing disclosure requirements": max(total_DR - firm_yes, 0),
                     "Total disclosure requirements": total_DR,
                 }
+                # (no peers column in v3 unless you want it)
     
             else:  # v1
                 row = {
@@ -911,13 +925,20 @@ if view == "Total":
             note += peer_note
         st.caption(note)
 
-    else:
+
+
+    
+
+      
+
+    else:   
         # === stacked bars (counts by standard) ===
         perstd_rows = []
         pillar_reported  = {"E": 0, "S": 0, "G": 0}
         pillar_total     = {"E": 0, "S": 0, "G": 0}
-        pillar_peers_rep = {"E": 0.0, "S": 0.0, "G": 0.0}
+        pillar_peers_rep = {"E": 0.0, "S": 0.0, "G": 0.0}  # NEW
 
+        
         for std_code in STD_ORDER:
             if std_code not in groups:
                 continue
@@ -928,6 +949,7 @@ if view == "Total":
             vals = current_row[metrics_in_group].astype(str).str.strip().str.lower()
             firm_yes = int(vals.isin(YES_SET).sum())
         
+            # accumulate pillar totals
             pillar_reported[pillar] += firm_yes
             pillar_total[pillar]    += len(metrics_in_group)
         
@@ -943,8 +965,9 @@ if view == "Total":
                             "StdCode": std_code, "Standard": label,
                             "Series": peers_series, "Value": float(peer_yes_mean)
                         })
-                        pillar_peers_rep[pillar] += float(peer_yes_mean)
+                        pillar_peers_rep[pillar] += float(peer_yes_mean)  # NEW
 
+        
         # --- append exactly three extra segments (only in v2/v3), one per pillar
         if VARIANT in ("v2", "v3"):
             # Firm missing segments
@@ -971,6 +994,7 @@ if view == "Total":
                     "G_MISS": max(pillar_total["G"] - pillar_peers_rep["G"], 0.0),
                 }
                 for code, val in miss_vals_peers.items():
+                    # allow zero; add only if there is any missing
                     if val > 1e-9:
                         p = code[0]
                         perstd_rows.append({
@@ -980,15 +1004,15 @@ if view == "Total":
                             "Value": float(val),
                         })
 
+        
         chart_df = pd.DataFrame(perstd_rows)
         
         # --- order: E1..E5, E_MISS, S1..S4, S_MISS, G1, G_MISS
         custom_order = ["E1","E2","E3","E4","E5","E_MISS","S1","S2","S3","S4","S_MISS","G1","G_MISS"]
         rank_map = {c:i for i,c in enumerate(custom_order)}
         chart_df["StdRank"] = chart_df["StdCode"].map(lambda c: rank_map.get(c, 9999))
-        chart_df["Pillar"] = chart_df["StdCode"].map(lambda c: c[0] if isinstance(c, str) and c else "E")
-
-        # header + legend
+        
+        # header + legend (standards + 3 extra legend entries only in v2/v3)
         if not chart_df.empty:
             present_codes = [c for c in STD_ORDER if (chart_df["StdCode"] == c).any()]
         else:
@@ -1008,13 +1032,17 @@ if view == "Total":
                 for c in color_domain
             ]
 
+            
             y_sort = [firm_series] + ([peers_series] if peers_series else [])
 
             base = alt.Chart(chart_df)
             bars = (
                 base
                 .mark_bar(
-                    strokeJoin="miter"
+                    stroke="#000",          # outline color
+                    strokeWidth=1,          # outline thickness
+                    strokeOpacity=0.9,
+                    strokeJoin="miter"      # keeps corners crisp on thin segments
                 )
                 .encode(
                     y=alt.Y("Series:N", title="", sort=y_sort),
@@ -1025,17 +1053,6 @@ if view == "Total":
                         legend=None
                     ),
                     order=alt.Order("StdRank:Q"),
-                    # pillar-colored stroke
-                    stroke=alt.Color(
-                        "Pillar:N",
-                        scale=alt.Scale(
-                            domain=["E","S","G"],
-                            range=[pillar_color("E"), pillar_color("S"), pillar_color("G")]
-                        ),
-                        legend=None
-                    ),
-                    strokeWidth=alt.value(1),
-                    strokeOpacity=alt.value(0.9),
                     tooltip=[
                         alt.Tooltip("Series:N", title="Series"),
                         alt.Tooltip("Standard:N", title="Segment"),
@@ -1126,10 +1143,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 y_sort = [firm_series] + ([peers_series] if peers_series else [])
 
                 base = alt.Chart(cdf)
-                bars = base.mark_bar(
-                    stroke=pillar_color(pillar),  # pillar-colored outline
-                    strokeWidth=1, strokeOpacity=0.9, strokeJoin="miter"
-                ).encode(
+                bars = base.mark_bar(stroke="#000", strokeWidth=1, strokeOpacity=0.9, strokeJoin="miter").encode(
                     y=alt.Y("Series:N", title="", sort=y_sort),
                     x=alt.X("Value:Q", title="Number of Disclosure Requirements reported"),
                     color=alt.Color("StdCode:N",
@@ -1216,18 +1230,18 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 base = alt.Chart(cdf)
                 bars = (
                     base
-                    .mark_bar(strokeJoin="miter")
+                    .mark_bar(stroke="#000", strokeWidth=1, strokeOpacity=0.9, strokeJoin="miter")  # default outline
                     .encode(
                         y=alt.Y("Series:N", title="", sort=y_sort),
                         x=alt.X("Value:Q", title="Number of Disclosure Requirements"),
                         color=alt.Color("Cat:N", scale=alt.Scale(domain=domain, range=rng), legend=None),
                         order=alt.Order("CatRank:Q"),
                         opacity=alt.condition(is_missing, alt.value(0.35), alt.value(1.0)),
-                        # For *_MISS, stroke uses segment color; reported uses pillar color
+                        # For *_MISS, override the stroke color (keeps your hatched look distinct)
                         stroke=alt.condition(
                             is_missing,
                             alt.Color("Cat:N", scale=alt.Scale(domain=domain, range=rng)),
-                            alt.value(pillar_color(pillar))
+                            alt.value("#000")
                         ),
                         strokeDash=alt.condition(is_missing, alt.value([5, 3]), alt.value([0, 0])),
                         strokeWidth=alt.condition(is_missing, alt.value(2), alt.value(1)),
@@ -1238,6 +1252,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                         ],
                     )
                 )
+
 
                 totals = (
                     base.transform_aggregate(total="sum(Value)", groupby=["Series"])
@@ -1261,6 +1276,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     + (note if n_peers > 0 else "")
                 )
             st.markdown("---")
+
 
     else:
         # ===== Overview (Tables mode) =====
@@ -1317,6 +1333,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
             st.caption(cap)
             st.markdown("---")
 
+
     # ===== Per-standard detail (expanders) =====
     for g in pillar_groups:
         metrics = groups[g]
@@ -1334,9 +1351,12 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 if len(pb) > 0:
                     peers_yes_mean = float(pb.sum(axis=1).mean())
 
+       
         if VARIANT == "v1":
+            # v1: show only the short name like "E1 - Climate change"
             exp_title = short_title
         else:
+            # v2/v3: keep the detailed title you had
             if peers_yes_mean is not None:
                 exp_title = (
                     f"{short_title} • {n_metrics} Disclosure Requirements — "
@@ -1351,6 +1371,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
 
         with st.expander(exp_title, expanded=False):
             if display_mode == "Tables":
+                # Per-DR table with Code + Name + Reported (+ peers %)
                 codes = [str(c).strip().split(" ")[0] for c in metrics]
                 names = [DR_LABELS.get(code, "") for code in codes]
                 firm_vals = [pretty_value(current_row.get(c, np.nan)) for c in metrics]
