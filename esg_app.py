@@ -727,7 +727,7 @@ if view == "Total":
                 # ✅ v2: your requested columns
                 row = {
                     "Pillar": PILLAR_LABEL[pillar],
-                    "Reported disclosure requirements": firm_yes,
+                    "Firm — number of reported Disclosure Requirements": firm_yes,
                     "Total disclosure requirements": total_DR,
                 }
                 if peer_yes_mean is not None:
@@ -737,7 +737,7 @@ if view == "Total":
                 # v1/v3: keep prior column naming
                 row = {
                     "Pillar": PILLAR_LABEL[pillar],
-                    "Firm — number of Disclosure Requirements": firm_yes,
+                    "Firm — number of reported Disclosure Requirements": firm_yes,
                 }
                 if peer_yes_mean is not None:
                     row[f"Peers — mean number of Disclosure Requirements ({comp_label})"] = round(peer_yes_mean, 1)
