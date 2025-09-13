@@ -1033,73 +1033,73 @@ if view == "Total":
                 note += peer_note
             st.caption(note)
     
-        else:
-            # ===== v1 baseline (your original reported-only stacked bars) =====
-            perstd_rows = []
-            for std_code in STD_ORDER:
-                if std_code not in groups:
-                    continue
-                metrics_in_group = groups[std_code]
-                label = SHORT_ESRS_LABELS.get(std_code, std_code)
-                vals = current_row[metrics_in_group].astype(str).str.strip().str.lower()
-                firm_yes = int(vals.isin(YES_SET).sum())
-                perstd_rows.append({"StdCode": std_code, "Standard": label, "Series": firm_series, "Value": float(firm_yes)})
-    
-                if peers_series and peers is not None:
-                    present_cols = [m for m in metrics_in_group if m in peers.columns]
-                    if present_cols:
-                        pb = peers[present_cols].astype(str).applymap(lambda x: x.strip().lower() in YES_SET)
-                        if len(pb) > 0:
-                            perstd_rows.append({"StdCode": std_code, "Standard": label, "Series": peers_series,
-                                                "Value": float(pb.sum(axis=1).mean())})
-    
-            chart_df = pd.DataFrame(perstd_rows)
-            chart_df["StdRank"] = chart_df["StdCode"].map(STD_RANK).fillna(9999)
-    
-            # header + inline legend
-            present_codes = [c for c in STD_ORDER if (chart_df["StdCode"] == c).any()] if not chart_df.empty else STD_ORDER
-            render_section_header("Total overview", present_codes)
-    
-            if not chart_df.empty:
-                color_domain = present_codes
-                color_range  = [STD_COLOR[c] for c in color_domain]
-                y_sort = [firm_series] + ([peers_series] if peers_series else [])
-                base = alt.Chart(chart_df)
-    
-                bars = (
-                    base
-                    .mark_bar()
-                    .encode(
-                        y=alt.Y("Series:N", title="", sort=y_sort),
-                        x=alt.X("Value:Q", title="Number of Disclosure Requirements reported"),
-                        color=alt.Color("StdCode:N",
-                                        scale=alt.Scale(domain=color_domain, range=color_range),
-                                        legend=None),
-                        order=alt.Order("StdRank:Q"),
-                        tooltip=[
-                            alt.Tooltip("Series:N", title="Series"),
-                            alt.Tooltip("Standard:N", title="Standard"),
-                            alt.Tooltip("Value:Q", title="# DR", format=".1f"),
-                        ],
+            else:
+                # ===== v1 baseline (your original reported-only stacked bars) =====
+                perstd_rows = []
+                for std_code in STD_ORDER:
+                    if std_code not in groups:
+                        continue
+                    metrics_in_group = groups[std_code]
+                    label = SHORT_ESRS_LABELS.get(std_code, std_code)
+                    vals = current_row[metrics_in_group].astype(str).str.strip().str.lower()
+                    firm_yes = int(vals.isin(YES_SET).sum())
+                    perstd_rows.append({"StdCode": std_code, "Standard": label, "Series": firm_series, "Value": float(firm_yes)})
+        
+                    if peers_series and peers is not None:
+                        present_cols = [m for m in metrics_in_group if m in peers.columns]
+                        if present_cols:
+                            pb = peers[present_cols].astype(str).applymap(lambda x: x.strip().lower() in YES_SET)
+                            if len(pb) > 0:
+                                perstd_rows.append({"StdCode": std_code, "Standard": label, "Series": peers_series,
+                                                    "Value": float(pb.sum(axis=1).mean())})
+        
+                chart_df = pd.DataFrame(perstd_rows)
+                chart_df["StdRank"] = chart_df["StdCode"].map(STD_RANK).fillna(9999)
+        
+                # header + inline legend
+                present_codes = [c for c in STD_ORDER if (chart_df["StdCode"] == c).any()] if not chart_df.empty else STD_ORDER
+                render_section_header("Total overview", present_codes)
+        
+                if not chart_df.empty:
+                    color_domain = present_codes
+                    color_range  = [STD_COLOR[c] for c in color_domain]
+                    y_sort = [firm_series] + ([peers_series] if peers_series else [])
+                    base = alt.Chart(chart_df)
+        
+                    bars = (
+                        base
+                        .mark_bar()
+                        .encode(
+                            y=alt.Y("Series:N", title="", sort=y_sort),
+                            x=alt.X("Value:Q", title="Number of Disclosure Requirements reported"),
+                            color=alt.Color("StdCode:N",
+                                            scale=alt.Scale(domain=color_domain, range=color_range),
+                                            legend=None),
+                            order=alt.Order("StdRank:Q"),
+                            tooltip=[
+                                alt.Tooltip("Series:N", title="Series"),
+                                alt.Tooltip("Standard:N", title="Standard"),
+                                alt.Tooltip("Value:Q", title="# DR", format=".1f"),
+                            ],
+                        )
                     )
-                )
-                totals = (
-                    base
-                    .transform_aggregate(total="sum(Value)", groupby=["Series"])
-                    .mark_text(align="left", baseline="middle", dx=4)
-                    .encode(y=alt.Y("Series:N", sort=y_sort), x="total:Q", text=alt.Text("total:Q", format=".1f"))
-                )
-                fig = alt.layer(bars, totals).properties(
-                    height=120, width="container",
-                    padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
-                ).configure_view(stroke=None)
-    
-                st.altair_chart(fig, use_container_width=True)
-    
-            note = "Bars show total counts of reported Disclosure Requirements, stacked by standard (E1–E5, S1–S4, G1)."
-            if n_peers > 0:
-                note += peer_note
-            st.caption(note)
+                    totals = (
+                        base
+                        .transform_aggregate(total="sum(Value)", groupby=["Series"])
+                        .mark_text(align="left", baseline="middle", dx=4)
+                        .encode(y=alt.Y("Series:N", sort=y_sort), x="total:Q", text=alt.Text("total:Q", format=".1f"))
+                    )
+                    fig = alt.layer(bars, totals).properties(
+                        height=120, width="container",
+                        padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
+                    ).configure_view(stroke=None)
+        
+                    st.altair_chart(fig, use_container_width=True)
+        
+                note = "Bars show total counts of reported Disclosure Requirements, stacked by standard (E1–E5, S1–S4, G1)."
+                if n_peers > 0:
+                    note += peer_note
+                st.caption(note)
 
 
 
