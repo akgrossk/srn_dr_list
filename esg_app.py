@@ -436,8 +436,8 @@ MISSING_COLOR = {
 }
 
 # --- Hatch styling for *_MISS overlays (subtle) ---
-MISSING_STRIPE_STEP  = 1.4   # distance between stripes (bigger = fewer stripes)
-MISSING_STRIPE_WIDTH = 0.16  # stripe thickness (smaller = thinner stripes)
+MISSING_STRIPE_STEP  = 1   # distance between stripes (bigger = fewer stripes)
+MISSING_STRIPE_WIDTH = 0.1  # stripe thickness (smaller = thinner stripes)
 MISSING_STRIPE_COLOR = "rgba(255,255,255,0.55)"  # slightly translucent white
 
 
