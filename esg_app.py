@@ -823,11 +823,11 @@ if view == "Total":
         firm_series = "Firm"
         comp_label_short = (comp_label or "").replace(" mean", "") if (comparison and comp_label) else None
         peers_series = f"Mean: {comp_label_short}" if comp_label_short and ("peers" in locals()) and (peers is not None) else None
-    
+
         # Only switch to the new look for v2/v3
         if VARIANT in ("v2", "v3"):
             missing_label = "Not reported" if VARIANT == "v2" else "Missing"
-    
+        
             # Build geometry: cumulative start for each standard so overlays align within segments
             present_codes = [c for c in STD_ORDER if c in groups]
             totals_by_std = {c: len(groups[c]) for c in present_codes}
@@ -837,75 +837,70 @@ if view == "Total":
                 cum_starts[c] = acc
                 acc += totals_by_std[c]
             per_series_total_len = acc
-    
-            # Build rows for base totals and reported overlays
+        
+            # Rows for layers
             base_rows = []
             rep_rows  = []
-            miss_rows = []   # for invisible (tooltip) bars covering missing segment
+            miss_rows = []   # invisible bars for tooltips over missing
             hatch_rows = []  # text "\" slashes across missing segment
         
-        def add_series_rows(series_label: str, reported_by_std: dict):
-            for sc in present_codes:
-                total_n = totals_by_std[sc]
-                x0 = float(cum_starts[sc])
-                x1 = float(x0 + total_n)
+            def add_series_rows(series_label: str, reported_by_std: dict):
+                for sc in present_codes:
+                    total_n = totals_by_std[sc]
+                    x0 = float(cum_starts[sc])
+                    x1 = float(x0 + total_n)
         
-                rep = float(max(min(reported_by_std.get(sc, 0.0), total_n), 0.0))
-                xr = float(x0 + rep)
-                color = STD_COLOR[sc]
-                rank  = STD_RANK.get(sc, 9999)
-                stdlab = SHORT_ESRS_LABELS.get(sc, sc)
+                    rep = float(max(min(reported_by_std.get(sc, 0.0), total_n), 0.0))
+                    xr = float(x0 + rep)
+                    color = STD_COLOR[sc]
+                    rank  = STD_RANK.get(sc, 9999)
+                    stdlab = SHORT_ESRS_LABELS.get(sc, sc)
         
-                base_rows.append({
-                    "Series": series_label, "StdCode": sc, "Standard": stdlab,
-                    "x0": x0, "x1": x1, "Value": total_n, "Reported": rep,
-                    "Total": total_n, "StdRank": rank, "Color": color
-                })
-                if rep > 0:
-                    rep_rows.append({
+                    base_rows.append({
                         "Series": series_label, "StdCode": sc, "Standard": stdlab,
-                        "x0": x0, "x1": xr, "Value": rep, "Reported": rep,
+                        "x0": x0, "x1": x1, "Value": total_n, "Reported": rep,
                         "Total": total_n, "StdRank": rank, "Color": color
                     })
-                if xr < x1:
-                    miss_rows.append({
-                        "Series": series_label, "StdCode": sc, "Standard": stdlab,
-                        "x0": xr, "x1": x1, "Missing": x1 - xr,
-                        "Total": total_n, "StdRank": rank, "Color": color
-                    })
+                    if rep > 0:
+                        rep_rows.append({
+                            "Series": series_label, "StdCode": sc, "Standard": stdlab,
+                            "x0": x0, "x1": xr, "Value": rep, "Reported": rep,
+                            "Total": total_n, "StdRank": rank, "Color": color
+                        })
+                    if xr < x1:
+                        miss_rows.append({
+                            "Series": series_label, "StdCode": sc, "Standard": stdlab,
+                            "x0": xr, "x1": x1, "Missing": x1 - xr,
+                            "Total": total_n, "StdRank": rank, "Color": color
+                        })
         
-                    # === Hatch params (tune to taste) ===
-                    step_x   = 0.70   # distance between slashes along x (DR units)
-                    y_step   = 10     # px between rows of slashes
-                    y_max    = 50     # approx bar height in px
-                    offset_x = 0.12   # start a bit inside missing segment
+                        # Hatch params (tweak to taste)
+                        step_x   = 0.70   # distance between slashes along x (DR units)
+                        y_step   = 10     # px between rows of slashes
+                        y_max    = 50     # approx band height in px
+                        offset_x = 0.12   # start a bit inside missing segment
         
-                    yoff = 0
-                    while yoff <= y_max:
-                        pos = xr + offset_x
-                        # stagger per row so it reads as diagonal
-                        pos += (yoff * 0.20)  # advance x slightly as y increases
-                        while pos < x1 - 0.05:
-                            hatch_rows.append({
-                                "Series": series_label, "StdCode": sc, "Standard": stdlab,
-                                "x": float(pos), "yoff": yoff,
-                                "StdRank": rank, "Color": color
-                            })
-                            pos += step_x
-                        yoff += y_step
-
-
-
+                        yoff = 0
+                        while yoff <= y_max:
+                            pos = xr + offset_x + (yoff * 0.20)  # stagger so it reads as diagonal "\"
+                            while pos < x1 - 0.05:
+                                hatch_rows.append({
+                                    "Series": series_label, "StdCode": sc, "Standard": stdlab,
+                                    "x": float(pos), "yoff": yoff,
+                                    "StdRank": rank, "Color": color
+                                })
+                                pos += step_x
+                            yoff += y_step
+        
             # Firm reported per standard
             firm_reported = {}
             for sc in present_codes:
                 vals = current_row[groups[sc]].astype(str).str.strip().str.lower()
                 firm_reported[sc] = float((vals.isin(YES_SET)).sum())
-    
             add_series_rows(firm_series, firm_reported)
-    
+        
             # Peers mean per standard, if any
-            if peers_series:
+            if peers_series and (peers is not None):
                 peer_reported = {}
                 for sc in present_codes:
                     cols = [m for m in groups[sc] if m in peers.columns]
@@ -915,25 +910,23 @@ if view == "Total":
                     else:
                         peer_reported[sc] = 0.0
                 add_series_rows(peers_series, peer_reported)
-    
+        
             # DataFrames
-            base_df   = pd.DataFrame(base_rows)
-            rep_df    = pd.DataFrame(rep_rows)
-            miss_df   = pd.DataFrame(miss_rows)
-            hatch_df = pd.DataFrame(hatch_rows)  
-    
+            base_df  = pd.DataFrame(base_rows)
+            rep_df   = pd.DataFrame(rep_rows)
+            miss_df  = pd.DataFrame(miss_rows)
+            hatch_df = pd.DataFrame(hatch_rows)
+        
             # header + legends
             render_section_header("Total overview", present_codes)
-            # Add status legend: show stripes vs solid; sample with E1 color (or first present)
             sample_code = present_codes[0] if present_codes else "E1"
             render_status_legend(missing_label, STD_COLOR.get(sample_code, "#0b7a28"))
-    
+        
             y_sort = [firm_series] + ([peers_series] if peers_series else [])
-    
-            base = alt.Chart(base_df)
-            # Base totals (semi-transparent)
+        
+            # Layers
             layer_base = (
-                base
+                alt.Chart(base_df)
                 .mark_bar(opacity=0.30)
                 .encode(
                     y=alt.Y("Series:N", title="", sort=y_sort),
@@ -950,8 +943,7 @@ if view == "Total":
                     ],
                 )
             )
-    
-            # Reported overlay (solid)
+        
             layer_rep = (
                 alt.Chart(rep_df)
                 .mark_bar()
@@ -970,8 +962,7 @@ if view == "Total":
                     ],
                 )
             )
-    
-            # Invisible missing rects to provide tooltips over the striped area
+        
             layer_missing_tooltip = (
                 alt.Chart(miss_df)
                 .mark_bar(opacity=0)
@@ -986,12 +977,11 @@ if view == "Total":
                     ],
                 )
             )
-    
-
+        
             # Diagonal hatch overlay using text "\" glyphs
             layer_hatch = (
                 alt.Chart(hatch_df)
-                .mark_text(text="\\", fontSize=12, opacity=0.45)  # adjust size/opacity to taste
+                .mark_text(text="\\", fontSize=12, opacity=0.45)
                 .encode(
                     y=alt.Y("Series:N", sort=y_sort),
                     x=alt.X("x:Q"),
@@ -1004,102 +994,95 @@ if view == "Total":
                     order=alt.Order("StdRank:Q"),
                 )
             )
-
-            
+        
             fig = alt.layer(
                 layer_base,
                 layer_rep,
-                layer_hatch,              
+                layer_hatch,
                 layer_missing_tooltip
             ).properties(
                 height=120, width="container",
                 padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
             ).configure_view(stroke=None)
-
-
-            fig = alt.layer(layer_base, layer_rep, layer_diag, layer_missing_tooltip).properties(
-                height=120, width="container",
-                padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
-            ).configure_view(stroke=None)
-    
+        
             st.altair_chart(fig, use_container_width=True)
-    
+        
             note = (
                 "Each colored segment’s full length equals that standard’s **Total** DRs. "
-                "Solid fill = **Reported**; striped overlay = **"
+                "Solid fill = **Reported**; diagonal hatch = **"
                 f"{missing_label}**. Colors still identify standards (see legend)."
             )
             if n_peers > 0:
                 note += peer_note
             st.caption(note)
-    
-            else:
-                # ===== v1 baseline (your original reported-only stacked bars) =====
-                perstd_rows = []
-                for std_code in STD_ORDER:
-                    if std_code not in groups:
-                        continue
-                    metrics_in_group = groups[std_code]
-                    label = SHORT_ESRS_LABELS.get(std_code, std_code)
-                    vals = current_row[metrics_in_group].astype(str).str.strip().str.lower()
-                    firm_yes = int(vals.isin(YES_SET).sum())
-                    perstd_rows.append({"StdCode": std_code, "Standard": label, "Series": firm_series, "Value": float(firm_yes)})
         
-                    if peers_series and peers is not None:
-                        present_cols = [m for m in metrics_in_group if m in peers.columns]
-                        if present_cols:
-                            pb = peers[present_cols].astype(str).applymap(lambda x: x.strip().lower() in YES_SET)
-                            if len(pb) > 0:
-                                perstd_rows.append({"StdCode": std_code, "Standard": label, "Series": peers_series,
-                                                    "Value": float(pb.sum(axis=1).mean())})
+        else:
+            # ===== v1 baseline (your original reported-only stacked bars) =====
+            perstd_rows = []
+            for std_code in STD_ORDER:
+                if std_code not in groups:
+                    continue
+                metrics_in_group = groups[std_code]
+                label = SHORT_ESRS_LABELS.get(std_code, std_code)
+                vals = current_row[metrics_in_group].astype(str).str.strip().str.lower()
+                firm_yes = int(vals.isin(YES_SET).sum())
+                perstd_rows.append({"StdCode": std_code, "Standard": label, "Series": firm_series, "Value": float(firm_yes)})
         
-                chart_df = pd.DataFrame(perstd_rows)
-                chart_df["StdRank"] = chart_df["StdCode"].map(STD_RANK).fillna(9999)
+                if peers_series and peers is not None:
+                    present_cols = [m for m in metrics_in_group if m in peers.columns]
+                    if present_cols:
+                        pb = peers[present_cols].astype(str).applymap(lambda x: x.strip().lower() in YES_SET)
+                        if len(pb) > 0:
+                            perstd_rows.append({"StdCode": std_code, "Standard": label, "Series": peers_series,
+                                                "Value": float(pb.sum(axis=1).mean())})
         
-                # header + inline legend
-                present_codes = [c for c in STD_ORDER if (chart_df["StdCode"] == c).any()] if not chart_df.empty else STD_ORDER
-                render_section_header("Total overview", present_codes)
+            chart_df = pd.DataFrame(perstd_rows)
+            chart_df["StdRank"] = chart_df["StdCode"].map(STD_RANK).fillna(9999)
         
-                if not chart_df.empty:
-                    color_domain = present_codes
-                    color_range  = [STD_COLOR[c] for c in color_domain]
-                    y_sort = [firm_series] + ([peers_series] if peers_series else [])
-                    base = alt.Chart(chart_df)
+            present_codes = [c for c in STD_ORDER if (chart_df["StdCode"] == c).any()] if not chart_df.empty else STD_ORDER
+            render_section_header("Total overview", present_codes)
         
-                    bars = (
-                        base
-                        .mark_bar()
-                        .encode(
-                            y=alt.Y("Series:N", title="", sort=y_sort),
-                            x=alt.X("Value:Q", title="Number of Disclosure Requirements reported"),
-                            color=alt.Color("StdCode:N",
-                                            scale=alt.Scale(domain=color_domain, range=color_range),
-                                            legend=None),
-                            order=alt.Order("StdRank:Q"),
-                            tooltip=[
-                                alt.Tooltip("Series:N", title="Series"),
-                                alt.Tooltip("Standard:N", title="Standard"),
-                                alt.Tooltip("Value:Q", title="# DR", format=".1f"),
-                            ],
-                        )
+            if not chart_df.empty:
+                color_domain = present_codes
+                color_range  = [STD_COLOR[c] for c in color_domain]
+                y_sort = [firm_series] + ([peers_series] if peers_series else [])
+                base = alt.Chart(chart_df)
+        
+                bars = (
+                    base
+                    .mark_bar()
+                    .encode(
+                        y=alt.Y("Series:N", title="", sort=y_sort),
+                        x=alt.X("Value:Q", title="Number of Disclosure Requirements reported"),
+                        color=alt.Color("StdCode:N",
+                                        scale=alt.Scale(domain=color_domain, range=color_range),
+                                        legend=None),
+                        order=alt.Order("StdRank:Q"),
+                        tooltip=[
+                            alt.Tooltip("Series:N", title="Series"),
+                            alt.Tooltip("Standard:N", title="Standard"),
+                            alt.Tooltip("Value:Q", title="# DR", format=".1f"),
+                        ],
                     )
-                    totals = (
-                        base
-                        .transform_aggregate(total="sum(Value)", groupby=["Series"])
-                        .mark_text(align="left", baseline="middle", dx=4)
-                        .encode(y=alt.Y("Series:N", sort=y_sort), x="total:Q", text=alt.Text("total:Q", format=".1f"))
-                    )
-                    fig = alt.layer(bars, totals).properties(
-                        height=120, width="container",
-                        padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
-                    ).configure_view(stroke=None)
+                )
+                totals = (
+                    base
+                    .transform_aggregate(total="sum(Value)", groupby=["Series"])
+                    .mark_text(align="left", baseline="middle", dx=4)
+                    .encode(y=alt.Y("Series:N", sort=y_sort), x="total:Q", text=alt.Text("total:Q", format=".1f"))
+                )
+                fig = alt.layer(bars, totals).properties(
+                    height=120, width="container",
+                    padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
+                ).configure_view(stroke=None)
         
-                    st.altair_chart(fig, use_container_width=True)
+                st.altair_chart(fig, use_container_width=True)
         
-                note = "Bars show total counts of reported Disclosure Requirements, stacked by standard (E1–E5, S1–S4, G1)."
-                if n_peers > 0:
-                    note += peer_note
-                st.caption(note)
+            note = "Bars show total counts of reported Disclosure Requirements, stacked by standard (E1–E5, S1–S4, G1)."
+            if n_peers > 0:
+                note += peer_note
+            st.caption(note)
+
 
 
 
