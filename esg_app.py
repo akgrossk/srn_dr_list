@@ -1093,21 +1093,32 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
 
         with st.expander(exp_title, expanded=False):
             if display_mode == "Tables":
-                firm_vals = [pretty_value(current_row.get(c, np.nan)) for c in metrics]
-                table = pd.DataFrame({"Disclosure Requirements": metrics, "Reported": firm_vals})
-
-                if n_peers > 0:
-                    peer_pct = []
-                    for m in metrics:
+                # Build a row per Disclosure Requirement in this standard
+                rows = []
+                for m in metrics:
+                    code = str(m).strip().split(" ")[0]  # e.g., "E1-1"
+                    name = DR_LABELS.get(code, "")       # long label from your mapping
+                    reported = pretty_value(current_row.get(m, np.nan))
+        
+                    row = {
+                        "Code": code,
+                        "Name": name,
+                        "Reported": reported,
+                    }
+        
+                    if n_peers > 0:
                         if m in peers.columns:
                             s = peers[m].astype(str).str.strip().str.lower()
                             pct = (s.isin(YES_SET)).mean()
-                            peer_pct.append(f"{pct*100:.1f}%")
+                            row[f"Peers reported % ({comp_label})"] = f"{pct*100:.1f}%"
                         else:
-                            peer_pct.append("—")
-                    table[f"Peers reported % ({comp_label})"] = peer_pct
-
+                            row[f"Peers reported % ({comp_label})"] = "—"
+        
+                    rows.append(row)
+        
+                table = pd.DataFrame(rows)
                 st.dataframe(table, use_container_width=True, hide_index=True)
+        
                 if n_peers > 0:
                     st.caption(f"Peers reported % = share of selected peers answering 'Yes'{note}")
 
