@@ -842,8 +842,7 @@ if view == "Total":
             base_rows = []
             rep_rows  = []
             miss_rows = []   # for invisible (tooltip) bars covering missing segment
-            # --- replace the old stripe_rows generation ---
-            stripe_rows = []  # thin bar slivers to simulate stripes
+            diag_rows = []   # one row per diagonal line
             
             def add_series_rows(series_label: str, reported_by_std: dict):
                 for sc in present_codes:
@@ -875,28 +874,22 @@ if view == "Total":
                             "Total": total_n, "StdRank": rank, "Color": color
                         })
             
-                        # === Diagonal hatch parameters ===
-                        gap_x   = 0.70   # space between stroke seeds along x (in DR units)
-                        thick_x = 0.28   # stroke thickness along x (in DR units)
-                        y_step  = 6      # px between “rows” of stripes within the band
-                        slope   = 0.018  # x-units advanced per 1 px of y-offset (controls "\" angle)
-                        y_max   = 48     # approximate band height in px (kept modest for perf)
+                        # === Diagonal hatch params ===
+                        spacing = 0.7    # distance between diagonals (in DR units)
+                        length  = 0.9    # diagonal length (in DR units)
+                        offset  = 0.12   # start a bit inside the missing segment
             
-                        # Build several “rows” of short bars, shifted in x with y-offset => "\" look
-                        yoff = 0
-                        while yoff <= y_max:
-                            pos = xr + (yoff * slope) + 0.10  # start a bit inside the missing segment
-                            while pos < x1 - 0.05:
-                                stripe_rows.append({
-                                    "Series": series_label, "StdCode": sc, "Standard": stdlab,
-                                    "x0": float(pos), "x1": float(min(pos + thick_x, x1)),
-                                    "yoff": yoff, "StdRank": rank, "Color": color
-                                })
-                                pos += gap_x
-                            yoff += y_step
+                        pos = xr + offset
+                        while pos < x1 - 0.05:
+                            x_start = pos
+                            x_end   = min(pos + length, x1)
+                            diag_rows.append({
+                                "Series": series_label, "StdCode": sc, "Standard": stdlab,
+                                "x": float(x_start), "x2": float(x_end),
+                                "StdRank": rank, "Color": color
+                            })
+                            pos += spacing
 
-
-            stripes_df = pd.DataFrame(stripe_rows)
 
             # Firm reported per standard
             firm_reported = {}
@@ -922,7 +915,7 @@ if view == "Total":
             base_df   = pd.DataFrame(base_rows)
             rep_df    = pd.DataFrame(rep_rows)
             miss_df   = pd.DataFrame(miss_rows)
-            stripes_df = pd.DataFrame(stripe_rows)
+            diag_df = pd.DataFrame(diag_rows)  
     
             # header + legends
             render_section_header("Total overview", present_codes)
@@ -989,22 +982,35 @@ if view == "Total":
                 )
             )
     
-            # Stripes overlay: many thin bars across the missing portion
-            layer_stripes = (
-                alt.Chart(stripes_df)
-                .mark_bar(opacity=0.55)
+            # Diagonal "\" hatch over the missing portion
+            layer_diag = (
+                alt.Chart(diag_df)
+                .mark_rule(opacity=0.75)
                 .encode(
-                    y=alt.Y("Series:N", sort=y_sort),
-                    x=alt.X("x0:Q"),
-                    x2="x1:Q",
-                    color=alt.Color(
+                    y=alt.Y("Series:N", sort=y_sort, band=0),
+                    y2=alt.Y2("Series:N", band=1),
+                    x=alt.X("x:Q"),
+                    x2=alt.X2("x2:Q"),
+                    stroke=alt.Color(
                         "StdCode:N",
                         scale=alt.Scale(domain=present_codes, range=[STD_COLOR[c] for c in present_codes]),
                         legend=None
                     ),
+                    size=alt.value(1),
                     order=alt.Order("StdRank:Q"),
                 )
             )
+            
+            fig = alt.layer(
+                layer_base,
+                layer_rep,
+                layer_diag,              # <<< use this instead of layer_stripes
+                layer_missing_tooltip
+            ).properties(
+                height=120, width="container",
+                padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
+            ).configure_view(stroke=None)
+
 
             fig = alt.layer(layer_base, layer_rep, layer_stripes, layer_missing_tooltip).properties(
                 height=120, width="container",
