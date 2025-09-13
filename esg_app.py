@@ -827,77 +827,106 @@ if view == "Total":
         # Only switch to the new look for v2/v3
         if VARIANT in ("v2", "v3"):
             missing_label = "Not reported" if VARIANT == "v2" else "Missing"
-    
-            # Build geometry: cumulative start for each standard so overlays align within segments
+        
+            # --- geometry: standards ordered E... S... G... (already your STD_ORDER)
             present_codes = [c for c in STD_ORDER if c in groups]
             totals_by_std = {c: len(groups[c]) for c in present_codes}
+        
+            # cumulative standard starts across the whole bar
             cum_starts = {}
             acc = 0
             for c in present_codes:
                 cum_starts[c] = acc
                 acc += totals_by_std[c]
             per_series_total_len = acc
-    
-            # Build rows for base totals and reported overlays
-            base_rows = []
-            rep_rows  = []
-            miss_rows = []   # for invisible (tooltip) bars covering missing segment
-            # --- replace the old stripe_rows generation ---
-            stripe_rows = []  # thin bar slivers to simulate stripes
-            
+        
+            # --- pillar bookkeeping
+            std_to_pillar = {sc: sc[0] for sc in present_codes}  # "E1"->"E", etc.
+            pillar_order = [p for p in ["E", "S", "G"] if any(std_to_pillar[sc] == p for sc in present_codes)]
+            pillar_codes = {p: [sc for sc in present_codes if std_to_pillar[sc] == p] for p in pillar_order}
+        
+            # pillar start = start of its first std; pillar total = sum of std totals
+            pillar_start = {}
+            pillar_total = {}
+            for p in pillar_order:
+                first_sc = pillar_codes[p][0]
+                pillar_start[p] = cum_starts[first_sc]
+                pillar_total[p] = sum(totals_by_std[sc] for sc in pillar_codes[p])
+        
+            # choose a representative color per pillar (use first standard's color)
+            pillar_color = {
+                "E": STD_COLOR.get("E1", "#0b7a28"),
+                "S": STD_COLOR.get("S1", "#8f1414"),
+                "G": STD_COLOR.get("G1", "#f2c744"),
+            }
+        
+            # --- rows for layers
+            base_rows   = []   # full standard totals (semi-transparent)
+            rep_rows    = []   # reported per standard (solid)
+            stripes_rows = []  # hatch stripes per pillar (one contiguous missing block per pillar)
+            miss_pillar_rows = []  # invisible bars for pillar-level missing tooltips
+        
             def add_series_rows(series_label: str, reported_by_std: dict):
+                # 1) per-standard base and reported
                 for sc in present_codes:
                     total_n = totals_by_std[sc]
                     x0 = float(cum_starts[sc])
                     x1 = float(x0 + total_n)
-            
+        
                     rep = float(max(min(reported_by_std.get(sc, 0.0), total_n), 0.0))
-                    xr = float(x0 + rep)
+                    xr  = float(x0 + rep)
                     color = STD_COLOR[sc]
                     rank  = STD_RANK.get(sc, 9999)
                     stdlab = SHORT_ESRS_LABELS.get(sc, sc)
-            
+        
                     base_rows.append({
                         "Series": series_label, "StdCode": sc, "Standard": stdlab,
-                        "x0": x0, "x1": x1, "Value": total_n, "Reported": rep,
-                        "Total": total_n, "StdRank": rank, "Color": color
+                        "x0": x0, "x1": x1, "Total": total_n, "StdRank": rank
                     })
                     if rep > 0:
                         rep_rows.append({
                             "Series": series_label, "StdCode": sc, "Standard": stdlab,
-                            "x0": x0, "x1": xr, "Value": rep, "Reported": rep,
-                            "Total": total_n, "StdRank": rank, "Color": color
+                            "x0": x0, "x1": xr, "Value": rep, "Total": total_n, "StdRank": rank
                         })
-                    if xr < x1:
-                        miss_rows.append({
-                            "Series": series_label, "StdCode": sc, "Standard": stdlab,
-                            "x0": xr, "x1": x1, "Missing": x1 - xr,
-                            "Total": total_n, "StdRank": rank, "Color": color
+        
+                # 2) per-pillar missing (single right-tail block per pillar)
+                for p in pillar_order:
+                    p_start = float(pillar_start[p])
+                    p_total = float(pillar_total[p])
+                    # sum reported across all standards in this pillar
+                    p_reported = float(sum(max(min(reported_by_std.get(sc, 0.0), totals_by_std[sc]), 0.0)
+                                           for sc in pillar_codes[p]))
+                    xr = p_start + p_reported   # start of missing tail
+                    x1 = p_start + p_total      # end of pillar
+        
+                    if xr < x1:  # there is missing
+                        # tooltip support over the whole missing block
+                        miss_pillar_rows.append({
+                            "Series": series_label, "Pillar": p,
+                            "x0": xr, "x1": x1,
+                            "Missing": x1 - xr, "Total": p_total
                         })
-                        # === build stripes as many thin bar slivers across [xr, x1] ===
-                        gap = 0.6        # distance between stripe starts (units)
-                        width = 0.25     # stripe thickness (units)
+        
+                        # build vertical stripes across [xr, x1]
+                        gap   = 0.60   # distance between stripe starts (DR units)
+                        width = 0.25   # stripe thickness (DR units)
                         pos = xr + 0.15
-                        while pos < x1 - 0.1:
-                            stripe_rows.append({
-                                "Series": series_label, "StdCode": sc, "Standard": stdlab,
+                        while pos < x1 - 0.08:
+                            stripes_rows.append({
+                                "Series": series_label, "Pillar": p,
                                 "x0": float(pos), "x1": float(min(pos + width, x1)),
-                                "StdRank": rank, "Color": color
                             })
                             pos += gap
-
-            stripes_df = pd.DataFrame(stripe_rows)
-
-            # Firm reported per standard
+        
+            # --- firm series
             firm_reported = {}
             for sc in present_codes:
                 vals = current_row[groups[sc]].astype(str).str.strip().str.lower()
                 firm_reported[sc] = float((vals.isin(YES_SET)).sum())
-    
-            add_series_rows(firm_series, firm_reported)
-    
-            # Peers mean per standard, if any
-            if peers_series:
+            add_series_rows("Firm", firm_reported)
+        
+            # --- peers series (optional)
+            if peers_series and (peers is not None):
                 peer_reported = {}
                 for sc in present_codes:
                     cols = [m for m in groups[sc] if m in peers.columns]
@@ -907,25 +936,24 @@ if view == "Total":
                     else:
                         peer_reported[sc] = 0.0
                 add_series_rows(peers_series, peer_reported)
-    
-            # DataFrames
+        
+            # --- DataFrames
             base_df   = pd.DataFrame(base_rows)
             rep_df    = pd.DataFrame(rep_rows)
-            miss_df   = pd.DataFrame(miss_rows)
-            stripes_df = pd.DataFrame(stripe_rows)
-    
+            stripes_df = pd.DataFrame(stripes_rows)
+            miss_pillar_df = pd.DataFrame(miss_pillar_rows)
+        
             # header + legends
             render_section_header("Total overview", present_codes)
-            # Add status legend: show stripes vs solid; sample with E1 color (or first present)
             sample_code = present_codes[0] if present_codes else "E1"
             render_status_legend(missing_label, STD_COLOR.get(sample_code, "#0b7a28"))
-    
-            y_sort = [firm_series] + ([peers_series] if peers_series else [])
-    
-            base = alt.Chart(base_df)
-            # Base totals (semi-transparent)
+        
+            y_sort = ["Firm"] + ([peers_series] if peers_series else [])
+        
+            # --- layers
+            # Base totals per standard (semi-transparent), colored by standard
             layer_base = (
-                base
+                alt.Chart(base_df)
                 .mark_bar(opacity=0.30)
                 .encode(
                     y=alt.Y("Series:N", title="", sort=y_sort),
@@ -942,8 +970,8 @@ if view == "Total":
                     ],
                 )
             )
-    
-            # Reported overlay (solid)
+        
+            # Reported overlay per standard (solid)
             layer_rep = (
                 alt.Chart(rep_df)
                 .mark_bar()
@@ -962,24 +990,10 @@ if view == "Total":
                     ],
                 )
             )
-    
-            # Invisible missing rects to provide tooltips over the striped area
-            layer_missing_tooltip = (
-                alt.Chart(miss_df)
-                .mark_bar(opacity=0)
-                .encode(
-                    y=alt.Y("Series:N", sort=y_sort),
-                    x="x0:Q", x2="x1:Q",
-                    tooltip=[
-                        alt.Tooltip("Series:N", title="Series"),
-                        alt.Tooltip("Standard:N", title="Standard"),
-                        alt.Tooltip("Missing:Q", title=f"{missing_label} DRs", format=".1f"),
-                        alt.Tooltip("Total:Q", title="Total in standard"),
-                    ],
-                )
-            )
-    
-            # Stripes overlay: many thin bars across the missing portion
+        
+            # Hatch stripes per pillar (colored by pillar representative color)
+            if not stripes_df.empty:
+                stripes_df["PillarColor"] = stripes_df["Pillar"].map(pillar_color)
             layer_stripes = (
                 alt.Chart(stripes_df)
                 .mark_bar(opacity=0.55)
@@ -987,98 +1001,39 @@ if view == "Total":
                     y=alt.Y("Series:N", sort=y_sort),
                     x=alt.X("x0:Q"),
                     x2="x1:Q",
-                    color=alt.Color(
-                        "StdCode:N",
-                        scale=alt.Scale(domain=present_codes, range=[STD_COLOR[c] for c in present_codes]),
-                        legend=None
-                    ),
-                    order=alt.Order("StdRank:Q"),
+                    color=alt.Color("Pillar:N",
+                                    scale=alt.Scale(domain=pillar_order, range=[pillar_color[p] for p in pillar_order]),
+                                    legend=None),
                 )
             )
-
-            fig = alt.layer(layer_base, layer_rep, layer_stripes, layer_missing_tooltip).properties(
-                height=120, width="container",
+        
+            # Pillar-level invisible bars for missing tooltips
+            layer_missing_tooltip = (
+                alt.Chart(miss_pillar_df)
+                .mark_bar(opacity=0)
+                .encode(
+                    y=alt.Y("Series:N", sort=y_sort),
+                    x="x0:Q", x2="x1:Q",
+                    tooltip=[
+                        alt.Tooltip("Series:N", title="Series"),
+                        alt.Tooltip("Pillar:N", title="Pillar"),
+                        alt.Tooltip("Missing:Q", title=f"{missing_label} DRs", format=".1f"),
+                        alt.Tooltip("Total:Q",   title="Total in pillar"),
+                    ],
+                )
+            )
+        
+            fig = alt.layer(
+                layer_base,
+                layer_rep,
+                layer_stripes,
+                layer_missing_tooltip
+            ).properties(
+                height=120,
+                width="container",
                 padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
             ).configure_view(stroke=None)
-    
-            st.altair_chart(fig, use_container_width=True)
-    
-            note = (
-                "Each colored segment’s full length equals that standard’s **Total** DRs. "
-                "Solid fill = **Reported**; striped overlay = **"
-                f"{missing_label}**. Colors still identify standards (see legend)."
-            )
-            if n_peers > 0:
-                note += peer_note
-            st.caption(note)
-    
-        else:
-            # ===== v1 baseline (your original reported-only stacked bars) =====
-            perstd_rows = []
-            for std_code in STD_ORDER:
-                if std_code not in groups:
-                    continue
-                metrics_in_group = groups[std_code]
-                label = SHORT_ESRS_LABELS.get(std_code, std_code)
-                vals = current_row[metrics_in_group].astype(str).str.strip().str.lower()
-                firm_yes = int(vals.isin(YES_SET).sum())
-                perstd_rows.append({"StdCode": std_code, "Standard": label, "Series": firm_series, "Value": float(firm_yes)})
-    
-                if peers_series and peers is not None:
-                    present_cols = [m for m in metrics_in_group if m in peers.columns]
-                    if present_cols:
-                        pb = peers[present_cols].astype(str).applymap(lambda x: x.strip().lower() in YES_SET)
-                        if len(pb) > 0:
-                            perstd_rows.append({"StdCode": std_code, "Standard": label, "Series": peers_series,
-                                                "Value": float(pb.sum(axis=1).mean())})
-    
-            chart_df = pd.DataFrame(perstd_rows)
-            chart_df["StdRank"] = chart_df["StdCode"].map(STD_RANK).fillna(9999)
-    
-            # header + inline legend
-            present_codes = [c for c in STD_ORDER if (chart_df["StdCode"] == c).any()] if not chart_df.empty else STD_ORDER
-            render_section_header("Total overview", present_codes)
-    
-            if not chart_df.empty:
-                color_domain = present_codes
-                color_range  = [STD_COLOR[c] for c in color_domain]
-                y_sort = [firm_series] + ([peers_series] if peers_series else [])
-                base = alt.Chart(chart_df)
-    
-                bars = (
-                    base
-                    .mark_bar()
-                    .encode(
-                        y=alt.Y("Series:N", title="", sort=y_sort),
-                        x=alt.X("Value:Q", title="Number of Disclosure Requirements reported"),
-                        color=alt.Color("StdCode:N",
-                                        scale=alt.Scale(domain=color_domain, range=color_range),
-                                        legend=None),
-                        order=alt.Order("StdRank:Q"),
-                        tooltip=[
-                            alt.Tooltip("Series:N", title="Series"),
-                            alt.Tooltip("Standard:N", title="Standard"),
-                            alt.Tooltip("Value:Q", title="# DR", format=".1f"),
-                        ],
-                    )
-                )
-                totals = (
-                    base
-                    .transform_aggregate(total="sum(Value)", groupby=["Series"])
-                    .mark_text(align="left", baseline="middle", dx=4)
-                    .encode(y=alt.Y("Series:N", sort=y_sort), x="total:Q", text=alt.Text("total:Q", format=".1f"))
-                )
-                fig = alt.layer(bars, totals).properties(
-                    height=120, width="container",
-                    padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
-                ).configure_view(stroke=None)
-    
-                st.altair_chart(fig, use_container_width=True)
-    
-            note = "Bars show total counts of reported Disclosure Requirements, stacked by standard (E1–E5, S1–S4, G1)."
-            if n_peers > 0:
-                note += peer_note
-            st.caption(note)
+         
 
 
 
