@@ -704,6 +704,7 @@ if view == "Total":
     comp_label_short = (comp_label or "").replace(" mean", "") if comp_label else None
     peers_series = f"Mean: {comp_label_short}" if comp_label_short else None
 
+
     if display_mode == "Tables":
         # === table summary per pillar ===
         summary_rows = []
@@ -724,20 +725,32 @@ if view == "Total":
                 peer_yes_mean = None
     
             if VARIANT == "v2":
-                # ✅ v2: your requested columns
+                # v2: Reported + Total
                 row = {
                     "Pillar": PILLAR_LABEL[pillar],
-                    "Firm — number of reported Disclosure Requirements": firm_yes,
+                    "Reported disclosure requirements": firm_yes,
                     "Total disclosure requirements": total_DR,
                 }
+                # (optional) keep peers mean if available, renamed for clarity
                 if peer_yes_mean is not None:
-                    # optional: keep a peers column but rename for clarity
                     row[f"Peers — mean reported ({comp_label})"] = round(peer_yes_mean, 1)
-            else:
-                # v1/v3: keep prior column naming
+    
+            elif VARIANT == "v3":
+                # v3: three columns — Firm reported, Missing, Total
+                missing = max(total_DR - firm_yes, 0)
                 row = {
                     "Pillar": PILLAR_LABEL[pillar],
                     "Firm — number of reported Disclosure Requirements": firm_yes,
+                    "Missing disclosure requirements": missing,
+                    "Total disclosure requirements": total_DR,
+                }
+                # (intentionally no peers column here to match your spec)
+    
+            else:
+                # v1: original naming
+                row = {
+                    "Pillar": PILLAR_LABEL[pillar],
+                    "Firm — number of Disclosure Requirements": firm_yes,
                 }
                 if peer_yes_mean is not None:
                     row[f"Peers — mean number of Disclosure Requirements ({comp_label})"] = round(peer_yes_mean, 1)
@@ -752,39 +765,25 @@ if view == "Total":
         # Variant-specific caption
         if VARIANT == "v2":
             note = (
-                "Rows show how many Disclosure Requirements the firm reported ("
-                "**Reported disclosure requirements**), alongside the pillar’s total possible ("
-                "**Total disclosure requirements**)."
+                "Rows show how many Disclosure Requirements the firm reported "
+                "(**Reported disclosure requirements**) and the pillar’s total possible "
+                "(**Total disclosure requirements**)."
             )
-            if n_peers > 0:
-                note += peer_note
-            st.caption(note)
+        elif VARIANT == "v3":
+            note = (
+                "Rows show the firm’s reported DRs (**Firm — number of reported Disclosure Requirements**), "
+                "how many are unreported (**Missing disclosure requirements** = Total − Reported), and "
+                "the pillar’s **Total disclosure requirements**."
+            )
         else:
             note = "Rows show the number of reported Disclosure Requirements per pillar."
-            if n_peers > 0:
-                note += peer_note
-            st.caption(note)
-
-            summary_rows.append({
-                "Pillar": PILLAR_LABEL[pillar],
-                "Firm — number of Disclosure Requirements": firm_yes,
-                "Peers — mean number of Disclosure Requirements": (round(peer_yes_mean, 1) if peer_yes_mean is not None else None)
-            })
-        tbl = pd.DataFrame(summary_rows)
-        if n_peers > 0:
-            tbl = tbl.rename(columns={
-                "Peers — mean number of Disclosure Requirements":
-                f"Peers — mean number of Disclosure Requirements ({comp_label})"
-            })
-        else:
-            if "Peers — mean number of Disclosure Requirements" in tbl.columns:
-                tbl = tbl.drop(columns=["Peers — mean number of Disclosure Requirements"])
-        st.subheader("Total overview")
-        st.dataframe(tbl, use_container_width=True, hide_index=True)
-        note = "Rows show the number of reported Disclosure Requirements per pillar."
+    
         if n_peers > 0:
             note += peer_note
         st.caption(note)
+
+
+      
 
     else:
         # === stacked bars (counts by standard) ===
