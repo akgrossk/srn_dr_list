@@ -1380,8 +1380,6 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 f"Totals per row = {fixed_total}."
                 + (note if n_peers > 0 else "")
             )
-
-                )
             st.markdown("---")
 
 
