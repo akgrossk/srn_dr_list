@@ -1373,7 +1373,118 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     code = short_label(col)
                     xa = i + tile_gap / 2.0
                     xb = i + 1 - tile_gap / 2.0
-                    share = 1.0 if is_yes(current_
+                    share = 1.0 if is_yes(current_row.get(col, "")) else 0.0
+                    rows.append({
+                        "Series": "Firm",
+                        "Label": code, "Full": full_name(code),
+                        "i": i, "xa": float(xa), "xb": float(xb),
+                        "xg": float(xa + eff_w * share),
+                        "share": float(share)
+                    })
+
+                peers_label = None
+                if n_peers > 0 and peers is not None:
+                    peers_label = "Mean:" + (f" {comp_label}" if comp_label else "")
+                    for i, col in enumerate(present_cols):
+                        code = short_label(col)
+                        xa = i + tile_gap / 2.0
+                        xb = i + 1 - tile_gap / 2.0
+                        s = peers[col].astype(str).str.strip().str.lower() if col in peers.columns else pd.Series([])
+                        share = float((s.isin(YES_SET)).mean()) if len(s) else 0.0
+                        rows.append({
+                            "Series": peers_label,
+                            "Label": code, "Full": full_name(code),
+                            "i": i, "xa": float(xa), "xb": float(xb),
+                            "xg": float(xa + eff_w * share),
+                            "share": float(share)
+                        })
+
+                tile_df = pd.DataFrame(rows)
+
+                # Build chart
+                tick_values = [i + 0.5 for i in range(len(present_cols))]
+                labels_js = "[" + ",".join([repr(lbl) for lbl in labels]) + "]"
+                label_expr = f"{labels_js}[floor(datum.value - 0.5)]"
+
+                xscale = alt.Scale(domain=[0, len(present_cols)], nice=False, zero=True)
+                x_axis = alt.Axis(values=tick_values, tickSize=0, labelAngle=0, labelPadding=6,
+                                  labelExpr=label_expr, title=None)
+
+                y_enc = alt.Y(
+                    "Series:N",
+                    sort=["Firm"] + ([peers_label] if peers_label else []),
+                    title="",
+                    scale=alt.Scale(paddingInner=0.65, paddingOuter=0.28),
+                    axis=alt.Axis(labels=True, ticks=False, domain=False)
+                )
+
+                tile_tooltip = [
+                    alt.Tooltip("Label:N", title="Code"),
+                    alt.Tooltip("Full:N",  title="Name"),
+                    alt.Tooltip("Series:N", title="Series"),
+                    alt.Tooltip("share:Q",  title="% reported", format=".0%"),
+                ]
+
+                base = alt.Chart(tile_df)
+
+                # background cells
+                red = (
+                    base.mark_rect(stroke="white", strokeWidth=0.8)
+                        .encode(
+                            y=y_enc,
+                            x=alt.X("xa:Q", scale=xscale, axis=x_axis),
+                            x2="xb:Q",
+                            color=alt.value(no_color),
+                            tooltip=tile_tooltip,
+                        )
+                )
+
+                # filled portion = reported share
+                green = (
+                    base.mark_rect(stroke="white", strokeWidth=0.8)
+                        .encode(
+                            y=y_enc,
+                            x="xa:Q",
+                            x2="xg:Q",
+                            color=alt.value(ok_color),
+                            tooltip=tile_tooltip,
+                        )
+                        .transform_filter("datum.share > 0")
+                )
+
+                # percent labels on peers bars (only when >=10%)
+                pct_text = None
+                if peers_label:
+                    pct_text = (
+                        base
+                        .transform_filter(alt.FieldEqualPredicate(field="Series", equal=peers_label))
+                        .transform_filter("datum.share >= 0.10")
+                        .transform_calculate(xtext="datum.xa + (datum.xb - datum.xa) * datum.share * 0.35")
+                        .mark_text(baseline="middle", fontSize=11, color="white")
+                        .encode(
+                            y=y_enc,
+                            x=alt.X("xtext:Q", scale=xscale),
+                            text=alt.Text("share:Q", format=".0%"),
+                            tooltip=tile_tooltip,
+                        )
+                    )
+
+                px_per_tile = 28
+                total_width = max(240, int(px_per_tile * len(present_cols)))
+
+                fig = alt.layer(*([red, green] + ([pct_text] if pct_text is not None else []))).properties(
+                    width=total_width,
+                    height=alt.Step(50),
+                    padding={"left": 12, "right": 12, "top": 6, "bottom": 8},
+                ).configure_view(stroke=None)
+
+                st.altair_chart(fig, use_container_width=True)
+                st.caption(
+                    f"{len(present_cols)} Tiles = Disclosure Requirements within this ESRS standard. "
+                    "Tiles: filled = reported, light = not reported. "
+                    + (f"Peer tiles: fill equals % of peers that reported (shown as %). " if peers_label else "")
+                    + (note if peers_label else "")
+                )
 
 
 # ========= Which pillar to render =========
