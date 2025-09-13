@@ -874,17 +874,27 @@ if view == "Total":
                             "x0": xr, "x1": x1, "Missing": x1 - xr,
                             "Total": total_n, "StdRank": rank, "Color": color
                         })
-                        # === build stripes as many thin bar slivers across [xr, x1] ===
-                        gap = 0.6        # distance between stripe starts (units)
-                        width = 0.25     # stripe thickness (units)
-                        pos = xr + 0.15
-                        while pos < x1 - 0.1:
-                            stripe_rows.append({
-                                "Series": series_label, "StdCode": sc, "Standard": stdlab,
-                                "x0": float(pos), "x1": float(min(pos + width, x1)),
-                                "StdRank": rank, "Color": color
-                            })
-                            pos += gap
+            
+                        # === Diagonal hatch parameters ===
+                        gap_x   = 0.70   # space between stroke seeds along x (in DR units)
+                        thick_x = 0.28   # stroke thickness along x (in DR units)
+                        y_step  = 6      # px between “rows” of stripes within the band
+                        slope   = 0.018  # x-units advanced per 1 px of y-offset (controls "\" angle)
+                        y_max   = 48     # approximate band height in px (kept modest for perf)
+            
+                        # Build several “rows” of short bars, shifted in x with y-offset => "\" look
+                        yoff = 0
+                        while yoff <= y_max:
+                            pos = xr + (yoff * slope) + 0.10  # start a bit inside the missing segment
+                            while pos < x1 - 0.05:
+                                stripe_rows.append({
+                                    "Series": series_label, "StdCode": sc, "Standard": stdlab,
+                                    "x0": float(pos), "x1": float(min(pos + thick_x, x1)),
+                                    "yoff": yoff, "StdRank": rank, "Color": color
+                                })
+                                pos += gap_x
+                            yoff += y_step
+
 
             stripes_df = pd.DataFrame(stripe_rows)
 
