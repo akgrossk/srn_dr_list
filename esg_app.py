@@ -519,14 +519,6 @@ def render_pillar_legend_with_missing(stds_in_pillar, colors, pillar):
     )
     st.markdown(f'<div class="legend-inline">{items}</div>', unsafe_allow_html=True)
 
-def _tint(hex_color: str, factor: float = 0.55) -> str:
-    """Lighten a hex color toward white (no transparency). factor in [0..1]."""
-    h = hex_color.lstrip("#")
-    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
-    tr = int(r + (255 - r) * factor)
-    tg = int(g + (255 - g) * factor)
-    tb = int(b + (255 - b) * factor)
-    return f"#{tr:02x}{tg:02x}{tb:02x}"
 
 # ========= LOAD DATA (GitHub only) =========
 df = load_table(DEFAULT_DATA_URL)
@@ -1172,136 +1164,117 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
             st.markdown("---")
 
         else:
-            
-            # ===== v2/v3 OVERVIEW (pretty + clear) =====
-            # Legend: standards + one light-tint chip saying “Not reported” (v2) or “Missing” (v3)
-            def _render_pillar_legend_tinted(stds_in_pillar, pillar):
-                # normal standard chips
-                items = "".join(
-                    f'<span class="swatch" style="background:{STD_COLOR[c]}"></span>'
-                    f'<span class="lab">{c}</span>'
-                    for c in stds_in_pillar
-                )
-                # extra chip (light tint of the pillar's first std color)
-                base = STD_COLOR.get(stds_in_pillar[0], "#888")
-                light = _tint(base, 0.6)
-                items += (
-                    f'<span class="swatch" style="background:{light};border:1px solid {base}"></span>'
-                    f'<span class="lab">{"Not reported" if VARIANT=="v2" else "Missing"}</span>'
-                )
-                st.markdown("""
-                <style>
-                  .legend-inline{display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:center;margin-top:.35rem;}
-                  .legend-inline .swatch{display:inline-block;width:12px;height:12px;border-radius:2px;margin-right:.35rem;}
-                  .legend-inline .lab{font-size:0.9rem;}
-                </style>""", unsafe_allow_html=True)
-                st.markdown(f'<div class="legend-inline">{items}</div>', unsafe_allow_html=True)
-            
-            st.markdown("### Overview")
-            _render_pillar_legend_tinted(stds_in_pillar, pillar)
-            
+            # v2 / v3: reported + hatched missing per standard; rows sum to fixed totals
+            render_pillar_legend_with_missing(stds_in_pillar, STD_COLOR, pillar)
+
             rows = []
             firm_series = "Firm"
             peers_series = f"Mean: {comp_label}" if n_peers > 0 else None
-            
+
             for std_code in stds_in_pillar:
-                # collect columns for this standard
+                # Collect columns of this standard
                 std_metrics = []
                 for gname in pillar_groups:
                     if gname.split("-")[0] == std_code:
                         std_metrics.extend(groups[gname])
-            
+
                 total_std = STD_TOTAL_OVERRIDES.get(std_code, len(std_metrics))
-                # firm
+
+                # Firm counts
                 vals = current_row[std_metrics].astype(str).str.strip().str.lower()
-                firm_rep = int(vals.isin(YES_SET).sum())
-                rows.append({"Cat": std_code, "Kind": "Reported", "Label": SHORT_ESRS_LABELS.get(std_code, std_code),
-                             "Series": firm_series, "Value": float(firm_rep), "Total": float(total_std)})
-                rows.append({"Cat": std_code, "Kind": "MISS", "Label": SHORT_ESRS_LABELS.get(std_code, std_code),
-                             "Series": firm_series, "Value": float(max(total_std - firm_rep, 0)), "Total": float(total_std)})
-            
-                # peers mean
+                firm_yes = int(vals.isin(YES_SET).sum())
+                firm_miss = max(total_std - firm_yes, 0)
+
+                rows.append({"Cat": std_code,
+                             "Label": SHORT_ESRS_LABELS.get(std_code, std_code),
+                             "Series": firm_series, "Value": float(firm_yes)})
+                rows.append({"Cat": f"{std_code}_MISS",
+                             "Label": f"{SHORT_ESRS_LABELS.get(std_code, std_code)} — "
+                                      f"{'Not reported' if VARIANT=='v2' else 'Missing'}",
+                             "Series": firm_series, "Value": float(firm_miss)})
+
+                # Peers mean (reported + missing)
                 if n_peers > 0 and peers is not None:
                     present = [c for c in std_metrics if c in peers.columns]
-                    peer_rep = 0.0
                     if present:
                         pb = peers[present].astype(str).applymap(lambda x: x.strip().lower() in YES_SET)
-                        peer_rep = float(pb.sum(axis=1).mean())
-                    rows.append({"Cat": std_code, "Kind": "Reported", "Label": SHORT_ESRS_LABELS.get(std_code, std_code),
-                                 "Series": peers_series, "Value": float(peer_rep), "Total": float(total_std)})
-                    rows.append({"Cat": std_code, "Kind": "MISS", "Label": SHORT_ESRS_LABELS.get(std_code, std_code),
-                                 "Series": peers_series, "Value": float(max(total_std - peer_rep, 0.0)), "Total": float(total_std)})
-            
-            cdf = pd.DataFrame(rows)
-            
-            if not cdf.empty:
-                # order: E1(rep,miss), E2(rep,miss), ...
+                        peer_mean_rep = float(pb.sum(axis=1).mean())
+                    else:
+                        peer_mean_rep = 0.0
+                    peer_mean_miss = max(total_std - peer_mean_rep, 0.0)
+                    rows.append({"Cat": std_code,
+                                 "Label": SHORT_ESRS_LABELS.get(std_code, std_code),
+                                 "Series": peers_series, "Value": float(peer_mean_rep)})
+                    rows.append({"Cat": f"{std_code}_MISS",
+                                 "Label": f"{SHORT_ESRS_LABELS.get(std_code, std_code)} — "
+                                          f"{'Not reported' if VARIANT=='v2' else 'Missing'}",
+                                 "Series": peers_series, "Value": float(peer_mean_miss)})
+
+            if rows:
+                cdf = pd.DataFrame(rows)
+                # Order: E1, E1_MISS, E2, E2_MISS, ...
                 cat_order = []
                 for s in stds_in_pillar:
-                    cat_order += [f"{s}-Reported", f"{s}-MISS"]
-                cdf["CatKey"] = cdf["Cat"] + "-" + cdf["Kind"]
-                rank_map = {k:i for i,k in enumerate(cat_order)}
-                cdf["CatRank"] = cdf["CatKey"].map(rank_map).fillna(9999)
-            
-                # color mapping: base for Reported, light tint (same hue) for MISS
-                domain = [k for k in cat_order if (cdf["CatKey"] == k).any()]
-                color_map = {}
-                for s in stds_in_pillar:
-                    base = STD_COLOR.get(s, "#888888")
-                    color_map[f"{s}-Reported"] = base
-                    color_map[f"{s}-MISS"]     = _tint(base, 0.60)
-            
-                # pretty label for MISS in tooltips
-                miss_text = "Not reported" if VARIANT == "v2" else "Missing"
-            
+                    cat_order.extend([s, f"{s}_MISS"])
+                rank_map = {c: i for i, c in enumerate(cat_order)}
+                cdf["CatRank"] = cdf["Cat"].map(rank_map).astype(int)
+
+                # Colors = base standard color (missing gets hatched styling via opacity/stroke)
+                domain = [c for c in cat_order if (cdf["Cat"] == c).any()]
+                rng    = [STD_COLOR.get(c.replace("_MISS", ""), "#999") for c in domain]
+
+                missing_cats = [f"{s}_MISS" for s in stds_in_pillar]
+                is_missing = alt.FieldOneOfPredicate(field="Cat", oneOf=missing_cats)
                 y_sort = [firm_series] + ([peers_series] if peers_series else [])
-            
+
                 base = alt.Chart(cdf)
                 bars = (
-                    base.mark_bar(
-                        stroke="#000", strokeWidth=1, strokeOpacity=0.85, strokeJoin="miter", cornerRadiusTopRight=2, cornerRadiusBottomRight=2
-                    ).encode(
+                    base
+                    .mark_bar(stroke="#000", strokeWidth=1, strokeOpacity=0.9, strokeJoin="miter")  # default outline
+                    .encode(
                         y=alt.Y("Series:N", title="", sort=y_sort),
-                        x=alt.X("Value:Q", title="Number of Disclosure Requirements", stack="zero"),
-                        color=alt.Color("CatKey:N",
-                            scale=alt.Scale(domain=domain, range=[color_map[k] for k in domain]),
-                            legend=None
-                        ),
+                        x=alt.X("Value:Q", title="Number of Disclosure Requirements"),
+                        color=alt.Color("Cat:N", scale=alt.Scale(domain=domain, range=rng), legend=None),
                         order=alt.Order("CatRank:Q"),
+                        opacity=alt.condition(is_missing, alt.value(0.35), alt.value(1.0)),
+                        # For *_MISS, override the stroke color (keeps your hatched look distinct)
+                        stroke=alt.condition(
+                            is_missing,
+                            alt.Color("Cat:N", scale=alt.Scale(domain=domain, range=rng)),
+                            alt.value("#000")
+                        ),
+                        strokeDash=alt.condition(is_missing, alt.value([5, 3]), alt.value([0, 0])),
+                        strokeWidth=alt.condition(is_missing, alt.value(2), alt.value(1)),
                         tooltip=[
                             alt.Tooltip("Series:N", title="Series"),
-                            alt.Tooltip("Label:N",  title="Standard"),
-                            alt.Tooltip("Total:Q",  title="Total", format=".0f"),
-                            alt.Tooltip("Value:Q",
-                                title=alt.ExprRef(expr=f"datum.Kind==='MISS' ? '{miss_text}' : 'Reported'"),
-                                format=".1f"
-                            ),
+                            alt.Tooltip("Label:N",  title="Segment"),
+                            alt.Tooltip("Value:Q",  title="# DR", format=".1f"),
                         ],
                     )
                 )
-            
-                # total labels at the end of each row
+
+
                 totals = (
                     base.transform_aggregate(total="sum(Value)", groupby=["Series"])
-                        .mark_text(align="left", baseline="middle", dx=6)
-                        .encode(y=alt.Y("Series:N", sort=y_sort), x="total:Q", text=alt.Text("total:Q", format=".1f"))
+                        .mark_text(align="left", baseline="middle", dx=4)
+                        .encode(y=alt.Y("Series:N", sort=y_sort),
+                                x="total:Q", text=alt.Text("total:Q", format=".1f"))
                 )
-            
+
                 fig = alt.layer(bars, totals).properties(
-                    height=120,
-                    width="container",
+                    height=120, width="container",
                     padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
                 ).configure_view(stroke=None)
-            
+
                 st.altair_chart(fig, use_container_width=True)
-            
+
                 fixed_total = sum(STD_TOTAL_OVERRIDES.get(s, 0) for s in stds_in_pillar)
                 st.caption(
-                    f"Each bar shows **Reported** (solid) and **{'Not reported' if VARIANT=='v2' else 'Missing'}** "
-                    f"(lighter tint). Totals per row = {fixed_total}."
+                    f"Each standard shows reported (solid) and "
+                    f"{'Not reported' if VARIANT=='v2' else 'Missing'} (hatched). "
+                    f"Totals per row = {fixed_total}."
                     + (note if n_peers > 0 else "")
                 )
-            
             st.markdown("---")
 
 
