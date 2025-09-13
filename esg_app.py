@@ -655,8 +655,8 @@ if aud_col in df.columns:
     v = current_row.get(aud_col, "")
     auditor_val = "" if (pd.isna(v)) else str(v).strip()
 
-# === ACTION ROW (exactly 3 buttons) ===
-col_report, col_auditor, col_text = st.columns([1.2, 1, 1.6])
+# === ACTION ROW (exactly 3 single-line buttons) ===
+btn_col1, btn_col2, btn_col3 = st.columns([1.2, 1, 1.6])
 
 # Force all buttons onto one line with ellipsis if needed
 st.markdown("""
@@ -671,39 +671,26 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # 1) Open firm report
-with col_report:
-    if link_url:
-        st.link_button("Open firm report", link_url, help="Open the firm's sustainability/annual report")
+with btn_col1:
+    if _valid_url(link_url):
+        st.link_button("Open firm report", link_url, help="Open the firm's report in a new tab")
     else:
-        # Clickable placeholder: only shows a message when clicked
         if st.button("Open firm report"):
-            st.toast("No report link available yet.", icon="ℹ️")
+            try:
+                st.toast("No report link available yet.", icon="ℹ️")
+            except Exception:
+                st.info("No report link available yet.")
 
 # 2) Show auditor
-with col_auditor:
+with btn_col2:
     try:
         with st.popover("Show auditor"):
             st.markdown(f"**Auditor:** {auditor_val or '—'}")
     except Exception:
-        # Fallback if popovers aren't available in your Streamlit version
         if st.button("Show auditor"):
             st.info(f"Auditor: {auditor_val or '—'}")
 
 # 3) Show text characteristics (URL optional — placeholder for now)
-# Later you can fill this from a column, e.g.:
-# esg_text_url = str(current_row.get("ESG_text_link", "")).strip()
-esg_text_url = ""
-
-with col_text:
-    if isinstance(esg_text_url, str) and esg_text_url.lower().startswith(("http://", "https://")):
-        st.link_button("Show text characteristics", esg_text_url, help="ESG text characteristics")
-    else:
-        # Clickable placeholder: only shows a message when clicked
-        if st.button("Show text characteristics"):
-            st.toast("No info yet — add an ESG text URL when ready.", icon="📝")
-
-
-# --- New: ESG text characteristics link (optional) ---
 # Try a few likely column names; adjust to match your data later
 esg_link = ""
 for col in ["ESG_text_link", "Link_ESG_text", "Link_ESG", "ESG_Text_URL"]:
@@ -714,11 +701,15 @@ for col in ["ESG_text_link", "Link_ESG_text", "Link_ESG", "ESG_Text_URL"]:
             break
 
 with btn_col3:
-    if esg_link:
-        st.link_button("Show ESG text characteristics", esg_link, help="Opens in a new tab")
+    if _valid_url(esg_link):
+        st.link_button("Show text characteristics", esg_link, help="Opens in a new tab")
     else:
-        st.button("Show ESG text characteristics", disabled=True)
-        st.caption("URL not available yet")
+        if st.button("Show text characteristics"):
+            try:
+                st.toast("No info yet — add an ESG text URL when ready.", icon="📝")
+            except Exception:
+                st.info("No info yet — add an ESG text URL when ready.")
+
 
 # ========= NAV & COMPARISON =========
 valid_views = ["Total", "E", "S", "G"]
