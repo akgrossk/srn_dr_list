@@ -245,13 +245,8 @@ elif VARIANT == "v3":
 # else keep v1 defaults
 
 # Tile colors (for the per-DR “green/red” tiles)
-if VARIANT == "v1":
-    TILE_OK = "#4200ff"; TILE_NO = "#d6ccff"
-elif VARIANT == "v2":
-    TILE_OK = "#00897b"; TILE_NO = "#e0f2f1"
-else:  # v3
-    TILE_OK = "#2b9348"; TILE_NO = "#ffe5ec"
-
+TILE_OK = "#4200ff"
+TILE_NO = "#d6ccff"
 
 # Force stack order to follow legend order E1..E5, S1..S4, G1
 STD_RANK = {code: i for i, code in enumerate(STD_ORDER)}
