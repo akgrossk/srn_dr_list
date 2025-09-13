@@ -435,6 +435,11 @@ MISSING_COLOR = {
     "G_MISS": "#F8E690",  # light yellow
 }
 
+# --- Hatch styling for *_MISS overlays (subtle) ---
+MISSING_STRIPE_STEP  = 1.4   # distance between stripes (bigger = fewer stripes)
+MISSING_STRIPE_WIDTH = 0.16  # stripe thickness (smaller = thinner stripes)
+MISSING_STRIPE_COLOR = "rgba(255,255,255,0.55)"  # slightly translucent white
+
 
 def pillar_color(p: str) -> str:
     # use the *existing* pillar base color (unchanged palette)
@@ -1055,12 +1060,13 @@ if view == "Total":
                   )
             )
         
+
             # HATCH overlay only for missing (v2/v3); v1 stays solid
             layers = [rects]
             if VARIANT in ("v2","v3"):
                 miss_only = seg[seg["StdCode"].isin(MISSING_CODES)].copy()
-        
-                def _make_stripes_df(d, step=1.0, stripe_width=0.35):
+            
+                def _make_stripes_df(d, step=MISSING_STRIPE_STEP, stripe_width=MISSING_STRIPE_WIDTH):
                     rows = []
                     for _, r in d.iterrows():
                         x0, x1 = float(r["x0"]), float(r["x1"])
@@ -1071,7 +1077,7 @@ if view == "Total":
                             rows.append({"Series": r["Series"], "xa": xa, "xb": xb})
                             x += step
                     return pd.DataFrame(rows)
-        
+            
                 stripes_df = _make_stripes_df(miss_only)
                 if not stripes_df.empty:
                     stripes = (
@@ -1081,10 +1087,11 @@ if view == "Total":
                               y=alt.Y("Series:N", title="", sort=y_sort),
                               x=alt.X("xa:Q"),
                               x2="xb:Q",
-                              color=alt.value("#ffffff")
+                              color=alt.value(MISSING_STRIPE_COLOR),
                           )
                     )
                     layers.append(stripes)
+
         
             fig = alt.layer(*layers).properties(
                 height=120, width="container",
@@ -1277,10 +1284,12 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                       )
                 )
 
-                # build diagonal stripe overlay for *_MISS
+                # build diagonal stripe overlay for *_MISS (vertical micro-stripes)
                 miss_only = seg[seg["Cat"].str.endswith("_MISS")].copy()
-
-                def _make_stripes_df_pillar(d: pd.DataFrame, step: float = 1.0, stripe_width: float = 0.35) -> pd.DataFrame:
+                
+                def _make_stripes_df_pillar(d: pd.DataFrame,
+                                            step: float = MISSING_STRIPE_STEP,
+                                            stripe_width: float = MISSING_STRIPE_WIDTH) -> pd.DataFrame:
                     rows_ = []
                     for _, r in d.iterrows():
                         x0, x1 = float(r["x0"]), float(r["x1"])
@@ -1291,7 +1300,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                             rows_.append({"Series": r["Series"], "xa": xa, "xb": xb})
                             x += step
                     return pd.DataFrame(rows_)
-
+                
                 layers = [rects]
                 stripes_df = _make_stripes_df_pillar(miss_only)
                 if not stripes_df.empty:
@@ -1302,7 +1311,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                               y=alt.Y("Series:N", title="", sort=y_sort),
                               x=alt.X("xa:Q"),
                               x2="xb:Q",
-                              color=alt.value("#ffffff")
+                              color=alt.value(MISSING_STRIPE_COLOR),
                           )
                     )
                     layers.append(stripes)
