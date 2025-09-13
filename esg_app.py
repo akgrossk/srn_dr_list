@@ -904,24 +904,16 @@ if view == "Total":
         
         chart_df = pd.DataFrame(perstd_rows)
         
-        # --- rank so missing E sits after last E standard, etc. ---
-        rank_map = {}
-        r = 0
-        for code in STD_ORDER:
-            rank_map[code] = r; r += 1
-        # insert the 3 missing blocks at pillar boundaries
-        # after E5, after S4, after G1 (end)
-        def insert_after(base_code):
-            nonlocal r
-            rank_map[base_code] = rank_map.get(base_code, r)
-        insert_after("E5"); insert_after("S4"); insert_after("G1")
-        
-        # place miss codes just after their pillar
-        rank_map["E_MISS"] = rank_map.get("E5", r) + 0.1
-        rank_map["S_MISS"] = rank_map.get("S4", r) + 0.1
-        rank_map["G_MISS"] = rank_map.get("G1", r) + 0.1
-        
+
+        # --- rank so missing E sits before S starts (right after E5), etc. ---
+        custom_order = [
+            "E1","E2","E3","E4","E5","E_MISS",
+            "S1","S2","S3","S4","S_MISS",
+            "G1","G_MISS",
+        ]
+        rank_map = {code: i for i, code in enumerate(custom_order)}
         chart_df["StdRank"] = chart_df["StdCode"].map(lambda c: rank_map.get(c, 9999))
+
         
         # header + inline legend (include missing items if present)
         present_codes = [c for c in STD_ORDER if (chart_df["StdCode"] == c).any()]
