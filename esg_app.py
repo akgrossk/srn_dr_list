@@ -1,4 +1,3 @@
-this is my code, I want to give the different sections of the bars like e1 e2 etc an oultine so it is easier to tell where one bar starts and end import streamlit as st
 import pandas as pd
 import numpy as np
 from collections import defaultdict
