@@ -11,73 +11,57 @@ import requests
 from urllib.parse import urlencode
 
 # ========= VARIANT / TREATMENT ARMS =========
-VARIANT_KEYS = ["v1", "v2", "v3"]  # treatment arms
-DEFAULT_VARIANT = None             # None => randomize when URL lacks ?v=
+VARIANT_KEYS = ["v1", "v2", "v3"]
+DEFAULT_VARIANT = None  # None => randomize when URL lacks ?v=
 
-def read_query_param_multi(key: str, default=None):
+# Early, local URL helpers so we don't depend on later helper defs
+def _qp_get(key, default=None):
     try:
         v = st.query_params.get(key, default)
         if isinstance(v, list):
-            return v
-        return [v] if v is not None else []
+            return v[0] if v else default
+        return v
     except Exception:
         qp = st.experimental_get_query_params()
-        return qp.get(key, [default]) if key in qp else ([default] if default is not None else [])
+        v = qp.get(key, [default])
+        return v[0] if isinstance(v, list) else v
 
-def get_variant():
+def _qp_update(**params):
+    try:
+        st.query_params.update(params)
+    except Exception:
+        cur = st.experimental_get_query_params()
+        cur.update(params)
+        st.experimental_set_query_params(**cur)
+
+def _get_variant():
     # 1) respect ?v= in URL if present (case-insensitive)
-    v = (read_query_param("v", "") or "").lower()
+    v = (_qp_get("v", "") or "").lower()
     if v in VARIANT_KEYS:
         st.session_state["variant"] = v
         return v
 
     # 2) respect previously chosen session variant
-    if "variant" in st.session_state and st.session_state["variant"] in VARIANT_KEYS:
-        v = st.session_state["variant"]
-    else:
+    v = st.session_state.get("variant")
+    if v not in VARIANT_KEYS:
         # 3) default: random assignment (unless DEFAULT_VARIANT is set)
         v = DEFAULT_VARIANT or np.random.choice(VARIANT_KEYS)
         st.session_state["variant"] = v
 
-    # write it back to the URL so it persists/shareable
-    try:
-        st.query_params.update({"v": v})
-    except Exception:
-        cur = st.experimental_get_query_params()
-        cur["v"] = v
-        st.experimental_set_query_params(**cur)
+    # persist to URL
+    _qp_update(v=v)
     return v
 
-# Optional: enable a dev override when ?dev=1 (or via st.secrets)
-DEV_MODE = False
-dev_qp = (read_query_param("dev", "") or "").strip()
-if dev_qp in ("1", "true", "yes"):
-    DEV_MODE = True
+# Optional: dev mode via ?dev=1 or secrets
+DEV_MODE = str(_qp_get("dev", "") or "").lower() in ("1", "true", "yes")
 try:
     if st.secrets.get("DEV_MODE"):
         DEV_MODE = True
 except Exception:
     pass
 
-VARIANT = get_variant()
+VARIANT = _get_variant()
 
-
-st.set_page_config(page_title="Disclosure Requirements Viewer", page_icon="🌱", layout="wide")
-st.markdown(
-    """
-<style>
-.firm-meta{
-  font-size: 1.05rem;
-  line-height: 1.45;
-  margin-top: -0.25rem;
-}
-@media (prefers-color-scheme: dark){
-  .firm-meta{}
-}
-</style>
-""",
-    unsafe_allow_html=True,
-)
 
 # ========= CONFIG =========
 DEFAULT_DATA_URL = "https://github.com/akgrossk/srn_dr_list/blob/main/DR_upload.xlsx"
