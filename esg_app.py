@@ -421,7 +421,6 @@ def render_section_header(title: str, codes):
     st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
 def render_status_legend(missing_label: str, sample_color: str):
-    # A tiny CSS striped swatch using repeating-linear-gradient.
     st.markdown(
         f"""
         <style>
@@ -431,7 +430,7 @@ def render_status_legend(missing_label: str, sample_color: str):
         .sw.stripes{{
             background:
                 repeating-linear-gradient(
-                    90deg,
+                    135deg,             /* <<< diagonal "\" */
                     rgba(0,0,0,.45) 0 2px,
                     rgba(0,0,0,0) 2px 6px
                 ),
@@ -447,7 +446,6 @@ def render_status_legend(missing_label: str, sample_color: str):
         """,
         unsafe_allow_html=True,
     )
-
 
 # ========= LOAD DATA (GitHub only) =========
 st.sidebar.title("🌱 Disclosure Requirements Viewer")
