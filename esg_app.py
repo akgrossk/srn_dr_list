@@ -523,25 +523,39 @@ def render_pillar_legend_with_missing(stds_in_pillar, colors, pillar):
 # ========= LOAD DATA (GitHub only) =========
 st.sidebar.title("🌱 Disclosure Requirements Viewer")
 
-# Dev/testing: force a variant from the sidebar when DEV_MODE is on
-if DEV_MODE:
-    forced = st.sidebar.selectbox("Dev: force variant", VARIANT_KEYS, index=VARIANT_KEYS.index(VARIANT))
-    if forced != VARIANT:
-        VARIANT = forced
-        st.session_state["variant"] = forced
-        # persist in URL
-        try:
-            st.query_params.update({"v": forced})
-        except Exception:
-            cur = st.experimental_get_query_params()
-            cur["v"] = forced
-            st.experimental_set_query_params(**cur)
-
+# --- Variant switcher (always visible) ---
 st.sidebar.caption(f"Variant: **{VARIANT.upper()}**")
 
-df = load_table(DEFAULT_DATA_URL)
-if df.empty:
-    st.stop()
+try:
+    # Streamlit >= 1.31
+    new_variant = st.sidebar.segmented_control(
+        "View style",
+        options=VARIANT_KEYS,
+        default=VARIANT,
+        format_func=lambda x: x.upper(),
+    )
+except Exception:
+    # Fallback for older Streamlit
+    new_variant = st.sidebar.radio(
+        "View style",
+        options=VARIANT_KEYS,
+        index=VARIANT_KEYS.index(VARIANT),
+        format_func=lambda x: x.upper(),
+        horizontal=True,
+    )
+
+if new_variant != VARIANT:
+    VARIANT = new_variant
+    st.session_state["variant"] = VARIANT
+    # persist to URL so the link is shareable
+    try:
+        st.query_params.update({"v": VARIANT})
+    except Exception:
+        cur = st.experimental_get_query_params()
+        cur["v"] = VARIANT
+        st.experimental_set_query_params(**cur)
+    st.rerun()
+
 
 # ========= DETECT COLUMNS & PRE-READ URL STATE =========
 firm_name_col = first_present(df.columns, FIRM_NAME_COL_CANDIDATES)
