@@ -433,26 +433,20 @@ def missing_label_for_variant(pillar: str) -> str:
     return base + ("Not reported" if VARIANT == "v2" else "Missing")
 
 def render_inline_legend_with_missing(codes, colors):
-    """Show normal per-standard chips + 3 extra 'missing' legend entries."""
-    # normal items (unchanged)
+    """Show normal per-standard chips + 3 extra 'missing' legend entries with exact bar colors."""
+    # normal items
     items = "".join(
         f'<span class="swatch" style="background:{colors[c]}"></span>'
         f'<span class="lab">{c}</span>'
         for c in codes
     )
-    # striped look for the 3 missing legend entries (pure CSS for the swatch)
+
+    # exact colors for missing segments
     miss_bits = []
-    for p, code in zip(["E","S","G"], MISSING_CODES):
-        base = pillar_color(p)
-        # diagonal stripes over the same pillar color, to read as "hatched"
-        swatch_css = (
-            f"background: {base}; "
-            f"mask-image: repeating-linear-gradient(135deg, #000 0 6px, transparent 6px 12px); "
-            f"-webkit-mask-image: repeating-linear-gradient(135deg, #000 0 6px, transparent 6px 12px); "
-            f"border: 1px solid {base};"
-        )
+    for p, code in zip(["E", "S", "G"], MISSING_CODES):
+        tint = MISSING_COLOR.get(code, "#cccccc")
         miss_bits.append(
-            f'<span class="swatch" style="{swatch_css}"></span>'
+            f'<span class="swatch" style="background:{tint}"></span>'
             f'<span class="lab">{missing_label_for_variant(p)}</span>'
         )
     items += "".join(miss_bits)
@@ -920,6 +914,7 @@ if view == "Total":
                     color_range.append(STD_COLOR[c])
                 else:
                     color_range.append(MISSING_COLOR.get(c, "#cccccc"))
+
             
             y_sort = [firm_series] + ([peers_series] if peers_series else [])
             base = alt.Chart(chart_df)
