@@ -923,6 +923,14 @@ if view == "Total":
             render_status_legend(missing_label, STD_COLOR.get(sample_code, "#0b7a28"))
         
             y_sort = [firm_series] + ([peers_series] if peers_series else [])
+            # --- Fixed band geometry so hatches align cleanly ---
+            num_series = 1 + (1 if (peers_series and (peers is not None)) else 0)  # Firm + optional Peers
+            BAND_PX = 56   # pixels per band (tweak if you like 52–64)
+            HATCH_ROW_STEP = 12  # px spacing between hatch rows within a band
+            HATCH_SLOPE_X_PER_PX = 0.18  # DR units advanced per pixel of y (controls "\" angle)
+            HATCH_X_STEP = 0.70  # DR units between slashes along x
+            CHART_HEIGHT = num_series * BAND_PX  # total chart height in px
+
         
             # Layers
             layer_base = (
@@ -1002,6 +1010,7 @@ if view == "Total":
                 layer_missing_tooltip
             ).properties(
                 height=120, width="container",
+                height=CHART_HEIGHT, 
                 padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
             ).configure_view(stroke=None)
         
