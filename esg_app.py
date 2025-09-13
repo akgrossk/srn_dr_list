@@ -517,7 +517,7 @@ def render_pillar_legend_with_missing(stds_in_pillar, colors, pillar):
         """,
         unsafe_allow_html=True,
     )
-    st.markdown(f'<div class="legend-inline">{items}</div>', unsafe
+    st.markdown(f'<div class="legend-inline">{items}</div>', unsafe_allow_html=True)
 
 
 # ========= LOAD DATA (GitHub only) =========
