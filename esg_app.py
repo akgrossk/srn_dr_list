@@ -1291,6 +1291,89 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
             st.markdown("---")
 
 
+    # ===== Per-standard detail (expanders) =====
+    for g in pillar_groups:
+        metrics = groups[g]
+        base_code = g.split("-")[0]
+        short_title = SHORT_ESRS_LABELS.get(base_code, base_code)
+        n_metrics = len(metrics)
+
+        # Firm & peers counts for header
+        firm_yes_count = (current_row[metrics].astype(str).str.strip().str.lower().isin(YES_SET)).sum()
+        peers_yes_mean = None
+        if n_peers > 0 and peers is not None:
+            present_cols = [m for m in metrics if m in peers.columns]
+            if present_cols:
+                pb = peers[present_cols].astype(str).applymap(lambda x: x.strip().lower() in YES_SET)
+                if len(pb) > 0:
+                    peers_yes_mean = float(pb.sum(axis=1).mean())
+
+        if peers_yes_mean is not None:
+            exp_title = f"{short_title} • {n_metrics} Disclosure Requirements — reported: {firm_yes_count}/{n_metrics} (Peers {comp_label}: {peers_yes_mean:.1f}/{n_metrics})"
+        else:
+            exp_title = f"{short_title} • {n_metrics} Disclosure Requirements — reported: {firm_yes_count}/{n_metrics}"
+
+        with st.expander(exp_title, expanded=False):
+            if display_mode == "Tables":
+                # Per-DR table with Code + Name + Reported (+ peers %)
+                codes = [str(c).strip().split(" ")[0] for c in metrics]
+                names = [DR_LABELS.get(code, "") for code in codes]
+                firm_vals = [pretty_value(current_row.get(c, np.nan)) for c in metrics]
+
+                table = pd.DataFrame({
+                    "Code": codes,
+                    "Name": names,
+                    "Reported": firm_vals,
+                })
+
+                if n_peers > 0 and peers is not None:
+                    peer_pct = []
+                    for m in metrics:
+                        if m in peers.columns:
+                            s = peers[m].astype(str).str.strip().str.lower()
+                            pct = (s.isin(YES_SET)).mean()
+                            peer_pct.append(f"{pct*100:.1f}%")
+                        else:
+                            peer_pct.append("—")
+                    table[f"Peers reported % ({comp_label})"] = peer_pct
+
+                st.dataframe(table, use_container_width=True, hide_index=True)
+                if n_peers > 0:
+                    st.caption(f"Peers reported % = share of selected peers answering 'Yes' {note}")
+
+            else:
+                # Tile chart (Firm + optional peers %)
+                ok_color = TILE_OK
+                no_color = TILE_NO
+
+                present_cols = [m for m in metrics if m in df.columns]
+                if len(present_cols) == 0:
+                    st.info("No Disclosure Requirements found for this group.")
+                    continue
+
+                def short_label(col: str) -> str:
+                    s = str(col).strip()
+                    return s.split(" ")[0] if " " in s else s
+
+                def full_name(code: str) -> str:
+                    return DR_LABELS.get(code, "")
+
+                def is_yes(v) -> bool:
+                    try:
+                        return str(v).strip().lower() in YES_SET
+                    except Exception:
+                        return False
+
+                labels = [short_label(c) for c in present_cols]
+                tile_gap = 0.10
+                eff_w = 1.0 - tile_gap
+
+                rows = []
+                for i, col in enumerate(present_cols):
+                    code = short_label(col)
+                    xa = i + tile_gap / 2.0
+                    xb = i + 1 - tile_gap / 2.0
+                    share = 1.0 if is_yes(current_
 
 
 # ========= Which pillar to render =========
