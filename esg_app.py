@@ -842,53 +842,58 @@ if view == "Total":
             base_rows = []
             rep_rows  = []
             miss_rows = []   # for invisible (tooltip) bars covering missing segment
-            diag_rows = []   # one row per diagonal line
-            
-            def add_series_rows(series_label: str, reported_by_std: dict):
-                for sc in present_codes:
-                    total_n = totals_by_std[sc]
-                    x0 = float(cum_starts[sc])
-                    x1 = float(x0 + total_n)
-            
-                    rep = float(max(min(reported_by_std.get(sc, 0.0), total_n), 0.0))
-                    xr = float(x0 + rep)
-                    color = STD_COLOR[sc]
-                    rank  = STD_RANK.get(sc, 9999)
-                    stdlab = SHORT_ESRS_LABELS.get(sc, sc)
-            
-                    base_rows.append({
+            hatch_rows = []  # text "\" slashes across missing segment
+        
+        def add_series_rows(series_label: str, reported_by_std: dict):
+            for sc in present_codes:
+                total_n = totals_by_std[sc]
+                x0 = float(cum_starts[sc])
+                x1 = float(x0 + total_n)
+        
+                rep = float(max(min(reported_by_std.get(sc, 0.0), total_n), 0.0))
+                xr = float(x0 + rep)
+                color = STD_COLOR[sc]
+                rank  = STD_RANK.get(sc, 9999)
+                stdlab = SHORT_ESRS_LABELS.get(sc, sc)
+        
+                base_rows.append({
+                    "Series": series_label, "StdCode": sc, "Standard": stdlab,
+                    "x0": x0, "x1": x1, "Value": total_n, "Reported": rep,
+                    "Total": total_n, "StdRank": rank, "Color": color
+                })
+                if rep > 0:
+                    rep_rows.append({
                         "Series": series_label, "StdCode": sc, "Standard": stdlab,
-                        "x0": x0, "x1": x1, "Value": total_n, "Reported": rep,
+                        "x0": x0, "x1": xr, "Value": rep, "Reported": rep,
                         "Total": total_n, "StdRank": rank, "Color": color
                     })
-                    if rep > 0:
-                        rep_rows.append({
-                            "Series": series_label, "StdCode": sc, "Standard": stdlab,
-                            "x0": x0, "x1": xr, "Value": rep, "Reported": rep,
-                            "Total": total_n, "StdRank": rank, "Color": color
-                        })
-                    if xr < x1:
-                        miss_rows.append({
-                            "Series": series_label, "StdCode": sc, "Standard": stdlab,
-                            "x0": xr, "x1": x1, "Missing": x1 - xr,
-                            "Total": total_n, "StdRank": rank, "Color": color
-                        })
-            
-                        # === Diagonal hatch params ===
-                        spacing = 0.7    # distance between diagonals (in DR units)
-                        length  = 0.9    # diagonal length (in DR units)
-                        offset  = 0.12   # start a bit inside the missing segment
-            
-                        pos = xr + offset
+                if xr < x1:
+                    miss_rows.append({
+                        "Series": series_label, "StdCode": sc, "Standard": stdlab,
+                        "x0": xr, "x1": x1, "Missing": x1 - xr,
+                        "Total": total_n, "StdRank": rank, "Color": color
+                    })
+        
+                    # === Hatch params (tune to taste) ===
+                    step_x   = 0.70   # distance between slashes along x (DR units)
+                    y_step   = 10     # px between rows of slashes
+                    y_max    = 50     # approx bar height in px
+                    offset_x = 0.12   # start a bit inside missing segment
+        
+                    yoff = 0
+                    while yoff <= y_max:
+                        pos = xr + offset_x
+                        # stagger per row so it reads as diagonal
+                        pos += (yoff * 0.20)  # advance x slightly as y increases
                         while pos < x1 - 0.05:
-                            x_start = pos
-                            x_end   = min(pos + length, x1)
-                            diag_rows.append({
+                            hatch_rows.append({
                                 "Series": series_label, "StdCode": sc, "Standard": stdlab,
-                                "x": float(x_start), "x2": float(x_end),
+                                "x": float(pos), "yoff": yoff,
                                 "StdRank": rank, "Color": color
                             })
-                            pos += spacing
+                            pos += step_x
+                        yoff += y_step
+
 
 
             # Firm reported per standard
@@ -915,7 +920,7 @@ if view == "Total":
             base_df   = pd.DataFrame(base_rows)
             rep_df    = pd.DataFrame(rep_rows)
             miss_df   = pd.DataFrame(miss_rows)
-            diag_df = pd.DataFrame(diag_rows)  
+            hatch_df = pd.DataFrame(hatch_rows)  
     
             # header + legends
             render_section_header("Total overview", present_codes)
@@ -982,29 +987,29 @@ if view == "Total":
                 )
             )
     
-            # Diagonal "\" hatch over the missing portion
-            layer_diag = (
-                alt.Chart(diag_df)
-                .mark_rule(opacity=0.75)
+
+            # Diagonal hatch overlay using text "\" glyphs
+            layer_hatch = (
+                alt.Chart(hatch_df)
+                .mark_text(text="\\", fontSize=12, opacity=0.45)  # adjust size/opacity to taste
                 .encode(
-                    y=alt.Y("Series:N", sort=y_sort, band=0),
-                    y2=alt.Y2("Series:N", band=1),
+                    y=alt.Y("Series:N", sort=y_sort),
                     x=alt.X("x:Q"),
-                    x2=alt.X2("x2:Q"),
-                    stroke=alt.Color(
+                    yOffset=alt.YOffset("yoff:Q"),
+                    color=alt.Color(
                         "StdCode:N",
                         scale=alt.Scale(domain=present_codes, range=[STD_COLOR[c] for c in present_codes]),
                         legend=None
                     ),
-                    size=alt.value(1),
                     order=alt.Order("StdRank:Q"),
                 )
             )
+
             
             fig = alt.layer(
                 layer_base,
                 layer_rep,
-                layer_diag,              
+                layer_hatch,              
                 layer_missing_tooltip
             ).properties(
                 height=120, width="container",
