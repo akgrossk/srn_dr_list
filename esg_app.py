@@ -1226,7 +1226,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                             x += step
                     return pd.DataFrame(rows)
                 
-                stripes_df = _make_stripes_df(miss_only, step=1.5, stripe_width=0.2)
+                stripes_df = _make_stripes_df(miss_only, step=0.75, stripe_width=0.1)
                 stripes = (
                     alt.Chart(stripes_df)
                       .mark_rect()
