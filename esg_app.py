@@ -1009,8 +1009,8 @@ if view == "Total":
                 layer_hatch,
                 layer_missing_tooltip
             ).properties(
-                height=120, width="container",
                 height=CHART_HEIGHT, 
+                width="container",
                 padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
             ).configure_view(stroke=None)
         
