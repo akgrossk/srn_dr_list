@@ -1299,87 +1299,87 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                                  "Series": peers_series, "Value": float(peer_mean_miss)})
 
             if rows:
-            cdf = pd.DataFrame(rows)
-            
-            # order & colors
-            cat_order = []
-            for s in stds_in_pillar:
-                cat_order.extend([s, f"{s}_MISS"])
-            rank_map = {c: i for i, c in enumerate(cat_order)}
-            cdf["CatRank"] = cdf["Cat"].map(rank_map).astype(int)
-            
-            domain = [c for c in cat_order if (cdf["Cat"] == c).any()]
-            rng    = [STD_COLOR.get(c.replace("_MISS", ""), "#999") for c in domain]
-            missing_cats = [f"{s}_MISS" for s in stds_in_pillar]
-            is_missing = alt.FieldOneOfPredicate(field="Cat", oneOf=missing_cats)
-            y_sort = [firm_series] + ([peers_series] if peers_series else [])
-            
-            base = alt.Chart(cdf)
-            
-            bars = (
-                base
-                .mark_bar()
-                .encode(
-                    y=alt.Y("Series:N", title="", sort=y_sort),
-                    x=alt.X("Value:Q", title="Number of Disclosure Requirements"),
-                    color=alt.Color("Cat:N", scale=alt.Scale(domain=domain, range=rng), legend=None),
-                    order=alt.Order("CatRank:Q"),
-                    opacity=alt.condition(is_missing, alt.value(0.35), alt.value(1.0)),
-                    stroke=alt.condition(
-                        is_missing,
-                        alt.Color("Cat:N", scale=alt.Scale(domain=domain, range=rng)),
-                        alt.value(None)
-                    ),
-                    strokeDash=alt.condition(is_missing, alt.value([5, 3]), alt.value([0, 0])),
-                    strokeWidth=alt.condition(is_missing, alt.value(2), alt.value(0)),
-                    tooltip=[
-                        alt.Tooltip("Series:N", title="Series"),
-                        alt.Tooltip("Label:N",  title="Segment"),
-                        alt.Tooltip("Value:Q",  title="# DR", format=".1f"),
-                    ],
-                )
-            )
-            
-            totals = (
-                base.transform_aggregate(total="sum(Value)", groupby=["Series"])
-                    .mark_text(align="left", baseline="middle", dx=4)
+                cdf = pd.DataFrame(rows)
+                
+                # order & colors
+                cat_order = []
+                for s in stds_in_pillar:
+                    cat_order.extend([s, f"{s}_MISS"])
+                rank_map = {c: i for i, c in enumerate(cat_order)}
+                cdf["CatRank"] = cdf["Cat"].map(rank_map).astype(int)
+                
+                domain = [c for c in cat_order if (cdf["Cat"] == c).any()]
+                rng    = [STD_COLOR.get(c.replace("_MISS", ""), "#999") for c in domain]
+                missing_cats = [f"{s}_MISS" for s in stds_in_pillar]
+                is_missing = alt.FieldOneOfPredicate(field="Cat", oneOf=missing_cats)
+                y_sort = [firm_series] + ([peers_series] if peers_series else [])
+                
+                base = alt.Chart(cdf)
+                
+                bars = (
+                    base
+                    .mark_bar()
                     .encode(
-                        y=alt.Y("Series:N", sort=y_sort),
-                        x="total:Q",
-                        text=alt.Text("total:Q", format=".1f")
+                        y=alt.Y("Series:N", title="", sort=y_sort),
+                        x=alt.X("Value:Q", title="Number of Disclosure Requirements"),
+                        color=alt.Color("Cat:N", scale=alt.Scale(domain=domain, range=rng), legend=None),
+                        order=alt.Order("CatRank:Q"),
+                        opacity=alt.condition(is_missing, alt.value(0.35), alt.value(1.0)),
+                        stroke=alt.condition(
+                            is_missing,
+                            alt.Color("Cat:N", scale=alt.Scale(domain=domain, range=rng)),
+                            alt.value(None)
+                        ),
+                        strokeDash=alt.condition(is_missing, alt.value([5, 3]), alt.value([0, 0])),
+                        strokeWidth=alt.condition(is_missing, alt.value(2), alt.value(0)),
+                        tooltip=[
+                            alt.Tooltip("Series:N", title="Series"),
+                            alt.Tooltip("Label:N",  title="Segment"),
+                            alt.Tooltip("Value:Q",  title="# DR", format=".1f"),
+                        ],
                     )
-            )
-            
-            # separators at the end of each standard (the *_MISS bar)
-            cdf_sorted = cdf.sort_values(["Series", "CatRank"]).copy()
-            cdf_sorted["Boundary"] = cdf_sorted.groupby("Series")["Value"].cumsum()
-            bounds = cdf_sorted[cdf_sorted["Cat"].str.endswith("_MISS")].copy()
-            bounds["maxB"] = bounds.groupby("Series")["Boundary"].transform("max")
-            bounds = bounds[bounds["Boundary"] < bounds["maxB"]]
-            
-            separators = (
-                alt.Chart(bounds)
-                .mark_rule(stroke="#666", strokeWidth=1, opacity=0.55)
-                .encode(
-                    y=alt.Y("Series:N", sort=y_sort, title=""),
-                    x=alt.X("Boundary:Q")
                 )
-            )
-            
-            fig = alt.layer(bars, totals, separators).properties(
-                height=120, width="container",
-                padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
-            ).configure_view(stroke=None)
-            
-            st.altair_chart(fig, use_container_width=True)
-            
-            fixed_total = sum(STD_TOTAL_OVERRIDES.get(s, 0) for s in stds_in_pillar)
-            st.caption(
-                f"Each standard shows reported (solid) and "
-                f"{'Not reported' if VARIANT=='v2' else 'Missing'} (hatched). "
-                f"Totals per row = {fixed_total}."
-                + (note if n_peers > 0 else "")
-            )
+                
+                totals = (
+                    base.transform_aggregate(total="sum(Value)", groupby=["Series"])
+                        .mark_text(align="left", baseline="middle", dx=4)
+                        .encode(
+                            y=alt.Y("Series:N", sort=y_sort),
+                            x="total:Q",
+                            text=alt.Text("total:Q", format=".1f")
+                        )
+                )
+                
+                # separators at the end of each standard (the *_MISS bar)
+                cdf_sorted = cdf.sort_values(["Series", "CatRank"]).copy()
+                cdf_sorted["Boundary"] = cdf_sorted.groupby("Series")["Value"].cumsum()
+                bounds = cdf_sorted[cdf_sorted["Cat"].str.endswith("_MISS")].copy()
+                bounds["maxB"] = bounds.groupby("Series")["Boundary"].transform("max")
+                bounds = bounds[bounds["Boundary"] < bounds["maxB"]]
+                
+                separators = (
+                    alt.Chart(bounds)
+                    .mark_rule(stroke="#666", strokeWidth=1, opacity=0.55)
+                    .encode(
+                        y=alt.Y("Series:N", sort=y_sort, title=""),
+                        x=alt.X("Boundary:Q")
+                    )
+                )
+                
+                fig = alt.layer(bars, totals, separators).properties(
+                    height=120, width="container",
+                    padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
+                ).configure_view(stroke=None)
+                
+                st.altair_chart(fig, use_container_width=True)
+                
+                fixed_total = sum(STD_TOTAL_OVERRIDES.get(s, 0) for s in stds_in_pillar)
+                st.caption(
+                    f"Each standard shows reported (solid) and "
+                    f"{'Not reported' if VARIANT=='v2' else 'Missing'} (hatched). "
+                    f"Totals per row = {fixed_total}."
+                    + (note if n_peers > 0 else "")
+                )
             st.markdown("---")
 
 
