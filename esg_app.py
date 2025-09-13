@@ -1034,17 +1034,24 @@ if view == "Total":
 
             
             y_sort = [firm_series] + ([peers_series] if peers_series else [])
+
             base = alt.Chart(chart_df)
-            
             bars = (
                 base
-                .mark_bar()
+                .mark_bar(
+                    stroke="#333",          # outline color
+                    strokeWidth=1,          # outline thickness
+                    strokeOpacity=0.9,
+                    strokeJoin="miter"      # keeps corners crisp on thin segments
+                )
                 .encode(
                     y=alt.Y("Series:N", title="", sort=y_sort),
                     x=alt.X("Value:Q", title="Number of Disclosure Requirements reported", stack="zero"),
-                    color=alt.Color("StdCode:N",
-                                    scale=alt.Scale(domain=color_domain, range=color_range),
-                                    legend=None),
+                    color=alt.Color(
+                        "StdCode:N",
+                        scale=alt.Scale(domain=color_domain, range=color_range),
+                        legend=None
+                    ),
                     order=alt.Order("StdRank:Q"),
                     tooltip=[
                         alt.Tooltip("Series:N", title="Series"),
