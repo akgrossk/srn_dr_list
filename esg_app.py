@@ -482,6 +482,43 @@ def render_inline_legend_with_missing(codes, colors):
 def std_missing_label(std_code: str) -> str:
     return f"{std_code} — {'Not reported' if VARIANT=='v2' else 'Missing'}"
 
+def render_pillar_legend_with_missing(stds_in_pillar, colors, pillar):
+    """Legend for a single pillar tab:
+       - colored chips for the pillar's standards (E1.. or S1.. or G1)
+       - ONE extra hatched chip for the pillar's 'Not reported/Missing'
+    """
+    # normal standard chips
+    items = "".join(
+        f'<span class="swatch" style="background:{colors[c]}"></span>'
+        f'<span class="lab">{c}</span>'
+        for c in stds_in_pillar
+    )
+
+    # hatched chip for this pillar
+    base = pillar_color(pillar)  # uses your existing function
+    swatch_css = (
+        f"background: {base}; "
+        f"mask-image: repeating-linear-gradient(135deg, #000 0 6px, transparent 6px 12px); "
+        f"-webkit-mask-image: repeating-linear-gradient(135deg, #000 0 6px, transparent 6px 12px); "
+        f"border: 1px solid {base};"
+    )
+    items += (
+        f'<span class="swatch" style="{swatch_css}"></span>'
+        f'<span class="lab">{missing_label_for_variant(pillar)}</span>'
+    )
+
+    st.markdown(
+        """
+        <style>
+        .legend-inline{display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:center; margin-top:.35rem;}
+        .legend-inline .swatch{display:inline-block;width:12px;height:12px;border-radius:2px;margin-right:.35rem;}
+        .legend-inline .lab{font-size:0.9rem;}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown(f'<div class="legend-inline">{items}</div>', unsafe
+
 
 # ========= LOAD DATA (GitHub only) =========
 st.sidebar.title("🌱 Disclosure Requirements Viewer")
@@ -1022,7 +1059,8 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
         # ---- v1: original look (reported only), keep legend ----
         if VARIANT == "v1":
             # Legend (standards only)
-            render_inline_legend(stds_in_pillar, STD_COLOR)
+            render_pillar_legend_with_missing(stds_in_pillar, STD_COLOR, pillar)
+
     
             rows = []
             firm_series = "Firm"
