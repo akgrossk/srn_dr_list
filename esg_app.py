@@ -430,7 +430,7 @@ def render_section_header(title: str, codes):
 MISSING_CODES = ["E_MISS", "S_MISS", "G_MISS"]
 # exact colors for the added "missing" bars
 MISSING_COLOR = {
-    "E_MISS": "#8BE8A0",  # light green
+    "E_MISS": "#6B8C79",  # light green
     "S_MISS": "#F5A3A3",  # light red
     "G_MISS": "#F8E690",  # light yellow
 }
