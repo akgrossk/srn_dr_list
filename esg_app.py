@@ -1047,7 +1047,40 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
     # ===== Overview (small bar summary for this pillar) =====
     if display_mode == "Charts":
         st.markdown("### Overview")
-    
+        # ---- Show legend just under "Overview" ----
+if pillar == "E":
+    stds_in_pillar = E_STANDARDS
+elif pillar == "S":
+    stds_in_pillar = S_STANDARDS
+else:
+    stds_in_pillar = G_STANDARDS
+
+if VARIANT == "v1":
+    # v1: standards only (no missing in the legend)
+    render_inline_legend(stds_in_pillar, STD_COLOR)
+else:
+    # v2/v3: standards + hatched 'Not reported/Missing' chip for this pillar
+    render_pillar_legend_with_missing(stds_in_pillar, STD_COLOR, pillar)
+
+    # Show legend just under the "Overview" title
+if VARIANT == "v1":
+    # v1: standards only (no missing in the legend)
+    if pillar == "E":
+        stds_in_pillar = E_STANDARDS
+    elif pillar == "S":
+        stds_in_pillar = S_STANDARDS
+    else:
+        stds_in_pillar = G_STANDARDS
+    render_inline_legend(stds_in_pillar, STD_COLOR)
+else:
+    # v2/v3: standards + one hatched chip for Not reported / Missing
+    if pillar == "E":
+        stds_in_pillar = E_STANDARDS
+    elif pillar == "S":
+        stds_in_pillar = S_STANDARDS
+    else:
+        stds_in_pillar = G_STANDARDS
+
         # Which standards are in this pillar?
         if pillar == "E":
             stds_in_pillar = E_STANDARDS
@@ -1117,7 +1150,6 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
     
         # ---- v2/v3: show reported + hatched missing per standard, rows sum to 32/6 ----
         # Legend: standards + note that missing is hatched in the same standard color
-        render_inline_legend(stds_in_pillar, STD_COLOR)
     
         rows = []
         firm_series = "Firm"
