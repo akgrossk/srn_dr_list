@@ -676,7 +676,6 @@ def link_for(pillar_key: str) -> str:
     return "?" + urlencode(qp)
 
 # ========= COMBINED (chart/table with counts) =========
-# ========= COMBINED (chart/table with counts) =========
 if view == "Total":
     # --- figure out peers ---
     comp_col = None
@@ -711,6 +710,7 @@ if view == "Total":
         for pillar in ["E", "S", "G"]:
             pcols = pillar_columns(pillar, groups, by_pillar)
             total_DR = len(pcols)
+    
             if total_DR:
                 vals = current_row[pcols].astype(str).str.strip().str.lower()
                 firm_yes = int(vals.isin(YES_SET).sum())
@@ -722,6 +722,49 @@ if view == "Total":
             else:
                 firm_yes = 0
                 peer_yes_mean = None
+    
+            if VARIANT == "v2":
+                # ✅ v2: your requested columns
+                row = {
+                    "Pillar": PILLAR_LABEL[pillar],
+                    "Reported disclosure requirements": firm_yes,
+                    "Total disclosure requirements": total_DR,
+                }
+                if peer_yes_mean is not None:
+                    # optional: keep a peers column but rename for clarity
+                    row[f"Peers — mean reported ({comp_label})"] = round(peer_yes_mean, 1)
+            else:
+                # v1/v3: keep prior column naming
+                row = {
+                    "Pillar": PILLAR_LABEL[pillar],
+                    "Firm — number of Disclosure Requirements": firm_yes,
+                }
+                if peer_yes_mean is not None:
+                    row[f"Peers — mean number of Disclosure Requirements ({comp_label})"] = round(peer_yes_mean, 1)
+    
+            summary_rows.append(row)
+    
+        tbl = pd.DataFrame(summary_rows)
+    
+        st.subheader("Total overview")
+        st.dataframe(tbl, use_container_width=True, hide_index=True)
+    
+        # Variant-specific caption
+        if VARIANT == "v2":
+            note = (
+                "Rows show how many Disclosure Requirements the firm reported ("
+                "**Reported disclosure requirements**), alongside the pillar’s total possible ("
+                "**Total disclosure requirements**)."
+            )
+            if n_peers > 0:
+                note += peer_note
+            st.caption(note)
+        else:
+            note = "Rows show the number of reported Disclosure Requirements per pillar."
+            if n_peers > 0:
+                note += peer_note
+            st.caption(note)
+
             summary_rows.append({
                 "Pillar": PILLAR_LABEL[pillar],
                 "Firm — number of Disclosure Requirements": firm_yes,
