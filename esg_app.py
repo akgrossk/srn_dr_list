@@ -58,6 +58,34 @@ a[data-testid="baseLinkButton-primary"] {
   text-decoration:none !important;
 }
 
+/* Make all Streamlit base buttons white with black text */
+[data-testid="baseButton-secondary"],
+[data-testid="baseButton-secondaryFormSubmit"],
+[data-testid="baseButton-primary"],
+.stButton > button,
+.stLinkButton > a {
+  background: #ffffff !important;
+  color: #111111 !important;
+  border: 1px solid #e5e7eb !important;
+  box-shadow: none !important;
+}
+[data-testid="baseButton-secondary"]:hover,
+[data-testid="baseButton-secondaryFormSubmit"]:hover,
+[data-testid="baseButton-primary"]:hover,
+.stButton > button:hover,
+.stLinkButton > a:hover {
+  background: #f8fafc !important;
+  border-color: #d1d5db !important;
+}
+
+/* Popover (auditor) card stays light */
+[data-testid="stPopover"], [role="dialog"] {
+  background: #ffffff !important;
+  color: #111111 !important;
+  border: 1px solid #e5e7eb !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.08) !important;
+}
+
 /* Hover */
 .stButton > button:hover,
 .stLinkButton > a:hover,
@@ -1003,7 +1031,8 @@ if view == "Total":
         tbl = pd.DataFrame(summary_rows)
     
         st.subheader("Total overview")
-        st.dataframe(light_style(table), use_container_width=True, hide_index=True)
+        st.dataframe(light_style(tbl), use_container_width=True, hide_index=True)
+
 
 
     
@@ -1485,7 +1514,8 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                             peer_pct.append("—")
                     table[f"Peers reported % ({comp_label})"] = peer_pct
 
-                st.dataframe(table, use_container_width=True, hide_index=True)
+                st.dataframe(light_style(tbl), use_container_width=True, hide_index=True)
+
                 if n_peers > 0:
                     st.caption(f"Peers reported % = share of selected peers answering 'Yes' {note}")
 
