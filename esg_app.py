@@ -1143,7 +1143,40 @@ if view == "Total":
                 height=120, width="container",
                 padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
             ).configure_view(stroke=None)
-            st.altair_chart(bars, use_container_width=True)
+
+                        # --- numeric label at the right end of each bar (Firm + optional Peers) ---
+            base = alt.Chart(chart_df)
+            
+            labels = (
+                base
+                # 1) compute full bar length (reported + not reported/missing) per row
+                .transform_joinaggregate(
+                    Total='sum(Value)', groupby=['Series']
+                )
+                # 2) keep only the reported segments (drop E_MISS/S_MISS/G_MISS)
+                .transform_filter("!['E_MISS','S_MISS','G_MISS'].includes(datum.StdCode)")
+                # 3) sum the reported values per row; carry Total along for x-position
+                .transform_aggregate(
+                    Reported='sum(Value)',
+                    Total='max(Total)',
+                    groupby=['Series']
+                )
+                .mark_text(align='left', baseline='middle', dx=4)
+                .encode(
+                    y=alt.Y('Series:N', sort=y_sort, title=''),
+                    x=alt.X('Total:Q'),                        # place at the far right of the bar
+                    text=alt.Text('Reported:Q', format='.1f'), # just the number, no "out of"
+                )
+            )
+            
+            st.altair_chart(
+                alt.layer(bars, labels)
+                  .properties(height=120, width="container",
+                              padding={"left": 12, "right": 16, "top": 6, "bottom": 6})
+                  .configure_view(stroke=None),
+                use_container_width=True
+            )
+
             
             note = "Bars show total counts of reported Disclosure Requirements, stacked by standard (E1–E5, S1–S4, G1)."
             if n_peers > 0:
