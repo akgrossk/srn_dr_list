@@ -45,6 +45,13 @@ def _force_light_mode():
     div[data-testid="stLinkButton"] a:hover {
       background: #f4f6fa !important;
     }
+    /* extra space below the ISIN / Country / Sector / Industry line */
+    .firm-meta {
+      display: block;
+      margin: 6px 0 18px 0 !important; /* tweak 18px to taste */
+      line-height: 1.6;
+    }
+
     </style>
     """, unsafe_allow_html=True)
 
