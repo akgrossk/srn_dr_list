@@ -34,16 +34,39 @@ alt.themes.enable("light_theme")
 
 st.markdown("""
 <style>
-/* --- FIX: force st.link_button to white --- */
+/* === Force the whole app to light === */
+html, body, .stApp, [data-testid="stAppViewContainer"],
+[data-testid="stHeader"], [data-testid="stSidebar"], [data-testid="stSidebarContent"],
+.block-container {
+  background: #ffffff !important;
+  color: #111111 !important;
+}
+html, body, .stApp { color-scheme: light !important; }
 
-/* Parent container Streamlit wraps around link buttons */
+/* Make general text dark */
+.stApp, .stApp * { color: #111111 !important; }
+
+/* === Buttons === */
+.stButton > button,
+button[data-testid="baseButton-primary"],
+button[data-testid="baseButton-secondary"] {
+  background: #ffffff !important;
+  color: #111111 !important;
+  border: 1px solid #e5e7eb !important;
+  box-shadow: none !important;
+}
+.stButton > button:hover,
+button[data-testid="baseButton-primary"]:hover,
+button[data-testid="baseButton-secondary"]:hover {
+  background: #f8fafc !important;
+  border-color: #d1d5db !important;
+}
+
+/* === Link buttons (st.link_button) — keep them white === */
 [data-testid="stLinkButton"],
-/* Anchor element inside it (covers primary/secondary variants across builds) */
 [data-testid="stLinkButton"] > a,
 a[data-testid^="baseLinkButton-"],
-/* Fallback: some builds render it as a role=button anchor */
 [data-testid="stLinkButton"] a[role="button"] {
-  background-color: #ffffff !important;
   background: #ffffff !important;
   background-image: none !important;
   color: #111111 !important;
@@ -51,30 +74,59 @@ a[data-testid^="baseLinkButton-"],
   box-shadow: none !important;
   text-decoration: none !important;
 }
-
-/* Hover state */
 [data-testid="stLinkButton"] > a:hover,
 a[data-testid^="baseLinkButton-"]:hover,
 [data-testid="stLinkButton"] a[role="button"]:hover {
-  background-color: #f8fafc !important;
   background: #f8fafc !important;
   border-color: #d1d5db !important;
 }
 
-/* Also normalize regular buttons just in case */
-.stButton > button,
-button[data-testid="baseButton-primary"],
-button[data-testid="baseButton-secondary"] {
-  background:#ffffff !important;
-  color:#111111 !important;
-  border:1px solid #e5e7eb !important;
-  box-shadow:none !important;
+/* === Popovers/dialogs === */
+[role="dialog"], [data-testid="stPopover"], [data-baseweb="popover"] {
+  background: #ffffff !important;
+  color: #111111 !important;
+  border: 1px solid #e5e7eb !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.08) !important;
 }
 
-/* Force light mode so dark-mode variables don't tint buttons */
-html, body, .stApp { color-scheme: light !important; }
+/* === Inputs / selects / tabs === */
+[data-baseweb="select"] > div, [data-baseweb="input"] > div, [data-baseweb="textarea"] > div,
+[data-baseweb="tabs"], [data-baseweb="tab"], [data-baseweb="button"] {
+  background: #ffffff !important;
+  color: #111111 !important;
+  border: 1px solid #e5e7eb !important;
+  box-shadow: none !important;
+}
+[data-baseweb="tab"][aria-selected="true"] {
+  background: #f8fafc !important;
+  border-color: #d1d5db !important;
+}
 
-/* Optional: nudge theme vars some builds read for buttons */
+/* === Dataframes / tables === */
+[data-testid="stDataFrame"] table, [data-testid="stTable"] table {
+  border-collapse: collapse !important;
+  background: #ffffff !important;
+  color: #111111 !important;
+}
+[data-testid="stDataFrame"] thead th, [data-testid="stTable"] thead th {
+  background: #f8fafc !important;
+  color: #111111 !important;
+  border: 1px solid #111111 !important;
+}
+[data-testid="stDataFrame"] tbody td, [data-testid="stTable"] tbody td {
+  background: #ffffff !important;
+  color: #111111 !important;
+  border: 1px solid #111111 !important;
+}
+
+/* === Altair/Vega iframes === */
+[data-testid="stVegaLiteChart"] iframe, [data-testid="stAltairChart"] iframe {
+  border: 0 !important;
+  box-shadow: none !important;
+  background: #ffffff !important;
+}
+
+/* Optional: theme variables some builds read */
 :root, [data-testid="stAppViewContainer"] {
   --primary-color: #111111;
   --text-color: #111111;
