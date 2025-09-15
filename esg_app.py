@@ -35,6 +35,60 @@ def _force_light_mode():
         unsafe_allow_html=True,
     )
 
+    st.markdown(
+    """
+    <style>
+    /* 1) Keep ONLY normal buttons as primary */
+    .stButton > button {
+      background: var(--primary-color) !important;
+      color: #ffffff !important;
+      border: 1px solid var(--primary-color) !important;
+      box-shadow: none !important;
+    }
+
+    /* 2) Force ALL link buttons (st.link_button) to secondary look */
+    /* Use extra specificity to beat earlier rules and Streamlit defaults */
+    div[data-testid="stLinkButton"] > a,
+    .stLinkButton > a,
+    div[data-testid="stLinkButton"] a[role="button"] {
+      background-color: #ffffff !important;
+      background-image: none !important;
+      color: #111111 !important;
+      border: 1px solid #d0d5dd !important;
+      box-shadow: none !important;
+    }
+    div[data-testid="stLinkButton"] > a:hover,
+    .stLinkButton > a:hover,
+    div[data-testid="stLinkButton"] a[role="button"]:hover {
+      background-color: #f4f6fa !important;
+    }
+
+    /* 3) Popover trigger (Show auditor) stays secondary */
+    [data-testid="stPopover"] > button,
+    button[data-testid="baseButton-secondary"] {
+      background-color: #ffffff !important;
+      color: #111111 !important;
+      border: 1px solid #d0d5dd !important;
+      box-shadow: none !important;
+    }
+    [data-testid="stPopover"] > button:hover,
+    button[data-testid="baseButton-secondary"]:hover {
+      background-color: #f4f6fa !important;
+    }
+
+    /* 4) Safety: nuke any leftover primary styling that might be applied inline */
+    div[data-testid="stLinkButton"] > a[style],
+    .stLinkButton > a[style] {
+      background: #ffffff !important;
+      color: #111111 !important;
+      border-color: #d0d5dd !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+    
     # 2) Altair/Vega: force light colors & white background
     alt_light = {
         "config": {
