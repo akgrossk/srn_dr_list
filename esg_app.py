@@ -55,7 +55,7 @@ def _force_light_mode():
     div[data-testid="stLinkButton"] > a:hover,
     .stLinkButton > a:hover,
     div[data-testid="stLinkButton"] a[role="button"]:hover {
-      background-color: #f4f6fa !important;
+      background-color: #ffffff !important;
     }
 
     /* 3) Popover trigger (Show auditor) stays secondary */
