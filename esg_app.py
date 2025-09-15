@@ -56,23 +56,6 @@ def _force_light_mode():
 
     </style>
     
-    <style>
-    /* Make the main content actually use the screen width and trim side padding */
-    :root{
-      --content-side-padding: 10px;    /* tweak to taste */
-    }
-    [data-testid="stAppViewContainer"] > .main .block-container {
-      max-width: 100vw !important;
-      padding-left: var(--content-side-padding) !important;
-      padding-right: var(--content-side-padding) !important;
-    }
-    /* Fallback for some Streamlit versions */
-    div.block-container {
-      max-width: 100vw !important;
-      padding-left: var(--content-side-padding) !important;
-      padding-right: var(--content-side-padding) !important;
-    }
-    </style>
 
     
     """, unsafe_allow_html=True)
