@@ -519,14 +519,37 @@ def pillar_color(p: str) -> str:
 def missing_label_for_variant(pillar: str) -> str:
     base = {"E":"E — ", "S":"S — ", "G":"G — "}[pillar]
     return base + ("Not reported" if VARIANT == "v2" else "Missing")
+
+
+def std_missing_label(std_code: str) -> str:
+    return f"{std_code} — {'Not reported' if VARIANT=='v2' else 'Missing'}"
+
+def _inject_fizzy_filter():
+    st.markdown(
+        """
+        <svg width="0" height="0" style="position:absolute;left:-9999px;top:-9999px;">
+          <defs>
+            <!-- Wavy edge: tweak baseFrequency / scale to taste -->
+            <filter id="fizzyEdge" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
+              <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="2" seed="3" result="noise"/>
+              <feDisplacementMap in="SourceGraphic" in2="noise" scale="3" xChannelSelector="R" yChannelSelector="G"/>
+            </filter>
+          </defs>
+        </svg>
+        """,
+        unsafe_allow_html=True,
+    )
+
 def render_inline_legend_with_missing(codes, colors):
+    _inject_fizzy_filter()
+
     items = "".join(
         f'<span class="swatch" style="background:{colors[c]}"></span>'
         f'<span class="lab">{c}</span>'
         for c in codes
     )
 
-    # exact missing chips (pillar-tinted, dashed, fuzzy edge)
+    # fizzy/dashed “Missing/Not reported” chips for E/S/G
     miss_bits = []
     for p, code in zip(["E", "S", "G"], MISSING_CODES):
         base = MISSING_COLOR.get(code, pillar_color(p))
@@ -543,15 +566,21 @@ def render_inline_legend_with_missing(codes, colors):
         .legend-inline .swatch{display:inline-block;width:12px;height:12px;border-radius:2px;margin-right:.35rem;}
         .legend-inline .lab{font-size:0.9rem;}
 
-        /* NEW: “fizzy” missing chip */
+        /* Fizzy edge to match bar “missing”: dashed outline + subtle displacement */
         .legend-inline .swatch.miss{
           background: var(--miss);
-          opacity: .6;                                   /* like lighter fill */
-          border: 1.5px dashed var(--miss);              /* like dashed stroke */
-          /* soft/“fizzy” edge mask */
-          -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 75%, transparent 85%);
-                  mask-image: radial-gradient(circle at 50% 50%, #000 75%, transparent 85%);
-          -webkit-mask-composite: source-over;
+          opacity: .6;
+          border: 1.5px dashed var(--miss);
+          /* 👇 this makes the edge wavy */
+          filter: url(#fizzyEdge);
+        }
+
+        /* Fallback (if filter unsupported): keep dashed + slightly clipped corners */
+        @supports not (filter: url(#fizzyEdge)) {
+          .legend-inline .swatch.miss{
+            -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 84%, transparent 88%);
+                    mask-image: radial-gradient(circle at 50% 50%, #000 84%, transparent 88%);
+          }
         }
         </style>
         """,
@@ -559,17 +588,15 @@ def render_inline_legend_with_missing(codes, colors):
     )
     st.markdown(f'<div class="legend-inline">{items}</div>', unsafe_allow_html=True)
 
-def std_missing_label(std_code: str) -> str:
-    return f"{std_code} — {'Not reported' if VARIANT=='v2' else 'Missing'}"
-
 def render_pillar_legend_with_missing(stds_in_pillar, colors, pillar):
+    _inject_fizzy_filter()
+
     items = "".join(
         f'<span class="swatch" style="background:{colors[c]}"></span>'
         f'<span class="lab">{c}</span>'
         for c in stds_in_pillar
     )
 
-    # pillar-tinted “fizzy” missing chip (no slashes)
     base = pillar_color(pillar)
     items += (
         f'<span class="swatch miss" style="--miss:{base}"></span>'
@@ -583,21 +610,23 @@ def render_pillar_legend_with_missing(stds_in_pillar, colors, pillar):
         .legend-inline .swatch{display:inline-block;width:12px;height:12px;border-radius:2px;margin-right:.35rem;}
         .legend-inline .lab{font-size:0.9rem;}
 
-        /* Reuse the same fizzy style */
         .legend-inline .swatch.miss{
           background: var(--miss);
           opacity: .6;
           border: 1.5px dashed var(--miss);
-          -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 78%, transparent 82%);
-                  mask-image: radial-gradient(circle at 50% 50%, #000 78%, transparent 82%);
-          -webkit-mask-composite: source-over;
+          filter: url(#fizzyEdge);
+        }
+        @supports not (filter: url(#fizzyEdge)) {
+          .legend-inline .swatch.miss{
+            -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 84%, transparent 88%);
+                    mask-image: radial-gradient(circle at 50% 50%, #000 84%, transparent 88%);
+          }
         }
         </style>
         """,
         unsafe_allow_html=True,
     )
     st.markdown(f'<div class="legend-inline">{items}</div>', unsafe_allow_html=True)
-
 
 
 # ========= LOAD DATA (GitHub only) =========
