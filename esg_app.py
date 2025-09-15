@@ -7,6 +7,53 @@ from io import BytesIO
 import requests
 from urllib.parse import urlencode
 
+# ---- FORCE LIGHT MODE (UI + charts) ----
+def _force_light_mode():
+    # 1) Streamlit UI: override any dark variables + tell the browser we want light
+    st.markdown(
+        """
+        <style>
+        :root, [data-theme="light"], [data-theme="dark"] {
+          color-scheme: light !important;
+          --primary-color: #1f4aff;
+          --background-color: #ffffff;
+          --secondary-background-color: #f6f7fb;
+          --text-color: #111111;
+          --font: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", sans-serif;
+        }
+        html, body { background-color: #ffffff !important; color: #111111 !important; }
+        [data-testid="stAppViewContainer"] { background: var(--background-color) !important; color: var(--text-color) !important; }
+        [data-testid="stHeader"] { background: var(--background-color) !important; }
+        [data-testid="stSidebar"] { background: var(--secondary-background-color) !important; }
+        .stButton > button, .stLinkButton > a {
+          color: #ffffff !important;
+          background: var(--primary-color) !important;
+          border-color: var(--primary-color) !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # 2) Altair/Vega: force light colors & white background
+    alt_light = {
+        "config": {
+            "background": "white",
+            "view": {"stroke": "transparent"},
+            "axis": {"labelColor": "#111111", "titleColor": "#111111", "gridColor": "#e6e6e6"},
+            "legend": {"labelColor": "#111111", "titleColor": "#111111"},
+            "title": {"color": "#111111"},
+        }
+    }
+    try:
+        alt.themes.register("force_light", lambda: alt_light)
+        alt.themes.enable("force_light")
+    except Exception:
+        pass
+
+_force_light_mode()
+# ---- /FORCE LIGHT MODE ----
+
 # ========= VARIANT / TREATMENT ARMS =========
 VARIANT_KEYS = ["v1", "v2", "v3"]
 DEFAULT_VARIANT = None  # None => randomize when URL lacks ?v=
