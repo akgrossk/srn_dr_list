@@ -1032,11 +1032,11 @@ if view == "Total":
         # Variant-specific caption
         if VARIANT == "v2":
             note = ("Rows show how many Disclosure Requirements the firm reported "
-                    "(**Reported disclosure requirements**), how many are unreported "
-                    "(**Not reported disclosure requirements**), and the pillar’s **Total**.")
+                    "(Reported disclosure requirements), how many are unreported "
+                    "(Not reported disclosure requirements), and the pillar’s Total.")
         elif VARIANT == "v3":
-            note = ("Rows show the firm’s reported DRs (**Firm — number of reported Disclosure Requirements**), "
-                    "**Missing disclosure requirements** (= Total − Reported), and the pillar’s **Total**.")
+            note = ("Rows show the firm’s reported DRs (**Firm — number of reported Disclosure Requirements), "
+                    "Missing disclosure requirements (= Total − Reported), and the pillar’s Total.")
         else:
             note = "Rows show the number of reported Disclosure Requirements per pillar."
         if n_peers > 0:
