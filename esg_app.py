@@ -25,11 +25,7 @@ def _force_light_mode():
         [data-testid="stAppViewContainer"] { background: var(--background-color) !important; color: var(--text-color) !important; }
         [data-testid="stHeader"] { background: var(--background-color) !important; }
         [data-testid="stSidebar"] { background: var(--secondary-background-color) !important; }
-        .stButton > button, .stLinkButton > a {
-          color: #ffffff !important;
-          background: var(--primary-color) !important;
-          border-color: var(--primary-color) !important;
-        }
+        .stButton > button
         </style>
         """,
         unsafe_allow_html=True,
