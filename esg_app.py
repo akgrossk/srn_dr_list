@@ -1475,8 +1475,22 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
         if VARIANT == "v1":
             # v1: show only the short name like "E1 - Climate change"
             exp_title = short_title
+        elif VARIANT == "v3":
+            # v3: show reported + missing (no "/total" after reported)
+            missing_count = max(n_metrics - int(firm_yes_count), 0)
+            if peers_yes_mean is not None:
+                exp_title = (
+                    f"{short_title} • {n_metrics} Disclosure Requirements — "
+                    f"reported: {firm_yes_count}, missing: {missing_count} "
+                    f"(Peers {comp_label}: {peers_yes_mean:.1f})"
+                )
+            else:
+                exp_title = (
+                    f"{short_title} • {n_metrics} Disclosure Requirements — "
+                    f"reported: {firm_yes_count}, missing: {missing_count}"
+                )
         else:
-            # v2/v3: keep the detailed title you had
+            # v2: keep original reported/total style
             if peers_yes_mean is not None:
                 exp_title = (
                     f"{short_title} • {n_metrics} Disclosure Requirements — "
@@ -1488,6 +1502,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     f"{short_title} • {n_metrics} Disclosure Requirements — "
                     f"reported: {firm_yes_count}/{n_metrics}"
                 )
+
 
         with st.expander(exp_title, expanded=False):
             if display_mode == "Tables":
@@ -1656,11 +1671,18 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
 
                 st.altair_chart(fig, use_container_width=True)
                 st.caption(
+                tiles_legend = (
+                    "Tiles: dark = reported, light = missing. "
+                    if VARIANT == "v3"
+                    else "Tiles: dark = reported, light = not reported. "
+                )
+                st.caption(
                     f"{len(present_cols)} Tiles = Disclosure Requirements within this ESRS standard. "
-                    "Tiles: dark = reported, light = not reported. "
+                    + tiles_legend
                     + (f"Peer tiles: fill equals % of peers that reported (shown as %). " if peers_label else "")
                     + (note if peers_label else "")
                 )
+
 
 
 # ========= Which pillar to render =========
