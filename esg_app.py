@@ -31,97 +31,60 @@ alt.themes.register(
 )
 alt.themes.enable("light_theme")
 
-# --- Light (plain white) app background & readable text ---
 st.markdown("""
 <style>
-/* Base: plain white app + dark text */
+/* Global text + background */
 html, body, .stApp, [data-testid="stAppViewContainer"],
 [data-testid="stHeader"], [data-testid="stSidebar"], [data-testid="stSidebarContent"],
-.block-container {
-  background: #ffffff !important;
-  color: #111111 !important;
-}
-.stApp * { color: #111111; }
+.block-container { background:#ffffff !important; color:#111 !important; }
+.stApp * { color:#111 !important; }
 
-/* Remove heavy borders/shadows */
-[data-testid="stHeader"], [data-testid="stSidebar"], .block-container {
-  box-shadow: none !important;
-  border: 0 !important;
-}
-
-/* Buttons: "Open firm report" + others on white */
-.stButton > button, .stLinkButton > a {
-  background: #ffffff !important;
-  color: #111111 !important;
-  border: 1px solid #e5e7eb !important;
-  box-shadow: none !important;
-}
-.stButton > button:hover, .stLinkButton > a:hover {
-  background: #f8fafc !important;
-  border-color: #d1d5db !important;
+/* Buttons (primary/secondary) */
+.stButton > button,
+button[kind],                      /* some Streamlit builds */
+button[data-testid="baseButton-secondary"],
+button[data-testid="baseButton-primary"] {
+  background:#fff !important; color:#111 !important;
+  border:1px solid #e5e7eb !important; box-shadow:none !important;
 }
 
-/* Popover ("Show auditor"): white card, subtle border */
-[data-testid="stPopover"], [role="dialog"] {
-  background: #ffffff !important;
-  color: #111111 !important;
-  border: 1px solid #e5e7eb !important;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.08) !important;
+/* Link button (st.link_button) */
+.stLinkButton > a,
+a[data-testid="baseLinkButton-secondary"],
+a[data-testid="baseLinkButton-primary"] {
+  background:#fff !important; color:#111 !important;
+  border:1px solid #e5e7eb !important; box-shadow:none !important;
+  text-decoration:none !important;
 }
 
-/* Inputs/selectors on white */
-input, textarea, select {
-  background: #ffffff !important;
-  color: #111111 !important;
-  border: 1px solid #e5e7eb !important;
-  box-shadow: none !important;
-}
-input:focus, textarea:focus, select:focus {
-  outline: none !important;
-  border-color: #94a3b8 !important;
-  box-shadow: 0 0 0 3px rgba(148,163,184,0.25) !important;
+/* Hover */
+.stButton > button:hover,
+.stLinkButton > a:hover,
+button[kind]:hover,
+a[data-testid^="baseLinkButton"]:hover {
+  background:#f8fafc !important; border-color:#d1d5db !important;
 }
 
-/* BaseWeb controls (selectbox, multiselect, text inputs, segmented, tabs) */
-[data-baseweb="select"] > div,
-[data-baseweb="input"] > div,
-[data-baseweb="textarea"] > div,
-[data-baseweb="tabs"] {
-  background: #ffffff !important;
-  border: 1px solid #e5e7eb !important;
-  box-shadow: none !important;
+/* Popovers/dialogs (e.g., "Show auditor") */
+[role="dialog"], [data-baseweb="popover"], [data-testid="stPopover"] {
+  background:#fff !important; color:#111 !important;
+  border:1px solid #e5e7eb !important;
+  box-shadow:0 8px 24px rgba(0,0,0,.08) !important;
 }
-[data-baseweb="tab"] {
-  background: #ffffff !important;
-  border: 1px solid #e5e7eb !important;
+
+/* Inputs/selects/segmented control/tabs */
+[data-baseweb="select"] > div, [data-baseweb="input"] > div, [data-baseweb="textarea"] > div,
+[data-baseweb="tabs"], [data-baseweb="tab"], [data-baseweb="button"] {
+  background:#fff !important; color:#111 !important;
+  border:1px solid #e5e7eb !important; box-shadow:none !important;
 }
 [data-baseweb="tab"][aria-selected="true"] {
-  background: #f8fafc !important;
-  border-color: #d1d5db !important;
+  background:#f8fafc !important; border-color:#d1d5db !important;
 }
 
-/* Dropdown menus/portals (for select/multiselect) */
-[data-baseweb="popover"] {
-  background: #ffffff !important;
-  color: #111111 !important;
-  border: 1px solid #e5e7eb !important;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.08) !important;
-}
-
-/* Dataframes/tables: light header + hairline border */
-[data-testid="stDataFrame"], [data-testid="stTable"] {
-  box-shadow: none !important;
-  border: 1px solid #f1f5f9 !important;
-}
-[data-testid="stDataFrame"] th, [data-testid="stTable"] th {
-  background: #f8fafc !important;
-  color: #111111 !important;
-}
-
-/* Altair/Vega chart iframe: no outer border */
+/* Vega/Altair frame */
 [data-testid="stVegaLiteChart"] iframe, [data-testid="stAltairChart"] iframe {
-  border: 0 !important;
-  box-shadow: none !important;
+  border:0 !important; box-shadow:none !important; background:#fff !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -547,6 +510,19 @@ def render_section_header(title: str, codes):
     # spacer so the chart starts on a full-width new row
     st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
+def light_style(df: pd.DataFrame) -> pd.io.formats.style.Styler:
+    return (
+        df.style
+          .set_properties(**{"background-color":"#ffffff","color":"#111111","border-color":"#e5e7eb"})
+          .set_table_styles([
+              {"selector":"th",
+               "props":[("background-color","#f8fafc"),("color","#111111"),("border","1px solid #e5e7eb")]},
+              {"selector":"td",
+               "props":[("border","1px solid #f1f5f9")]}
+          ])
+    )
+
+
 # --- Missing segments (v2/v3 Total only) ---
 MISSING_CODES = ["E_MISS", "S_MISS", "G_MISS"]
 # exact colors for the added "missing" bars
@@ -909,12 +885,8 @@ if show_peer_list:
         st.sidebar.caption(
             f"Peers shown: {len(_view)}{_peer_note}"
         )
-        st.sidebar.dataframe(
-            _view,
-            use_container_width=True,
-            hide_index=True,
-            height=300,
-        )
+        st.sidebar.dataframe(light_style(_view), use_container_width=True, hide_index=True, height=300)
+
 
 
 # === ONE GLOBAL DISPLAY MODE TOGGLE (applies to Combined + Pillars) ===
@@ -1030,7 +1002,9 @@ if view == "Total":
         tbl = pd.DataFrame(summary_rows)
     
         st.subheader("Total overview")
-        st.dataframe(tbl, use_container_width=True, hide_index=True)
+        st.dataframe(light_style(table), use_container_width=True, hide_index=True)
+
+
     
         # Variant-specific caption
         if VARIANT == "v2":
@@ -1273,8 +1247,9 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                           .mark_text(align="left", baseline="middle", dx=4)
                           .encode(y=alt.Y("Series:N", sort=y_sort),
                                   x="total:Q", text=alt.Text("total:Q", format=".1f")))
-                st.altair_chart(alt.layer(bars, totals).properties(height=120, width="container")
-                                .configure_view(stroke=None), use_container_width=True).configure(background='white')
+                fig = alt.layer(bars, totals).properties(height=120, width="container") \
+                        .configure_view(stroke=None).configure(background='white')
+                st.altair_chart(fig, use_container_width=True)
 
             st.caption("Counts of reported Disclosure Requirements within this pillar." + (note if n_peers > 0 else ""))
             st.markdown("---")
@@ -1380,8 +1355,8 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 fig = alt.layer(bars, totals).properties(
                     height=120, width="container",
                     padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
-                ).configure_view(stroke=None)
-
+                ).configure_view(stroke=None).configure(background='white')
+                
                 st.altair_chart(fig, use_container_width=True)
 
                 fixed_total = sum(STD_TOTAL_OVERRIDES.get(s, 0) for s in stds_in_pillar)
@@ -1648,9 +1623,10 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     width=total_width,
                     height=alt.Step(50),
                     padding={"left": 12, "right": 12, "top": 6, "bottom": 8},
-                ).configure_view(stroke=None)
-
+                ).configure_view(stroke=None).configure(background='white')
+                
                 st.altair_chart(fig, use_container_width=True)
+
                 st.caption(
                     f"{len(present_cols)} Tiles = Disclosure Requirements within this ESRS standard. "
                     "Tiles: filled = reported, light = not reported. "
