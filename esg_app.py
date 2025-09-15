@@ -1144,36 +1144,43 @@ if view == "Total":
                 padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
             ).configure_view(stroke=None)
 
-                        # --- numeric label at the right end of each bar (Firm + optional Peers) ---
-            base = alt.Chart(chart_df)
+            # --- numeric label at the right end of each bar (Firm + Peers) ---
+            if VARIANT in ("v2", "v3"):
+                # reported sum (exclude the *_MISS segments)
+                reported = (
+                    chart_df[~chart_df["StdCode"].isin(MISSING_CODES)]
+                    .groupby("Series", as_index=False)["Value"].sum()
+                    .rename(columns={"Value": "Reported"})
+                )
+                # full bar width (reported + not reported/missing)
+                totals = (
+                    chart_df.groupby("Series", as_index=False)["Value"].sum()
+                    .rename(columns={"Value": "Total"})
+                )
+                lab_df = reported.merge(totals, on="Series")
+            else:
+                # v1: bar already equals reported
+                lab_df = (
+                    chart_df.groupby("Series", as_index=False)["Value"].sum()
+                    .rename(columns={"Value": "Reported"})
+                )
+                lab_df["Total"] = lab_df["Reported"]
             
             labels = (
-                base
-                # 1) compute full bar length (reported + not reported/missing) per row
-                .transform_joinaggregate(
-                    Total='sum(Value)', groupby=['Series']
-                )
-                # 2) keep only the reported segments (drop E_MISS/S_MISS/G_MISS)
-                .transform_filter("!['E_MISS','S_MISS','G_MISS'].includes(datum.StdCode)")
-                # 3) sum the reported values per row; carry Total along for x-position
-                .transform_aggregate(
-                    Reported='sum(Value)',
-                    Total='max(Total)',
-                    groupby=['Series']
-                )
-                .mark_text(align='left', baseline='middle', dx=4)
-                .encode(
-                    y=alt.Y('Series:N', sort=y_sort, title=''),
-                    x=alt.X('Total:Q'),                        # place at the far right of the bar
-                    text=alt.Text('Reported:Q', format='.1f'), # just the number, no "out of"
-                )
+                alt.Chart(lab_df)
+                  .mark_text(align="left", baseline="middle", dx=4)
+                  .encode(
+                      y=alt.Y("Series:N", sort=y_sort, title=""),
+                      x=alt.X("Total:Q"),                           # place at bar's right edge
+                      text=alt.Text("Reported:Q", format=".1f"),    # show only the number
+                  )
             )
             
             st.altair_chart(
                 alt.layer(bars, labels)
-                  .properties(height=120, width="container",
-                              padding={"left": 12, "right": 16, "top": 6, "bottom": 6})
-                  .configure_view(stroke=None),
+                   .properties(height=120, width="container",
+                               padding={"left": 12, "right": 12, "top": 6, "bottom": 6})
+                   .configure_view(stroke=None),
                 use_container_width=True
             )
 
