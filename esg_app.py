@@ -7,43 +7,6 @@ from io import BytesIO
 import requests
 from urllib.parse import urlencode
 
-# --- Light (plain white) app background & readable text ---
-st.markdown("""
-<style>
-/* Make EVERYTHING sit on white */
-html, body, .stApp, [data-testid="stAppViewContainer"],
-[data-testid="stHeader"], [data-testid="stSidebar"], [data-testid="stSidebarContent"] {
-  background: #ffffff !important;
-}
-
-/* Main content container should also be white */
-.block-container {
-  background: #ffffff !important;
-}
-
-/* Ensure text is dark and readable */
-html, body, .stApp, .block-container {
-  color: #111111 !important;
-}
-
-/* Optional: subtle borders so components don't “float” on pure white */
-.stButton > button, .stLinkButton > a, .stTabs [data-baseweb="tab"] {
-  border: 1px solid #e5e7eb !important;
-}
-
-/* Dataframe headers readable on white */
-[data-testid="stTable"] th, [data-testid="stDataFrame"] th {
-  background: #f8fafc !important;
-  color: #111111 !important;
-}
-
-/* Keep sidebar widgets readable on white */
-[data-testid="stSidebar"] * {
-  color: #111111 !important;
-}
-</style>
-""", unsafe_allow_html=True)
-
 # ========= VARIANT / TREATMENT ARMS =========
 VARIANT_KEYS = ["v1", "v2", "v3"]
 DEFAULT_VARIANT = None  # None => randomize when URL lacks ?v=
@@ -1180,7 +1143,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 y_sort = [firm_series] + ([peers_series] if peers_series else [])
 
                 base = alt.Chart(cdf)
-                bars = base.mark_bar(stroke="#888", strokeWidth=0.5, strokeOpacity=0.5).encode(
+                bars = base.mark_bar(stroke="#000", strokeWidth=1, strokeOpacity=0.9, strokeJoin="miter").encode(
                     y=alt.Y("Series:N", title="", sort=y_sort),
                     x=alt.X("Value:Q", title="Number of Disclosure Requirements reported"),
                     color=alt.Color("StdCode:N",
@@ -1267,7 +1230,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 base = alt.Chart(cdf)
                 bars = (
                     base
-                    .mark_bar(stroke="#888", strokeWidth=0.5, strokeOpacity=0.5)  # default outline
+                    .mark_bar(stroke="#000", strokeWidth=1, strokeOpacity=0.9, strokeJoin="miter")  # default outline
                     .encode(
                         y=alt.Y("Series:N", title="", sort=y_sort),
                         x=alt.X("Value:Q", title="Number of Disclosure Requirements"),
