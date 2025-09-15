@@ -115,6 +115,20 @@ a[data-testid^="baseLinkButton"]:hover {
 [data-testid="stVegaLiteChart"] iframe, [data-testid="stAltairChart"] iframe {
   border:0 !important; box-shadow:none !important; background:#fff !important;
 }
+/* Force Streamlit link buttons (st.link_button) to white */
+[data-testid="stLinkButton"] > a,
+.stLinkButton > a {
+  background: #ffffff !important;
+  color: #111111 !important;
+  border: 1px solid #e5e7eb !important;
+  box-shadow: none !important;
+}
+[data-testid="stLinkButton"] > a:hover,
+.stLinkButton > a:hover {
+  background: #f8fafc !important;
+  border-color: #d1d5db !important;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -539,17 +553,32 @@ def render_section_header(title: str, codes):
     # spacer so the chart starts on a full-width new row
     st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
-def light_style(df: pd.DataFrame) -> pd.io.formats.style.Styler:
+# put this near your other helpers
+def light_style(df: pd.DataFrame):
     return (
         df.style
-          .set_properties(**{"background-color":"#ffffff","color":"#111111","border-color":"#e5e7eb"})
-          .set_table_styles([
-              {"selector":"th",
-               "props":[("background-color","#f8fafc"),("color","#111111"),("border","1px solid #e5e7eb")]},
-              {"selector":"td",
-               "props":[("border","1px solid #f1f5f9")]}
-          ])
+        .set_table_attributes('style="border-collapse:collapse; border:1px solid #111111"')
+        .set_table_styles([
+            # table header
+            {"selector": "thead th", "props": [
+                ("background", "#f8fafc"),
+                ("color", "#111111"),
+                ("border", "1px solid #111111"),
+            ]},
+            # body cells
+            {"selector": "tbody td", "props": [
+                ("background", "#ffffff"),
+                ("color", "#111111"),
+                ("border", "1px solid #111111"),
+            ]},
+        ])
+        .set_properties(**{
+            "background": "#ffffff",
+            "color": "#111111",
+            "border-color": "#111111",
+        })
     )
+
 
 
 # --- Missing segments (v2/v3 Total only) ---
@@ -793,6 +822,26 @@ st.markdown("""
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Make st.dataframe/st.table light + black grid even without Styler */
+[data-testid="stDataFrame"] table,
+[data-testid="stTable"] table {
+  border-collapse: collapse !important;
+  background: #ffffff !important;
+  color: #111111 !important;
+}
+[data-testid="stDataFrame"] thead th,
+[data-testid="stTable"]    thead th {
+  background: #f8fafc !important;
+  color: #111111 !important;
+  border: 1px solid #111111 !important;
+}
+[data-testid="stDataFrame"] tbody td,
+[data-testid="stTable"]    tbody td {
+  background: #ffffff !important;
+  color: #111111 !important;
+  border: 1px solid #111111 !important;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
