@@ -68,7 +68,7 @@ def _force_light_mode():
     }
     [data-testid="stPopover"] > button:hover,
     button[data-testid="baseButton-secondary"]:hover {
-      background-color: #f4f6fa !important;
+      background-color: #ffffff  !important;
     }
 
     /* 4) Safety: nuke any leftover primary styling that might be applied inline */
