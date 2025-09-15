@@ -519,22 +519,19 @@ def pillar_color(p: str) -> str:
 def missing_label_for_variant(pillar: str) -> str:
     base = {"E":"E — ", "S":"S — ", "G":"G — "}[pillar]
     return base + ("Not reported" if VARIANT == "v2" else "Missing")
-
 def render_inline_legend_with_missing(codes, colors):
-    """Show normal per-standard chips + 3 extra 'missing' legend entries with exact bar colors."""
-    # normal items (standards E1.., S1.., G1..)
     items = "".join(
         f'<span class="swatch" style="background:{colors[c]}"></span>'
         f'<span class="lab">{c}</span>'
         for c in codes
     )
 
-    # exact tint swatches for the 3 missing entries
+    # exact missing chips (pillar-tinted, dashed, fuzzy edge)
     miss_bits = []
     for p, code in zip(["E", "S", "G"], MISSING_CODES):
-        tint = MISSING_COLOR.get(code, pillar_color(p))  # fallback to pillar base if key missing
+        base = MISSING_COLOR.get(code, pillar_color(p))
         miss_bits.append(
-            f'<span class="swatch" style="background:{tint}"></span>'
+            f'<span class="swatch miss" style="--miss:{base}"></span>'
             f'<span class="lab">{missing_label_for_variant(p)}</span>'
         )
     items += "".join(miss_bits)
@@ -545,6 +542,17 @@ def render_inline_legend_with_missing(codes, colors):
         .legend-inline{display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:center;margin-top:.35rem;}
         .legend-inline .swatch{display:inline-block;width:12px;height:12px;border-radius:2px;margin-right:.35rem;}
         .legend-inline .lab{font-size:0.9rem;}
+
+        /* NEW: “fizzy” missing chip */
+        .legend-inline .swatch.miss{
+          background: var(--miss);
+          opacity: .6;                                   /* like lighter fill */
+          border: 1.5px dashed var(--miss);              /* like dashed stroke */
+          /* soft/“fizzy” edge mask */
+          -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 78%, transparent 82%);
+                  mask-image: radial-gradient(circle at 50% 50%, #000 78%, transparent 82%);
+          -webkit-mask-composite: source-over;
+        }
         </style>
         """,
         unsafe_allow_html=True,
