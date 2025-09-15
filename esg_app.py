@@ -1278,7 +1278,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 st.altair_chart(alt.layer(bars, totals).properties(height=120, width="container")
                                 .configure_view(stroke=None), use_container_width=True)
 
-            st.caption("Counts of reported Disclosure Requirements within this pillar." + (note if n_peers > 0 else ""))
+            st.caption("Counts of reported Disclosure Requirements within this pillar, stacked by standard ." + (note if n_peers > 0 else ""))
             st.markdown("---")
 
         else:
