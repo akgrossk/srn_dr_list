@@ -10,81 +10,25 @@ from urllib.parse import urlencode
 # --- Light (plain white) app background & readable text ---
 st.markdown("""
 <style>
-/* 1) App on plain white */
+/* Base: plain white app + dark text */
 html, body, .stApp, [data-testid="stAppViewContainer"],
 [data-testid="stHeader"], [data-testid="stSidebar"], [data-testid="stSidebarContent"],
 .block-container {
   background: #ffffff !important;
-  color: #111111 !important; /* default text = near-black */
+  color: #111111 !important;
 }
-
-/* Ensure *everything* defaults to dark text */
 .stApp * { color: #111111; }
 
-/* 2) Remove “black boxes” / heavy borders & shadows */
-[data-testid="stHeader"] { box-shadow: none !important; border-bottom: 0 !important; }
-.block-container { box-shadow: none !important; }
-[data-testid="stSidebar"] { box-shadow: none !important; border-right: 0 !important; }
-
-/* Dataframes and charts often get borders/shadows */
-[data-testid="stDataFrame"], [data-testid="stTable"] {
+/* Remove heavy borders/shadows */
+[data-testid="stHeader"], [data-testid="stSidebar"], .block-container {
   box-shadow: none !important;
-  border: 1px solid #ececec !important;      /* subtle hairline */
-}
-[data-testid="stDataFrame"] iframe, [data-testid="stTable"] iframe {
   border: 0 !important;
 }
 
-/* Altair/Vega chart iframes sometimes show borders */
-[data-testid="stVegaLiteChart"] iframe, [data-testid="stAltairChart"] iframe {
-  border: 0 !important;
-  box-shadow: none !important;
-}
-
-/* 3) Inputs / selectors: light borders, no dark box-shadows */
-input, textarea, select {
-  color: #111111 !important;
-  background: #ffffff !important;
-  border: 1px solid #e5e7eb !important;
-  box-shadow: none !important;
-}
-input:focus, textarea:focus, select:focus {
-  outline: none !important;
-  border-color: #94a3b8 !important; /* soft focus */
-  box-shadow: 0 0 0 3px rgba(148,163,184,0.25) !important;
-}
-
-/* BaseWeb (Streamlit) controls (selectbox, multiselect, segmented, etc.) */
-[data-baseweb="select"] > div,
-[data-baseweb="input"] > div,
-[data-baseweb="textarea"] > div,
-[data-baseweb="tabs"] {
-  background: #ffffff !important;
-  border: 1px solid #e5e7eb !important;
-  box-shadow: none !important;
-}
-[data-baseweb="select"] > div:focus-within,
-[data-baseweb="input"] > div:focus-within,
-[data-baseweb="textarea"] > div:focus-within {
-  border-color: #94a3b8 !important;
-  box-shadow: 0 0 0 3px rgba(148,163,184,0.25) !important;
-}
-
-/* Segmented control / radio pills */
-[data-baseweb="tab"] {
-  border: 1px solid #e5e7eb !important;
-  background: #ffffff !important;
-  box-shadow: none !important;
-}
-[data-baseweb="tab"][aria-selected="true"] {
-  background: #f8fafc !important;
-  border-color: #d1d5db !important;
-}
-
-/* Buttons: subtle borders on white */
+/* Buttons: "Open firm report" + others on white */
 .stButton > button, .stLinkButton > a {
-  color: #111111 !important;
   background: #ffffff !important;
+  color: #111111 !important;
   border: 1px solid #e5e7eb !important;
   box-shadow: none !important;
 }
@@ -93,24 +37,71 @@ input:focus, textarea:focus, select:focus {
   border-color: #d1d5db !important;
 }
 
-/* Expanders & captions */
-.streamlit-expanderHeader { background: #ffffff !important; }
-.streamlit-expanderContent { background: #ffffff !important; }
-.block-container .stCaption { color: #374151 !important; }
+/* Popover ("Show auditor"): white card, subtle border */
+[data-testid="stPopover"], [role="dialog"] {
+  background: #ffffff !important;
+  color: #111111 !important;
+  border: 1px solid #e5e7eb !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.08) !important;
+}
 
-/* Tables: header row light gray for contrast */
+/* Inputs/selectors on white */
+input, textarea, select {
+  background: #ffffff !important;
+  color: #111111 !important;
+  border: 1px solid #e5e7eb !important;
+  box-shadow: none !important;
+}
+input:focus, textarea:focus, select:focus {
+  outline: none !important;
+  border-color: #94a3b8 !important;
+  box-shadow: 0 0 0 3px rgba(148,163,184,0.25) !important;
+}
+
+/* BaseWeb controls (selectbox, multiselect, text inputs, segmented, tabs) */
+[data-baseweb="select"] > div,
+[data-baseweb="input"] > div,
+[data-baseweb="textarea"] > div,
+[data-baseweb="tabs"] {
+  background: #ffffff !important;
+  border: 1px solid #e5e7eb !important;
+  box-shadow: none !important;
+}
+[data-baseweb="tab"] {
+  background: #ffffff !important;
+  border: 1px solid #e5e7eb !important;
+}
+[data-baseweb="tab"][aria-selected="true"] {
+  background: #f8fafc !important;
+  border-color: #d1d5db !important;
+}
+
+/* Dropdown menus/portals (for select/multiselect) */
+[data-baseweb="popover"] {
+  background: #ffffff !important;
+  color: #111111 !important;
+  border: 1px solid #e5e7eb !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.08) !important;
+}
+
+/* Dataframes/tables: light header + hairline border */
+[data-testid="stDataFrame"], [data-testid="stTable"] {
+  box-shadow: none !important;
+  border: 1px solid #f1f5f9 !important;
+}
 [data-testid="stDataFrame"] th, [data-testid="stTable"] th {
   background: #f8fafc !important;
   color: #111111 !important;
 }
 
-/* Kill any lingering card shadows */
-[class*="stCard"], [class*="css-"][class*="-Card"] {
+/* Altair/Vega chart iframe: no outer border */
+[data-testid="stVegaLiteChart"] iframe, [data-testid="stAltairChart"] iframe {
+  border: 0 !important;
   box-shadow: none !important;
-  border: 1px solid #f1f5f9 !important;
 }
 </style>
 """, unsafe_allow_html=True)
+
 
 
 # ========= VARIANT / TREATMENT ARMS =========
