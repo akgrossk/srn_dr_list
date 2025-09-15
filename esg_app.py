@@ -1147,15 +1147,16 @@ if view == "Total":
                         # --- numeric label at the right end of each bar (Firm + optional Peers) ---
             base = alt.Chart(chart_df)
             
+            # --- numeric label at the right end of each row (works for v1/v2/v3) ---
+            missing_pred = alt.FieldOneOfPredicate(field='StdCode', oneOf=MISSING_CODES)
+            
             labels = (
-                base
-                # 1) compute full bar length (reported + not reported/missing) per row
-                .transform_joinaggregate(
-                    Total='sum(Value)', groupby=['Series']
-                )
-                # 2) keep only the reported segments (drop E_MISS/S_MISS/G_MISS)
-                .transform_filter("!['E_MISS','S_MISS','G_MISS'].includes(datum.StdCode)")
-                # 3) sum the reported values per row; carry Total along for x-position
+                alt.Chart(chart_df)
+                # 1) total bar length (reported + missing) per row for x position
+                .transform_joinaggregate(Total='sum(Value)', groupby=['Series'])
+                # 2) exclude the *_MISS rows when computing the text value
+                .transform_filter(alt.NotPredicate(missing_pred))
+                # 3) sum reported per row; keep Total for x position
                 .transform_aggregate(
                     Reported='sum(Value)',
                     Total='max(Total)',
@@ -1164,8 +1165,8 @@ if view == "Total":
                 .mark_text(align='left', baseline='middle', dx=4)
                 .encode(
                     y=alt.Y('Series:N', sort=y_sort, title=''),
-                    x=alt.X('Total:Q'),                        # place at the far right of the bar
-                    text=alt.Text('Reported:Q', format='.1f'), # just the number, no "out of"
+                    x=alt.X('Total:Q'),                 # place at the far right of the full bar
+                    text=alt.Text('Reported:Q', format='.1f')  # just the number (no "out of")
                 )
             )
             
@@ -1177,7 +1178,6 @@ if view == "Total":
                 use_container_width=True
             )
 
-            
             note = "Bars show total counts of reported Disclosure Requirements, stacked by standard (E1–E5, S1–S4, G1)."
             if n_peers > 0:
                 note += peer_note
