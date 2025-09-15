@@ -1143,29 +1143,7 @@ if view == "Total":
                 height=120, width="container",
                 padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
             ).configure_view(stroke=None)
-
-            # ... after you create `base = alt.Chart(chart_df)` and `bars = base.mark_bar(...) ...`
-            
-            # add end-of-bar totals (same pattern you use in the pillar charts)
-            totals = (
-                base
-                .transform_aggregate(total="sum(Value)", groupby=["Series"])
-                .mark_text(align="left", baseline="middle", dx=4)   # dx nudges the number a bit to the right
-                .encode(
-                    y=alt.Y("Series:N", sort=y_sort),
-                    x="total:Q",
-                    text=alt.Text("total:Q", format=".1f")
-                )
-            )
-            
-            st.altair_chart(
-                alt.layer(bars, totals)
-                   .properties(height=120, width="container",
-                               padding={"left": 12, "right": 12, "top": 6, "bottom": 6})
-                   .configure_view(stroke=None),
-                use_container_width=True
-            )
-
+            st.altair_chart(bars, use_container_width=True)
             
             note = "Bars show total counts of reported Disclosure Requirements, stacked by standard (E1–E5, S1–S4, G1)."
             if n_peers > 0:
