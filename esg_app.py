@@ -9,99 +9,45 @@ from urllib.parse import urlencode
 
 # ---- FORCE LIGHT MODE (UI + charts) ----
 def _force_light_mode():
-    st.markdown(
-        """
-        <style>
-        /* ---------- Light base ---------- */
-        :root, [data-theme="light"], [data-theme="dark"] {
-          color-scheme: light !important;
-          --primary-color: #1f4aff;
-          --background-color: #ffffff;
-          --secondary-background-color: #f6f7fb;
-          --text-color: #111111;
-        }
-        html, body { background: #ffffff !important; color: var(--text-color) !important; }
-        [data-testid="stAppViewContainer"] { background: var(--background-color) !important; color: var(--text-color) !important; }
-        [data-testid="stHeader"] { background: var(--background-color) !important; }
-        [data-testid="stSidebar"] { background: var(--secondary-background-color) !important; }
-        [data-testid="stSidebar"] * { color: #111111 !important; }
+    st.markdown("""
+    <style>
+    /* Primary (blue) — only real primary buttons */
+    button[data-testid="baseButton-primary"] {
+      background: var(--primary-color) !important;
+      color: #ffffff !important;
+      border: 1px solid var(--primary-color) !important;
+      box-shadow: none !important;
+    }
+    
+    /* Secondary (white) — secondary buttons + popover trigger */
+    button[data-testid="baseButton-secondary"],
+    [data-testid="stPopover"] > button {
+      background: #ffffff !important;
+      color: #111111 !important;
+      border: 1px solid #d0d5dd !important;
+      box-shadow: none !important;
+    }
+    button[data-testid="baseButton-secondary"]:hover,
+    [data-testid="stPopover"] > button:hover {
+      background: #f4f6fa !important;
+    }
+    
+    /* Link buttons — force secondary look even if rendered as primary */
+    div[data-testid="stLinkButton"] a,
+    div[data-testid="stLinkButton"] a[data-testid="baseButton-primary"],
+    div[data-testid="stLinkButton"] a[data-testid="baseButton-secondary"] {
+      background: #ffffff !important;
+      background-image: none !important;
+      color: #111111 !important;
+      border: 1px solid #d0d5dd !important;
+      box-shadow: none !important;
+    }
+    div[data-testid="stLinkButton"] a:hover {
+      background: #f4f6fa !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-        /* ---------- Buttons ---------- */
-        /* Primary: normal st.button only */
-        .stButton > button {
-          background: var(--primary-color) !important;
-          color: #ffffff !important;
-          border: 1px solid var(--primary-color) !important;
-          box-shadow: none !important;
-        }
-
-        /* Secondary: popover trigger (Show auditor) */
-        [data-testid="stPopover"] > button,
-        button[data-testid="baseButton-secondary"] {
-          background: #ffffff !important;
-          color: #111111 !important;
-          border: 1px solid #d0d5dd !important;
-          box-shadow: none !important;
-        }
-        [data-testid="stPopover"] > button:hover,
-        button[data-testid="baseButton-secondary"]:hover {
-          background: #f4f6fa !important;
-        }
-
-        /* Link buttons (st.link_button) — white with black text */
-        div[data-testid="stLinkButton"] > a,
-        .stLinkButton > a,
-        div[data-testid="stLinkButton"] a[role="button"] {
-          background: #ffffff !important;
-          color: #111111 !important;
-          border: 1px solid #d0d5dd !important;
-          box-shadow: none !important;
-        }
-        div[data-testid="stLinkButton"] > a:hover,
-        .stLinkButton > a:hover,
-        div[data-testid="stLinkButton"] a[role="button"]:hover {
-          background: #f4f6fa !important;
-        }
-
-        /* Segmented control / radios */
-        [data-testid="stSegmentedControl"] [role="tab"] {
-          background: #ffffff !important;
-          color: #111111 !important;
-          border: 1px solid #d0d5dd !important;
-        }
-        [data-testid="stSegmentedControl"] [role="tab"][aria-selected="true"] {
-          background: #e9efff !important;
-          border-color: #b9c6ff !important;
-          color: #111111 !important;
-        }
-        .stRadio label, .stSelectbox label, .stMultiSelect label { color: #111111 !important; }
-
-        /* Tables/DataFrames */
-        [data-testid="stTable"] table,
-        [data-testid="stDataFrame"],
-        [data-testid="stDataFrame"] .ag-root-wrapper,
-        [data-testid="stDataFrame"] .ag-root,
-        [data-testid="stDataFrame"] .ag-header,
-        [data-testid="stDataFrame"] .ag-center-cols-viewport,
-        [data-testid="stDataFrame"] .ag-row,
-        [data-testid="stDataFrame"] .ag-cell {
-          background: #ffffff !important;
-          color: #111111 !important;
-          border-color: #e6e6e6 !important;
-        }
-        [data-testid="stDataFrame"] .ag-header-cell-text { color: #111111 !important; }
-
-        /* Keep your “one-line buttons” layout without recoloring */
-        .stButton > button, .stLinkButton > a {
-          width: 100%;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
 
     # Force Altair/Vega to light mode
     alt_light = {
@@ -817,9 +763,17 @@ for col in ["ESG_text_link", "Link_ESG_text", "Link_ESG", "ESG_Text_URL"]:
 
 with btn_col3:
     if _valid_url(esg_link):
-        st.link_button("Show text characteristics", esg_link, help="Opens in a new tab")
+        st.link_button(
+            "Show text characteristics",
+            esg_link,
+            help="Opens in a new tab",
+            type="secondary",          # 👈 force secondary
+        )
     else:
-        if st.button("Show text characteristics"):
+        if st.button(
+            "Show text characteristics",
+            type="secondary",          # 👈 force secondary fallback too
+        ):
             try:
                 st.toast("No info yet — add an ESG text URL when ready.", icon="📝")
             except Exception:
