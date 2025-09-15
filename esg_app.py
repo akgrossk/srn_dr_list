@@ -57,7 +57,7 @@ _force_light_mode()
 st.markdown(
     """
     <style>
-    /* --- Global light look --- */
+    /* ---------- Global light base ---------- */
     :root, [data-theme="light"], [data-theme="dark"] {
       color-scheme: light !important;
       --primary-color: #1f4aff;
@@ -65,30 +65,21 @@ st.markdown(
       --secondary-background-color: #f6f7fb;
       --text-color: #111111;
     }
-    html, body { background-color: #ffffff !important; color: var(--text-color) !important; }
+    html, body { background: #ffffff !important; color: var(--text-color) !important; }
     [data-testid="stAppViewContainer"] { background: var(--background-color) !important; color: var(--text-color) !important; }
     [data-testid="stHeader"] { background: var(--background-color) !important; }
-
-    /* --- 1) Sidebar text is black --- */
     [data-testid="stSidebar"] { background: var(--secondary-background-color) !important; }
-    [data-testid="stSidebar"] *, 
-    [data-testid="stSidebar"] .stMarkdown, 
-    [data-testid="stSidebar"] .stSelectbox, 
-    [data-testid="stSidebar"] label {
-      color: #111111 !important;
-    }
-    [data-testid="stSidebar"] a { color: #0b57d0 !important; }
+    [data-testid="stSidebar"] * { color: #111111 !important; }
 
-    /* --- Primary action buttons (your link + normal buttons) --- */
-    .stButton > button, .stLinkButton > a {
-      color: #ffffff !important;
+    /* ---------- Primary buttons (keep normal buttons blue) ---------- */
+    .stButton > button {
       background: var(--primary-color) !important;
+      color: #ffffff !important;
       border: 1px solid var(--primary-color) !important;
+      box-shadow: none !important;
     }
 
-    /* --- 2) “Show auditor” popover trigger = secondary button style --- */
-    /* Streamlit renders popover trigger as a secondary button; target both generic secondary
-       buttons and the popover’s own wrapper to be safe across versions. */
+    /* ---------- Secondary buttons (popover trigger) ---------- */
     button[data-testid="baseButton-secondary"],
     [data-testid="stPopover"] > button {
       background: #ffffff !important;
@@ -100,9 +91,54 @@ st.markdown(
     [data-testid="stPopover"] > button:hover {
       background: #f4f6fa !important;
     }
+
+    /* ---------- Make ALL link buttons (st.link_button) secondary ---------- */
+    .stLinkButton > a {
+      background: #ffffff !important;            /* <- fixes "Show text characteristics" */
+      color: #111111 !important;
+      border: 1px solid #d0d5dd !important;
+      box-shadow: none !important;
+    }
+    .stLinkButton > a:hover {
+      background: #f4f6fa !important;
+    }
+
+    /* ---------- Segmented control / radios look light ---------- */
+    [data-testid="stSegmentedControl"] [role="tab"] {
+      background: #ffffff !important;
+      color: #111111 !important;
+      border: 1px solid #d0d5dd !important;
+    }
+    [data-testid="stSegmentedControl"] [role="tab"][aria-selected="true"] {
+      background: #e9efff !important;
+      border-color: #b9c6ff !important;
+      color: #111111 !important;
+    }
+    .stRadio label, .stSelectbox label, .stMultiSelect label { color: #111111 !important; }
+
+    /* ---------- Tables/DataFrames forced light ---------- */
+    [data-testid="stTable"] table,
+    [data-testid="stDataFrame"] {
+      background: #ffffff !important;
+      color: #111111 !important;
+    }
+    /* AgGrid internals used by st.dataframe */
+    [data-testid="stDataFrame"] .ag-root-wrapper,
+    [data-testid="stDataFrame"] .ag-root,
+    [data-testid="stDataFrame"] .ag-header,
+    [data-testid="stDataFrame"] .ag-center-cols-viewport,
+    [data-testid="stDataFrame"] .ag-row,
+    [data-testid="stDataFrame"] .ag-cell {
+      background: #ffffff !important;
+      color: #111111 !important;
+      border-color: #e6e6e6 !important;
+    }
+    [data-testid="stDataFrame"] .ag-header-cell-text { color: #111111 !important; }
     </style>
     """,
     unsafe_allow_html=True,
+)
+
 )
 
 
