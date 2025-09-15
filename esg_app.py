@@ -957,7 +957,7 @@ if view == "Total":
                 row = {
                     "Pillar": PILLAR_LABEL[pillar],
                     "Reported disclosure requirements": firm_yes,
-                    "Missing disclosure requirements": max(total_DR - firm_yes, 0),
+                    "Not reported disclosure requirements": max(total_DR - firm_yes, 0),
                     "Total disclosure requirements": total_DR,
                 }
                 if peer_yes_mean is not None:
@@ -991,7 +991,7 @@ if view == "Total":
         if VARIANT == "v2":
             note = ("Rows show how many Disclosure Requirements the firm reported "
                     "(**Reported disclosure requirements**), how many are unreported "
-                    "(**Missing disclosure requirements**), and the pillar’s **Total**.")
+                    "(**Not reported disclosure requirements**), and the pillar’s **Total**.")
         elif VARIANT == "v3":
             note = ("Rows show the firm’s reported DRs (**Firm — number of reported Disclosure Requirements**), "
                     "**Missing disclosure requirements** (= Total − Reported), and the pillar’s **Total**.")
