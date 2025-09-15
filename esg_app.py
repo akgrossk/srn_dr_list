@@ -54,6 +54,59 @@ def _force_light_mode():
 _force_light_mode()
 # ---- /FORCE LIGHT MODE ----
 
+st.markdown(
+    """
+    <style>
+    /* --- Global light look --- */
+    :root, [data-theme="light"], [data-theme="dark"] {
+      color-scheme: light !important;
+      --primary-color: #1f4aff;
+      --background-color: #ffffff;
+      --secondary-background-color: #f6f7fb;
+      --text-color: #111111;
+    }
+    html, body { background-color: #ffffff !important; color: var(--text-color) !important; }
+    [data-testid="stAppViewContainer"] { background: var(--background-color) !important; color: var(--text-color) !important; }
+    [data-testid="stHeader"] { background: var(--background-color) !important; }
+
+    /* --- 1) Sidebar text is black --- */
+    [data-testid="stSidebar"] { background: var(--secondary-background-color) !important; }
+    [data-testid="stSidebar"] *, 
+    [data-testid="stSidebar"] .stMarkdown, 
+    [data-testid="stSidebar"] .stSelectbox, 
+    [data-testid="stSidebar"] label {
+      color: #111111 !important;
+    }
+    [data-testid="stSidebar"] a { color: #0b57d0 !important; }
+
+    /* --- Primary action buttons (your link + normal buttons) --- */
+    .stButton > button, .stLinkButton > a {
+      color: #ffffff !important;
+      background: var(--primary-color) !important;
+      border: 1px solid var(--primary-color) !important;
+    }
+
+    /* --- 2) “Show auditor” popover trigger = secondary button style --- */
+    /* Streamlit renders popover trigger as a secondary button; target both generic secondary
+       buttons and the popover’s own wrapper to be safe across versions. */
+    button[data-testid="baseButton-secondary"],
+    [data-testid="stPopover"] > button {
+      background: #ffffff !important;
+      color: #111111 !important;
+      border: 1px solid #d0d5dd !important;
+      box-shadow: none !important;
+    }
+    button[data-testid="baseButton-secondary"]:hover,
+    [data-testid="stPopover"] > button:hover {
+      background: #f4f6fa !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+
 # ========= VARIANT / TREATMENT ARMS =========
 VARIANT_KEYS = ["v1", "v2", "v3"]
 DEFAULT_VARIANT = None  # None => randomize when URL lacks ?v=
