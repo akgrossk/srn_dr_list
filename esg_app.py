@@ -1657,7 +1657,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 st.altair_chart(fig, use_container_width=True)
                 st.caption(
                     f"{len(present_cols)} Tiles = Disclosure Requirements within this ESRS standard. "
-                    "Tiles: filled = reported, light = not reported. "
+                    "Tiles: dark = reported, light = not reported. "
                     + (f"Peer tiles: fill equals % of peers that reported (shown as %). " if peers_label else "")
                     + (note if peers_label else "")
                 )
