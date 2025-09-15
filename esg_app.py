@@ -128,6 +128,23 @@ a[data-testid^="baseLinkButton"]:hover {
   background: #f8fafc !important;
   border-color: #d1d5db !important;
 }
+/* Extra-hard override for st.link_button across builds */
+[data-testid="stLinkButton"],
+[data-testid="stLinkButton"] > a,
+a[data-testid^="baseLinkButton-"],
+.stLinkButton > a {
+  background: #ffffff !important;
+  color: #111111 !important;
+  border: 1px solid #e5e7eb !important;
+  box-shadow: none !important;
+  text-decoration: none !important;
+}
+[data-testid="stLinkButton"] > a:hover,
+a[data-testid^="baseLinkButton-"]:hover,
+.stLinkButton > a:hover {
+  background: #f8fafc !important;
+  border-color: #d1d5db !important;
+}
 
 </style>
 """, unsafe_allow_html=True)
@@ -1080,7 +1097,8 @@ if view == "Total":
         tbl = pd.DataFrame(summary_rows)
     
         st.subheader("Total overview")
-        st.dataframe(light_style(tbl), use_container_width=True, hide_index=True)
+        st.dataframe(light_style(table), use_container_width=True, hide_index=True)
+
 
 
 
@@ -1494,7 +1512,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
 
         if summary_rows:
             tbl = pd.DataFrame(summary_rows)
-            st.dataframe(tbl, use_container_width=True, hide_index=True)
+            st.dataframe(light_style(tbl), use_container_width=True, hide_index=True)
             cap = "Rows show the number of reported Disclosure Requirements per ESRS standard in this pillar."
             if VARIANT in ("v2", "v3"):
                 cap += " Includes each standard’s Total and Missing."
@@ -1563,7 +1581,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                             peer_pct.append("—")
                     table[f"Peers reported % ({comp_label})"] = peer_pct
 
-                st.dataframe(light_style(tbl), use_container_width=True, hide_index=True)
+                st.dataframe(light_style(table), use_container_width=True, hide_index=True)
 
                 if n_peers > 0:
                     st.caption(f"Peers reported % = share of selected peers answering 'Yes' {note}")
