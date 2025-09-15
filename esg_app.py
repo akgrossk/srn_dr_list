@@ -56,6 +56,23 @@ def _force_light_mode():
 
     </style>
     
+    <style>
+    /* Make the main content actually use the screen width and trim side padding */
+    :root{
+      --content-side-padding: 10px;    /* tweak to taste */
+    }
+    [data-testid="stAppViewContainer"] > .main .block-container {
+      max-width: 100vw !important;
+      padding-left: var(--content-side-padding) !important;
+      padding-right: var(--content-side-padding) !important;
+    }
+    /* Fallback for some Streamlit versions */
+    div.block-container {
+      max-width: 100vw !important;
+      padding-left: var(--content-side-padding) !important;
+      padding-right: var(--content-side-padding) !important;
+    }
+    </style>
 
     
     """, unsafe_allow_html=True)
@@ -1234,31 +1251,12 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     tooltip=[alt.Tooltip("Series:N"), alt.Tooltip("Standard:N"),
                              alt.Tooltip("Value:Q", title="# DR", format=".1f")],
                 )
-                fixed_total = sum(STD_TOTAL_OVERRIDES.get(s, 0) for s in stds_in_pillar)
-
-                # reported sums per row (Firm / Peers)
-                rep_df = (
-                    cdf.groupby("Series", as_index=False)["Value"].sum()
-                      .rename(columns={"Value": "Reported"})
-                )
-                rep_df["Total"] = float(fixed_total)
-                rep_df["Label"] = rep_df["Reported"].map(lambda v: f"{v:.1f}") + f" / {fixed_total}"
-                
-                labels = (
-                    alt.Chart(rep_df)
-                       .mark_text(align="left", baseline="middle", dx=4)
-                       .encode(
-                           y=alt.Y("Series:N", sort=y_sort),
-                           x="Total:Q",
-                           text="Label:N",
-                       )
-                )
-                
-                st.altair_chart(
-                    alt.layer(bars, labels).properties(height=120, width="container").configure_view(stroke=None),
-                    use_container_width=True
-                )
-
+                totals = (base.transform_aggregate(total="sum(Value)", groupby=["Series"])
+                          .mark_text(align="left", baseline="middle", dx=4)
+                          .encode(y=alt.Y("Series:N", sort=y_sort),
+                                  x="total:Q", text=alt.Text("total:Q", format=".1f")))
+                st.altair_chart(alt.layer(bars, totals).properties(height=120, width="container")
+                                .configure_view(stroke=None), use_container_width=True)
 
             st.caption("Counts of reported Disclosure Requirements within this pillar." + (note if n_peers > 0 else ""))
             st.markdown("---")
