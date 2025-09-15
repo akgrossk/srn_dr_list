@@ -6,6 +6,7 @@ import altair as alt
 from io import BytesIO
 import requests
 from urllib.parse import urlencode
+from pandas.io.formats.style import Styler 
 
 # === ADD THIS BLOCK HERE (right after imports) =========================
 # Altair light theme: black text, white background, light grid, no frame
