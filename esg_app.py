@@ -563,41 +563,41 @@ def std_missing_label(std_code: str) -> str:
     return f"{std_code} — {'Not reported' if VARIANT=='v2' else 'Missing'}"
 
 def render_pillar_legend_with_missing(stds_in_pillar, colors, pillar):
-    """Legend for a single pillar tab:
-       - colored chips for the pillar's standards (E1.. or S1.. or G1)
-       - ONE extra hatched chip for the pillar's 'Not reported/Missing'
-    """
-    # normal standard chips
     items = "".join(
         f'<span class="swatch" style="background:{colors[c]}"></span>'
         f'<span class="lab">{c}</span>'
         for c in stds_in_pillar
     )
 
-    # hatched chip for this pillar
-    base = pillar_color(pillar)  # uses your existing function
-    swatch_css = (
-        f"background: {base}; "
-        f"mask-image: repeating-linear-gradient(135deg, #000 0 6px, transparent 6px 12px); "
-        f"-webkit-mask-image: repeating-linear-gradient(135deg, #000 0 6px, transparent 6px 12px); "
-        f"border: 1px solid {base};"
-    )
+    # pillar-tinted “fizzy” missing chip (no slashes)
+    base = pillar_color(pillar)
     items += (
-        f'<span class="swatch" style="{swatch_css}"></span>'
+        f'<span class="swatch miss" style="--miss:{base}"></span>'
         f'<span class="lab">{missing_label_for_variant(pillar)}</span>'
     )
 
     st.markdown(
         """
         <style>
-        .legend-inline{display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:center; margin-top:.35rem;}
+        .legend-inline{display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:center;margin-top:.35rem;}
         .legend-inline .swatch{display:inline-block;width:12px;height:12px;border-radius:2px;margin-right:.35rem;}
         .legend-inline .lab{font-size:0.9rem;}
+
+        /* Reuse the same fizzy style */
+        .legend-inline .swatch.miss{
+          background: var(--miss);
+          opacity: .6;
+          border: 1.5px dashed var(--miss);
+          -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 78%, transparent 82%);
+                  mask-image: radial-gradient(circle at 50% 50%, #000 78%, transparent 82%);
+          -webkit-mask-composite: source-over;
+        }
         </style>
         """,
         unsafe_allow_html=True,
     )
     st.markdown(f'<div class="legend-inline">{items}</div>', unsafe_allow_html=True)
+
 
 
 # ========= LOAD DATA (GitHub only) =========
