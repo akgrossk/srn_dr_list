@@ -1143,7 +1143,32 @@ if view == "Total":
                 height=120, width="container",
                 padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
             ).configure_view(stroke=None)
-            st.altair_chart(bars, use_container_width=True)
+            # --- add a single value label at the end of the reported stack (Firm + Peers) ---
+            # (works for v1, v2, v3)
+            rep_df = (
+                chart_df[~chart_df["StdCode"].isin(MISSING_CODES)]  # exclude *_MISS so label = reported only
+                .groupby("Series", as_index=False)["Value"].sum()
+            )
+            rep_df["Label"] = rep_df["Value"].map(lambda v: f"{v:.1f}")
+            
+            labels = (
+                alt.Chart(rep_df)
+                  .mark_text(align="left", baseline="middle", dx=4)  # nudge a bit to the right of the bar
+                  .encode(
+                      y=alt.Y("Series:N", sort=y_sort, title=""),
+                      x=alt.X("Value:Q"),                              # put text at the bar’s end
+                      text="Label:N",
+                  )
+            )
+            
+            st.altair_chart(
+                alt.layer(bars, labels)
+                   .properties(height=120, width="container",
+                               padding={"left":12,"right":12,"top":6,"bottom":6})
+                   .configure_view(stroke=None),
+                use_container_width=True
+            )
+
             
             note = "Bars show total counts of reported Disclosure Requirements, stacked by standard (E1–E5, S1–S4, G1)."
             if n_peers > 0:
