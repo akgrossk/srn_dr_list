@@ -1,4 +1,4 @@
-import streamlit as st
+import streamlit as st 
 import pandas as pd
 import numpy as np
 from collections import defaultdict
@@ -9,82 +9,101 @@ from urllib.parse import urlencode
 
 # ---- FORCE LIGHT MODE (UI + charts) ----
 def _force_light_mode():
-    # 1) Streamlit UI: override any dark variables + tell the browser we want light
     st.markdown(
         """
         <style>
+        /* ---------- Light base ---------- */
         :root, [data-theme="light"], [data-theme="dark"] {
           color-scheme: light !important;
           --primary-color: #1f4aff;
           --background-color: #ffffff;
           --secondary-background-color: #f6f7fb;
           --text-color: #111111;
-          --font: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", sans-serif;
         }
-        html, body { background-color: #ffffff !important; color: #111111 !important; }
+        html, body { background: #ffffff !important; color: var(--text-color) !important; }
         [data-testid="stAppViewContainer"] { background: var(--background-color) !important; color: var(--text-color) !important; }
         [data-testid="stHeader"] { background: var(--background-color) !important; }
         [data-testid="stSidebar"] { background: var(--secondary-background-color) !important; }
+        [data-testid="stSidebar"] * { color: #111111 !important; }
+
+        /* ---------- Buttons ---------- */
+        /* Primary: normal st.button only */
+        .stButton > button {
+          background: var(--primary-color) !important;
+          color: #ffffff !important;
+          border: 1px solid var(--primary-color) !important;
+          box-shadow: none !important;
+        }
+
+        /* Secondary: popover trigger (Show auditor) */
+        [data-testid="stPopover"] > button,
+        button[data-testid="baseButton-secondary"] {
+          background: #ffffff !important;
+          color: #111111 !important;
+          border: 1px solid #d0d5dd !important;
+          box-shadow: none !important;
+        }
+        [data-testid="stPopover"] > button:hover,
+        button[data-testid="baseButton-secondary"]:hover {
+          background: #f4f6fa !important;
+        }
+
+        /* Link buttons (st.link_button) — white with black text */
+        div[data-testid="stLinkButton"] > a,
+        .stLinkButton > a,
+        div[data-testid="stLinkButton"] a[role="button"] {
+          background: #ffffff !important;
+          color: #111111 !important;
+          border: 1px solid #d0d5dd !important;
+          box-shadow: none !important;
+        }
+        div[data-testid="stLinkButton"] > a:hover,
+        .stLinkButton > a:hover,
+        div[data-testid="stLinkButton"] a[role="button"]:hover {
+          background: #f4f6fa !important;
+        }
+
+        /* Segmented control / radios */
+        [data-testid="stSegmentedControl"] [role="tab"] {
+          background: #ffffff !important;
+          color: #111111 !important;
+          border: 1px solid #d0d5dd !important;
+        }
+        [data-testid="stSegmentedControl"] [role="tab"][aria-selected="true"] {
+          background: #e9efff !important;
+          border-color: #b9c6ff !important;
+          color: #111111 !important;
+        }
+        .stRadio label, .stSelectbox label, .stMultiSelect label { color: #111111 !important; }
+
+        /* Tables/DataFrames */
+        [data-testid="stTable"] table,
+        [data-testid="stDataFrame"],
+        [data-testid="stDataFrame"] .ag-root-wrapper,
+        [data-testid="stDataFrame"] .ag-root,
+        [data-testid="stDataFrame"] .ag-header,
+        [data-testid="stDataFrame"] .ag-center-cols-viewport,
+        [data-testid="stDataFrame"] .ag-row,
+        [data-testid="stDataFrame"] .ag-cell {
+          background: #ffffff !important;
+          color: #111111 !important;
+          border-color: #e6e6e6 !important;
+        }
+        [data-testid="stDataFrame"] .ag-header-cell-text { color: #111111 !important; }
+
+        /* Keep your “one-line buttons” layout without recoloring */
+        .stButton > button, .stLinkButton > a {
+          width: 100%;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
         </style>
         """,
         unsafe_allow_html=True,
     )
 
-    st.markdown(
-    """
-    <style>
-    /* 1) Keep ONLY normal buttons as primary */
-    .stButton > button {
-      background: var(--primary-color) !important;
-      color: #ffffff !important;
-      border: 1px solid var(--primary-color) !important;
-      box-shadow: none !important;
-    }
-
-    /* 2) Force ALL link buttons (st.link_button) to secondary look */
-    /* Use extra specificity to beat earlier rules and Streamlit defaults */
-    div[data-testid="stLinkButton"] > a,
-    .stLinkButton > a,
-    div[data-testid="stLinkButton"] a[role="button"] {
-      background-color: #ffffff !important;
-      background-image: none !important;
-      color: #111111 !important;
-      border: 1px solid #d0d5dd !important;
-      box-shadow: none !important;
-    }
-    div[data-testid="stLinkButton"] > a:hover,
-    .stLinkButton > a:hover,
-    div[data-testid="stLinkButton"] a[role="button"]:hover {
-      background-color: #ffffff !important;
-    }
-
-    /* 3) Popover trigger (Show auditor) stays secondary */
-    [data-testid="stPopover"] > button,
-    button[data-testid="baseButton-secondary"] {
-      background-color: #ffffff !important;
-      color: #111111 !important;
-      border: 1px solid #d0d5dd !important;
-      box-shadow: none !important;
-    }
-    [data-testid="stPopover"] > button:hover,
-    button[data-testid="baseButton-secondary"]:hover {
-      background-color: #ffffff  !important;
-    }
-
-    /* 4) Safety: nuke any leftover primary styling that might be applied inline */
-    div[data-testid="stLinkButton"] > a[style],
-    .stLinkButton > a[style] {
-      background: #ffffff !important;
-      color: #111111 !important;
-      border-color: #d0d5dd !important;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-    
-    # 2) Altair/Vega: force light colors & white background
+    # Force Altair/Vega to light mode
     alt_light = {
         "config": {
             "background": "white",
@@ -101,96 +120,9 @@ def _force_light_mode():
         pass
 
 _force_light_mode()
-# ---- /FORCE LIGHT MODE ----
-
-st.markdown(
-    """
-    <style>
-    /* ---------- Global light base ---------- */
-    :root, [data-theme="light"], [data-theme="dark"] {
-      color-scheme: light !important;
-      --primary-color: #1f4aff;
-      --background-color: #ffffff;
-      --secondary-background-color: #f6f7fb;
-      --text-color: #111111;
-    }
-    html, body { background: #ffffff !important; color: var(--text-color) !important; }
-    [data-testid="stAppViewContainer"] { background: var(--background-color) !important; color: var(--text-color) !important; }
-    [data-testid="stHeader"] { background: var(--background-color) !important; }
-    [data-testid="stSidebar"] { background: var(--secondary-background-color) !important; }
-    [data-testid="stSidebar"] * { color: #111111 !important; }
-
-    /* ---------- Primary buttons (keep normal buttons blue) ---------- */
-    .stButton > button {
-      background: var(--primary-color) !important;
-      color: #ffffff !important;
-      border: 1px solid var(--primary-color) !important;
-      box-shadow: none !important;
-    }
-
-    /* ---------- Secondary buttons (popover trigger) ---------- */
-    button[data-testid="baseButton-secondary"],
-    [data-testid="stPopover"] > button {
-      background: #ffffff !important;
-      color: #111111 !important;
-      border: 1px solid #d0d5dd !important;
-      box-shadow: none !important;
-    }
-    button[data-testid="baseButton-secondary"]:hover,
-    [data-testid="stPopover"] > button:hover {
-      background: #f4f6fa !important;
-    }
-
-    /* ---------- Make ALL link buttons (st.link_button) secondary ---------- */
-    .stLinkButton > a {
-      background: #ffffff !important;            /* <- fixes "Show text characteristics" */
-      color: #111111 !important;
-      border: 1px solid #d0d5dd !important;
-      box-shadow: none !important;
-    }
-    .stLinkButton > a:hover {
-      background: #f4f6fa !important;
-    }
-
-    /* ---------- Segmented control / radios look light ---------- */
-    [data-testid="stSegmentedControl"] [role="tab"] {
-      background: #ffffff !important;
-      color: #111111 !important;
-      border: 1px solid #d0d5dd !important;
-    }
-    [data-testid="stSegmentedControl"] [role="tab"][aria-selected="true"] {
-      background: #e9efff !important;
-      border-color: #b9c6ff !important;
-      color: #111111 !important;
-    }
-    .stRadio label, .stSelectbox label, .stMultiSelect label { color: #111111 !important; }
-
-    /* ---------- Tables/DataFrames forced light ---------- */
-    [data-testid="stTable"] table,
-    [data-testid="stDataFrame"] {
-      background: #ffffff !important;
-      color: #111111 !important;
-    }
-    /* AgGrid internals used by st.dataframe */
-    [data-testid="stDataFrame"] .ag-root-wrapper,
-    [data-testid="stDataFrame"] .ag-root,
-    [data-testid="stDataFrame"] .ag-header,
-    [data-testid="stDataFrame"] .ag-center-cols-viewport,
-    [data-testid="stDataFrame"] .ag-row,
-    [data-testid="stDataFrame"] .ag-cell {
-      background: #ffffff !important;
-      color: #111111 !important;
-      border-color: #e6e6e6 !important;
-    }
-    [data-testid="stDataFrame"] .ag-header-cell-text { color: #111111 !important; }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-
 
 # ========= VARIANT / TREATMENT ARMS =========
+
 VARIANT_KEYS = ["v1", "v2", "v3"]
 DEFAULT_VARIANT = None  # None => randomize when URL lacks ?v=
 
