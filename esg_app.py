@@ -1670,7 +1670,6 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 ).configure_view(stroke=None)
 
                 st.altair_chart(fig, use_container_width=True)
-                st.caption(
                 tiles_legend = (
                     "Tiles: dark = reported, light = missing. "
                     if VARIANT == "v3"
