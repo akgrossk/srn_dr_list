@@ -1617,7 +1617,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                         .transform_filter(alt.FieldEqualPredicate(field="Series", equal=peers_label))
                         .transform_filter("datum.share >= 0.10")
                         .transform_calculate(xtext="datum.xa + (datum.xb - datum.xa) * datum.share * 0.35")
-                        .mark_text(baseline="middle", fontSize=11, color="#111"")
+                        .mark_text(baseline="middle", fontSize=11, color="#111")
                         .encode(
                             y=y_enc,
                             x=alt.X("xtext:Q", scale=xscale),
