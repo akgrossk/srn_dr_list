@@ -7,6 +7,43 @@ from io import BytesIO
 import requests
 from urllib.parse import urlencode
 
+# --- Light (plain white) app background & readable text ---
+st.markdown("""
+<style>
+/* Make EVERYTHING sit on white */
+html, body, .stApp, [data-testid="stAppViewContainer"],
+[data-testid="stHeader"], [data-testid="stSidebar"], [data-testid="stSidebarContent"] {
+  background: #ffffff !important;
+}
+
+/* Main content container should also be white */
+.block-container {
+  background: #ffffff !important;
+}
+
+/* Ensure text is dark and readable */
+html, body, .stApp, .block-container {
+  color: #111111 !important;
+}
+
+/* Optional: subtle borders so components don't “float” on pure white */
+.stButton > button, .stLinkButton > a, .stTabs [data-baseweb="tab"] {
+  border: 1px solid #e5e7eb !important;
+}
+
+/* Dataframe headers readable on white */
+[data-testid="stTable"] th, [data-testid="stDataFrame"] th {
+  background: #f8fafc !important;
+  color: #111111 !important;
+}
+
+/* Keep sidebar widgets readable on white */
+[data-testid="stSidebar"] * {
+  color: #111111 !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # ========= VARIANT / TREATMENT ARMS =========
 VARIANT_KEYS = ["v1", "v2", "v3"]
 DEFAULT_VARIANT = None  # None => randomize when URL lacks ?v=
