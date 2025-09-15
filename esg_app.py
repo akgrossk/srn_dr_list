@@ -10,39 +10,108 @@ from urllib.parse import urlencode
 # --- Light (plain white) app background & readable text ---
 st.markdown("""
 <style>
-/* Make EVERYTHING sit on white */
+/* 1) App on plain white */
 html, body, .stApp, [data-testid="stAppViewContainer"],
-[data-testid="stHeader"], [data-testid="stSidebar"], [data-testid="stSidebarContent"] {
-  background: #ffffff !important;
-}
-
-/* Main content container should also be white */
+[data-testid="stHeader"], [data-testid="stSidebar"], [data-testid="stSidebarContent"],
 .block-container {
   background: #ffffff !important;
+  color: #111111 !important; /* default text = near-black */
 }
 
-/* Ensure text is dark and readable */
-html, body, .stApp, .block-container {
+/* Ensure *everything* defaults to dark text */
+.stApp * { color: #111111; }
+
+/* 2) Remove “black boxes” / heavy borders & shadows */
+[data-testid="stHeader"] { box-shadow: none !important; border-bottom: 0 !important; }
+.block-container { box-shadow: none !important; }
+[data-testid="stSidebar"] { box-shadow: none !important; border-right: 0 !important; }
+
+/* Dataframes and charts often get borders/shadows */
+[data-testid="stDataFrame"], [data-testid="stTable"] {
+  box-shadow: none !important;
+  border: 1px solid #ececec !important;      /* subtle hairline */
+}
+[data-testid="stDataFrame"] iframe, [data-testid="stTable"] iframe {
+  border: 0 !important;
+}
+
+/* Altair/Vega chart iframes sometimes show borders */
+[data-testid="stVegaLiteChart"] iframe, [data-testid="stAltairChart"] iframe {
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+/* 3) Inputs / selectors: light borders, no dark box-shadows */
+input, textarea, select {
   color: #111111 !important;
-}
-
-/* Optional: subtle borders so components don't “float” on pure white */
-.stButton > button, .stLinkButton > a, .stTabs [data-baseweb="tab"] {
+  background: #ffffff !important;
   border: 1px solid #e5e7eb !important;
+  box-shadow: none !important;
+}
+input:focus, textarea:focus, select:focus {
+  outline: none !important;
+  border-color: #94a3b8 !important; /* soft focus */
+  box-shadow: 0 0 0 3px rgba(148,163,184,0.25) !important;
 }
 
-/* Dataframe headers readable on white */
-[data-testid="stTable"] th, [data-testid="stDataFrame"] th {
+/* BaseWeb (Streamlit) controls (selectbox, multiselect, segmented, etc.) */
+[data-baseweb="select"] > div,
+[data-baseweb="input"] > div,
+[data-baseweb="textarea"] > div,
+[data-baseweb="tabs"] {
+  background: #ffffff !important;
+  border: 1px solid #e5e7eb !important;
+  box-shadow: none !important;
+}
+[data-baseweb="select"] > div:focus-within,
+[data-baseweb="input"] > div:focus-within,
+[data-baseweb="textarea"] > div:focus-within {
+  border-color: #94a3b8 !important;
+  box-shadow: 0 0 0 3px rgba(148,163,184,0.25) !important;
+}
+
+/* Segmented control / radio pills */
+[data-baseweb="tab"] {
+  border: 1px solid #e5e7eb !important;
+  background: #ffffff !important;
+  box-shadow: none !important;
+}
+[data-baseweb="tab"][aria-selected="true"] {
+  background: #f8fafc !important;
+  border-color: #d1d5db !important;
+}
+
+/* Buttons: subtle borders on white */
+.stButton > button, .stLinkButton > a {
+  color: #111111 !important;
+  background: #ffffff !important;
+  border: 1px solid #e5e7eb !important;
+  box-shadow: none !important;
+}
+.stButton > button:hover, .stLinkButton > a:hover {
+  background: #f8fafc !important;
+  border-color: #d1d5db !important;
+}
+
+/* Expanders & captions */
+.streamlit-expanderHeader { background: #ffffff !important; }
+.streamlit-expanderContent { background: #ffffff !important; }
+.block-container .stCaption { color: #374151 !important; }
+
+/* Tables: header row light gray for contrast */
+[data-testid="stDataFrame"] th, [data-testid="stTable"] th {
   background: #f8fafc !important;
   color: #111111 !important;
 }
 
-/* Keep sidebar widgets readable on white */
-[data-testid="stSidebar"] * {
-  color: #111111 !important;
+/* Kill any lingering card shadows */
+[class*="stCard"], [class*="css-"][class*="-Card"] {
+  box-shadow: none !important;
+  border: 1px solid #f1f5f9 !important;
 }
 </style>
 """, unsafe_allow_html=True)
+
 
 # ========= VARIANT / TREATMENT ARMS =========
 VARIANT_KEYS = ["v1", "v2", "v3"]
