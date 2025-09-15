@@ -6,141 +6,6 @@ import altair as alt
 from io import BytesIO
 import requests
 from urllib.parse import urlencode
-from pandas.io.formats.style import Styler 
-
-# === ADD THIS BLOCK HERE (right after imports) =========================
-# Altair light theme: black text, white background, light grid, no frame
-alt.themes.register(
-    "light_theme",
-    lambda: {
-        "config": {
-            "background": "white",
-            "view": {"stroke": None},
-            "axis": {
-                "labelColor": "#111111",
-                "titleColor":  "#111111",
-                "tickColor":   "#111111",
-                "domainColor": "#111111",
-                "gridColor":   "#e5e7eb",
-                "labelFontSize": 12,
-                "titleFontSize": 12,
-            },
-            "legend": {"labelColor": "#111111", "titleColor": "#111111"},
-            "title":  {"color": "#111111"},
-        }
-    },
-)
-alt.themes.enable("light_theme")
-
-st.markdown("""
-<style>
-/* === Force the whole app to light === */
-html, body, .stApp, [data-testid="stAppViewContainer"],
-[data-testid="stHeader"], [data-testid="stSidebar"], [data-testid="stSidebarContent"],
-.block-container {
-  background: #ffffff !important;
-  color: #111111 !important;
-}
-html, body, .stApp { color-scheme: light !important; }
-
-/* Make general text dark */
-.stApp, .stApp * { color: #111111 !important; }
-
-/* === Buttons === */
-.stButton > button,
-button[data-testid="baseButton-primary"],
-button[data-testid="baseButton-secondary"] {
-  background: #ffffff !important;
-  color: #111111 !important;
-  border: 1px solid #e5e7eb !important;
-  box-shadow: none !important;
-}
-.stButton > button:hover,
-button[data-testid="baseButton-primary"]:hover,
-button[data-testid="baseButton-secondary"]:hover {
-  background: #f8fafc !important;
-  border-color: #d1d5db !important;
-}
-
-/* === Link buttons (st.link_button) — keep them white === */
-[data-testid="stLinkButton"],
-[data-testid="stLinkButton"] > a,
-a[data-testid^="baseLinkButton-"],
-[data-testid="stLinkButton"] a[role="button"] {
-  background: #ffffff !important;
-  background-image: none !important;
-  color: #111111 !important;
-  border: 1px solid #e5e7eb !important;
-  box-shadow: none !important;
-  text-decoration: none !important;
-}
-[data-testid="stLinkButton"] > a:hover,
-a[data-testid^="baseLinkButton-"]:hover,
-[data-testid="stLinkButton"] a[role="button"]:hover {
-  background: #f8fafc !important;
-  border-color: #d1d5db !important;
-}
-
-/* === Popovers/dialogs === */
-[role="dialog"], [data-testid="stPopover"], [data-baseweb="popover"] {
-  background: #ffffff !important;
-  color: #111111 !important;
-  border: 1px solid #e5e7eb !important;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.08) !important;
-}
-
-/* === Inputs / selects / tabs === */
-[data-baseweb="select"] > div, [data-baseweb="input"] > div, [data-baseweb="textarea"] > div,
-[data-baseweb="tabs"], [data-baseweb="tab"], [data-baseweb="button"] {
-  background: #ffffff !important;
-  color: #111111 !important;
-  border: 1px solid #e5e7eb !important;
-  box-shadow: none !important;
-}
-[data-baseweb="tab"][aria-selected="true"] {
-  background: #f8fafc !important;
-  border-color: #d1d5db !important;
-}
-
-/* === Dataframes / tables === */
-[data-testid="stDataFrame"] table, [data-testid="stTable"] table {
-  border-collapse: collapse !important;
-  background: #ffffff !important;
-  color: #111111 !important;
-}
-[data-testid="stDataFrame"] thead th, [data-testid="stTable"] thead th {
-  background: #f8fafc !important;
-  color: #111111 !important;
-  border: 1px solid #111111 !important;
-}
-[data-testid="stDataFrame"] tbody td, [data-testid="stTable"] tbody td {
-  background: #ffffff !important;
-  color: #111111 !important;
-  border: 1px solid #111111 !important;
-}
-
-/* === Altair/Vega iframes === */
-[data-testid="stVegaLiteChart"] iframe, [data-testid="stAltairChart"] iframe {
-  border: 0 !important;
-  box-shadow: none !important;
-  background: #ffffff !important;
-}
-
-/* Optional: theme variables some builds read */
-:root, [data-testid="stAppViewContainer"] {
-  --primary-color: #111111;
-  --text-color: #111111;
-  --background-color: #ffffff;
-  --button-primary-background-color: #ffffff;
-  --button-primary-text-color: #111111;
-  --button-secondary-background-color: #ffffff;
-  --button-secondary-text-color: #111111;
-}
-</style>
-""", unsafe_allow_html=True)
-
-
-
 
 # ========= VARIANT / TREATMENT ARMS =========
 VARIANT_KEYS = ["v1", "v2", "v3"]
@@ -561,34 +426,6 @@ def render_section_header(title: str, codes):
     # spacer so the chart starts on a full-width new row
     st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
-# put this near your other helpers
-def light_style(df: pd.DataFrame):
-    return (
-        df.style
-        .set_table_attributes('style="border-collapse:collapse; border:1px solid #111111"')
-        .set_table_styles([
-            # table header
-            {"selector": "thead th", "props": [
-                ("background", "#f8fafc"),
-                ("color", "#111111"),
-                ("border", "1px solid #111111"),
-            ]},
-            # body cells
-            {"selector": "tbody td", "props": [
-                ("background", "#ffffff"),
-                ("color", "#111111"),
-                ("border", "1px solid #111111"),
-            ]},
-        ])
-        .set_properties(**{
-            "background": "#ffffff",
-            "color": "#111111",
-            "border-color": "#111111",
-        })
-    )
-
-
-
 # --- Missing segments (v2/v3 Total only) ---
 MISSING_CODES = ["E_MISS", "S_MISS", "G_MISS"]
 # exact colors for the added "missing" bars
@@ -830,26 +667,6 @@ st.markdown("""
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* Make st.dataframe/st.table light + black grid even without Styler */
-[data-testid="stDataFrame"] table,
-[data-testid="stTable"] table {
-  border-collapse: collapse !important;
-  background: #ffffff !important;
-  color: #111111 !important;
-}
-[data-testid="stDataFrame"] thead th,
-[data-testid="stTable"]    thead th {
-  background: #f8fafc !important;
-  color: #111111 !important;
-  border: 1px solid #111111 !important;
-}
-[data-testid="stDataFrame"] tbody td,
-[data-testid="stTable"]    tbody td {
-  background: #ffffff !important;
-  color: #111111 !important;
-  border: 1px solid #111111 !important;
-}
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -971,8 +788,12 @@ if show_peer_list:
         st.sidebar.caption(
             f"Peers shown: {len(_view)}{_peer_note}"
         )
-        st.sidebar.dataframe(light_style(_view), use_container_width=True, hide_index=True, height=300)
-
+        st.sidebar.dataframe(
+            _view,
+            use_container_width=True,
+            hide_index=True,
+            height=300,
+        )
 
 
 # === ONE GLOBAL DISPLAY MODE TOGGLE (applies to Combined + Pillars) ===
@@ -1088,11 +909,7 @@ if view == "Total":
         tbl = pd.DataFrame(summary_rows)
     
         st.subheader("Total overview")
-        st.dataframe(light_style(tbl), use_container_width=True, hide_index=True)
-
-
-
-
+        st.dataframe(tbl, use_container_width=True, hide_index=True)
     
         # Variant-specific caption
         if VARIANT == "v2":
@@ -1221,7 +1038,12 @@ if view == "Total":
             base = alt.Chart(chart_df)
             bars = (
                 base
-                .mark_bar()
+                .mark_bar(
+                    stroke="#000",          # outline color
+                    strokeWidth=1,          # outline thickness
+                    strokeOpacity=0.9,
+                    strokeJoin="miter"      # keeps corners crisp on thin segments
+                )
                 .encode(
                     y=alt.Y("Series:N", title="", sort=y_sort),
                     x=alt.X("Value:Q", title="Number of Disclosure Requirements reported", stack="zero"),
@@ -1240,7 +1062,7 @@ if view == "Total":
             ).properties(
                 height=120, width="container",
                 padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
-            ).configure_view(stroke=None).configure(background='white')
+            ).configure_view(stroke=None)
             st.altair_chart(bars, use_container_width=True)
             
             note = "Bars show total counts of reported Disclosure Requirements, stacked by standard (E1–E5, S1–S4, G1)."
@@ -1321,7 +1143,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 y_sort = [firm_series] + ([peers_series] if peers_series else [])
 
                 base = alt.Chart(cdf)
-                bars = base.mark_bar().encode(
+                bars = base.mark_bar(stroke="#000", strokeWidth=1, strokeOpacity=0.9, strokeJoin="miter").encode(
                     y=alt.Y("Series:N", title="", sort=y_sort),
                     x=alt.X("Value:Q", title="Number of Disclosure Requirements reported"),
                     color=alt.Color("StdCode:N",
@@ -1335,9 +1157,8 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                           .mark_text(align="left", baseline="middle", dx=4)
                           .encode(y=alt.Y("Series:N", sort=y_sort),
                                   x="total:Q", text=alt.Text("total:Q", format=".1f")))
-                fig = alt.layer(bars, totals).properties(height=120, width="container") \
-                        .configure_view(stroke=None).configure(background='white')
-                st.altair_chart(fig, use_container_width=True)
+                st.altair_chart(alt.layer(bars, totals).properties(height=120, width="container")
+                                .configure_view(stroke=None), use_container_width=True)
 
             st.caption("Counts of reported Disclosure Requirements within this pillar." + (note if n_peers > 0 else ""))
             st.markdown("---")
@@ -1409,7 +1230,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 base = alt.Chart(cdf)
                 bars = (
                     base
-                    .mark_bar()  # default outline
+                    .mark_bar(stroke="#000", strokeWidth=1, strokeOpacity=0.9, strokeJoin="miter")  # default outline
                     .encode(
                         y=alt.Y("Series:N", title="", sort=y_sort),
                         x=alt.X("Value:Q", title="Number of Disclosure Requirements"),
@@ -1443,8 +1264,8 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 fig = alt.layer(bars, totals).properties(
                     height=120, width="container",
                     padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
-                ).configure_view(stroke=None).configure(background='white')
-                
+                ).configure_view(stroke=None)
+
                 st.altair_chart(fig, use_container_width=True)
 
                 fixed_total = sum(STD_TOTAL_OVERRIDES.get(s, 0) for s in stds_in_pillar)
@@ -1503,7 +1324,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
 
         if summary_rows:
             tbl = pd.DataFrame(summary_rows)
-            st.dataframe(light_style(tbl), use_container_width=True, hide_index=True)
+            st.dataframe(tbl, use_container_width=True, hide_index=True)
             cap = "Rows show the number of reported Disclosure Requirements per ESRS standard in this pillar."
             if VARIANT in ("v2", "v3"):
                 cap += " Includes each standard’s Total and Missing."
@@ -1572,8 +1393,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                             peer_pct.append("—")
                     table[f"Peers reported % ({comp_label})"] = peer_pct
 
-                st.dataframe(light_style(table), use_container_width=True, hide_index=True)
-
+                st.dataframe(table, use_container_width=True, hide_index=True)
                 if n_peers > 0:
                     st.caption(f"Peers reported % = share of selected peers answering 'Yes' {note}")
 
@@ -1696,7 +1516,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                         .transform_filter(alt.FieldEqualPredicate(field="Series", equal=peers_label))
                         .transform_filter("datum.share >= 0.10")
                         .transform_calculate(xtext="datum.xa + (datum.xb - datum.xa) * datum.share * 0.35")
-                        .mark_text(baseline="middle", fontSize=11, color="#111")
+                        .mark_text(baseline="middle", fontSize=11, color="white")
                         .encode(
                             y=y_enc,
                             x=alt.X("xtext:Q", scale=xscale),
@@ -1712,10 +1532,9 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     width=total_width,
                     height=alt.Step(50),
                     padding={"left": 12, "right": 12, "top": 6, "bottom": 8},
-                ).configure_view(stroke=None).configure(background='white')
-                
-                st.altair_chart(fig, use_container_width=True)
+                ).configure_view(stroke=None)
 
+                st.altair_chart(fig, use_container_width=True)
                 st.caption(
                     f"{len(present_cols)} Tiles = Disclosure Requirements within this ESRS standard. "
                     "Tiles: filled = reported, light = not reported. "
