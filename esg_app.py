@@ -34,120 +34,59 @@ alt.themes.enable("light_theme")
 
 st.markdown("""
 <style>
-/* Global text + background */
-html, body, .stApp, [data-testid="stAppViewContainer"],
-[data-testid="stHeader"], [data-testid="stSidebar"], [data-testid="stSidebarContent"],
-.block-container { background:#ffffff !important; color:#111 !important; }
-.stApp * { color:#111 !important; }
+/* --- FIX: force st.link_button to white --- */
 
-/* Buttons (primary/secondary) */
-.stButton > button,
-button[kind],                      /* some Streamlit builds */
-button[data-testid="baseButton-secondary"],
-button[data-testid="baseButton-primary"] {
-  background:#fff !important; color:#111 !important;
-  border:1px solid #e5e7eb !important; box-shadow:none !important;
-}
-
-/* Link button (st.link_button) */
-.stLinkButton > a,
-a[data-testid="baseLinkButton-secondary"],
-a[data-testid="baseLinkButton-primary"] {
-  background:#fff !important; color:#111 !important;
-  border:1px solid #e5e7eb !important; box-shadow:none !important;
-  text-decoration:none !important;
-}
-
-/* Make all Streamlit base buttons white with black text */
-[data-testid="baseButton-secondary"],
-[data-testid="baseButton-secondaryFormSubmit"],
-[data-testid="baseButton-primary"],
-.stButton > button,
-.stLinkButton > a {
-  background: #ffffff !important;
-  color: #111111 !important;
-  border: 1px solid #e5e7eb !important;
-  box-shadow: none !important;
-}
-[data-testid="baseButton-secondary"]:hover,
-[data-testid="baseButton-secondaryFormSubmit"]:hover,
-[data-testid="baseButton-primary"]:hover,
-.stButton > button:hover,
-.stLinkButton > a:hover {
-  background: #f8fafc !important;
-  border-color: #d1d5db !important;
-}
-
-/* Popover (auditor) card stays light */
-[data-testid="stPopover"], [role="dialog"] {
-  background: #ffffff !important;
-  color: #111111 !important;
-  border: 1px solid #e5e7eb !important;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.08) !important;
-}
-
-/* Hover */
-.stButton > button:hover,
-.stLinkButton > a:hover,
-button[kind]:hover,
-a[data-testid^="baseLinkButton"]:hover {
-  background:#f8fafc !important; border-color:#d1d5db !important;
-}
-
-/* Popovers/dialogs (e.g., "Show auditor") */
-[role="dialog"], [data-baseweb="popover"], [data-testid="stPopover"] {
-  background:#fff !important; color:#111 !important;
-  border:1px solid #e5e7eb !important;
-  box-shadow:0 8px 24px rgba(0,0,0,.08) !important;
-}
-
-/* Inputs/selects/segmented control/tabs */
-[data-baseweb="select"] > div, [data-baseweb="input"] > div, [data-baseweb="textarea"] > div,
-[data-baseweb="tabs"], [data-baseweb="tab"], [data-baseweb="button"] {
-  background:#fff !important; color:#111 !important;
-  border:1px solid #e5e7eb !important; box-shadow:none !important;
-}
-[data-baseweb="tab"][aria-selected="true"] {
-  background:#f8fafc !important; border-color:#d1d5db !important;
-}
-
-/* Vega/Altair frame */
-[data-testid="stVegaLiteChart"] iframe, [data-testid="stAltairChart"] iframe {
-  border:0 !important; box-shadow:none !important; background:#fff !important;
-}
-/* Force Streamlit link buttons (st.link_button) to white */
-[data-testid="stLinkButton"] > a,
-.stLinkButton > a {
-  background: #ffffff !important;
-  color: #111111 !important;
-  border: 1px solid #e5e7eb !important;
-  box-shadow: none !important;
-}
-[data-testid="stLinkButton"] > a:hover,
-.stLinkButton > a:hover {
-  background: #f8fafc !important;
-  border-color: #d1d5db !important;
-}
-/* Extra-hard override for st.link_button across builds */
+/* Parent container Streamlit wraps around link buttons */
 [data-testid="stLinkButton"],
+/* Anchor element inside it (covers primary/secondary variants across builds) */
 [data-testid="stLinkButton"] > a,
 a[data-testid^="baseLinkButton-"],
-.stLinkButton > a {
+/* Fallback: some builds render it as a role=button anchor */
+[data-testid="stLinkButton"] a[role="button"] {
+  background-color: #ffffff !important;
   background: #ffffff !important;
+  background-image: none !important;
   color: #111111 !important;
   border: 1px solid #e5e7eb !important;
   box-shadow: none !important;
   text-decoration: none !important;
 }
+
+/* Hover state */
 [data-testid="stLinkButton"] > a:hover,
 a[data-testid^="baseLinkButton-"]:hover,
-.stLinkButton > a:hover {
+[data-testid="stLinkButton"] a[role="button"]:hover {
+  background-color: #f8fafc !important;
   background: #f8fafc !important;
   border-color: #d1d5db !important;
 }
 
+/* Also normalize regular buttons just in case */
+.stButton > button,
+button[data-testid="baseButton-primary"],
+button[data-testid="baseButton-secondary"] {
+  background:#ffffff !important;
+  color:#111111 !important;
+  border:1px solid #e5e7eb !important;
+  box-shadow:none !important;
+}
+
+/* Force light mode so dark-mode variables don't tint buttons */
+html, body, .stApp { color-scheme: light !important; }
+
+/* Optional: nudge theme vars some builds read for buttons */
+:root, [data-testid="stAppViewContainer"] {
+  --primary-color: #111111;
+  --text-color: #111111;
+  --background-color: #ffffff;
+  --button-primary-background-color: #ffffff;
+  --button-primary-text-color: #111111;
+  --button-secondary-background-color: #ffffff;
+  --button-secondary-text-color: #111111;
+}
 </style>
 """, unsafe_allow_html=True)
+
 
 
 
@@ -1097,7 +1036,7 @@ if view == "Total":
         tbl = pd.DataFrame(summary_rows)
     
         st.subheader("Total overview")
-        st.dataframe(light_style(table), use_container_width=True, hide_index=True)
+        st.dataframe(light_style(tbl), use_container_width=True, hide_index=True)
 
 
 
