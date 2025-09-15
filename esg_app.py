@@ -974,7 +974,8 @@ if view == "Total":
                     "Missing disclosure requirements": max(total_DR - firm_yes, 0),
                     "Total disclosure requirements": total_DR,
                 }
-                # (no peers column in v3 unless you want it)
+                if peer_yes_mean is not None:
+                    row[f"Peers — mean reported ({comp_label})"] = round(peer_yes_mean, 1)
     
             else:  # v1
                 row = {
