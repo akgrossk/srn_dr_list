@@ -1144,12 +1144,7 @@ if view == "Total":
             base = alt.Chart(chart_df)
             bars = (
                 base
-                .mark_bar(
-                    stroke="#000",          # outline color
-                    strokeWidth=1,          # outline thickness
-                    strokeOpacity=0.9,
-                    strokeJoin="miter"      # keeps corners crisp on thin segments
-                )
+                .mark_bar()
                 .encode(
                     y=alt.Y("Series:N", title="", sort=y_sort),
                     x=alt.X("Value:Q", title="Number of Disclosure Requirements reported", stack="zero"),
