@@ -7,6 +7,30 @@ from io import BytesIO
 import requests
 from urllib.parse import urlencode
 
+# === ADD THIS BLOCK HERE (right after imports) =========================
+# Altair light theme: black text, white background, light grid, no frame
+alt.themes.register(
+    "light_theme",
+    lambda: {
+        "config": {
+            "background": "white",
+            "view": {"stroke": None},
+            "axis": {
+                "labelColor": "#111111",
+                "titleColor":  "#111111",
+                "tickColor":   "#111111",
+                "domainColor": "#111111",
+                "gridColor":   "#e5e7eb",
+                "labelFontSize": 12,
+                "titleFontSize": 12,
+            },
+            "legend": {"labelColor": "#111111", "titleColor": "#111111"},
+            "title":  {"color": "#111111"},
+        }
+    },
+)
+alt.themes.enable("light_theme")
+
 # --- Light (plain white) app background & readable text ---
 st.markdown("""
 <style>
