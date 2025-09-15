@@ -1384,7 +1384,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
             row = {"Standard": SHORT_ESRS_LABELS.get(std_code, std_code)}
             if VARIANT == "v2":
                 row["Reported disclosure requirements"] = firm_yes
-                row["Missing disclosure requirements"] = missing
+                row["Not reported disclosure requirements"] = missing
                 row["Total disclosure requirements"] = total_std
             elif VARIANT == "v3":
                 row["Firm — number of reported Disclosure Requirements"] = firm_yes
@@ -1402,7 +1402,9 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
             tbl = pd.DataFrame(summary_rows)
             st.dataframe(tbl, use_container_width=True, hide_index=True)
             cap = "Rows show the number of reported Disclosure Requirements per ESRS standard in this pillar."
-            if VARIANT in ("v2", "v3"):
+            if VARIANT == "v2":
+                cap += " Includes each standard’s Total and Not reported."
+            elif VARIANT == "v3":
                 cap += " Includes each standard’s Total and Missing."
             if n_peers > 0:
                 cap += note
