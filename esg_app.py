@@ -1180,7 +1180,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 y_sort = [firm_series] + ([peers_series] if peers_series else [])
 
                 base = alt.Chart(cdf)
-                bars = base..mark_bar(stroke="#888", strokeWidth=0.5, strokeOpacity=0.5).encode(
+                bars = base.mark_bar(stroke="#888", strokeWidth=0.5, strokeOpacity=0.5).encode(
                     y=alt.Y("Series:N", title="", sort=y_sort),
                     x=alt.X("Value:Q", title="Number of Disclosure Requirements reported"),
                     color=alt.Color("StdCode:N",
