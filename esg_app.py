@@ -1148,26 +1148,30 @@ if view == "Total":
             base = alt.Chart(chart_df)
             
             # --- numeric label at the right end of each row (works for v1/v2/v3) ---
-            missing_pred = alt.FieldOneOfPredicate(field='StdCode', oneOf=MISSING_CODES)
+            # 1) totals per row (full bar length, includes *_MISS if present)
+            totals_by_series = (
+                chart_df.groupby("Series", as_index=False)["Value"]
+                        .sum().rename(columns={"Value": "Total"})
+            )
+            
+            # 2) reported per row (exclude *_MISS)
+            reported_by_series = (
+                chart_df[~chart_df["StdCode"].isin(MISSING_CODES)]
+                    .groupby("Series", as_index=False)["Value"]
+                    .sum().rename(columns={"Value": "Reported"})
+            )
+            
+            # 3) merge to a tidy labels df
+            labels_df = totals_by_series.merge(reported_by_series, on="Series", how="left").fillna(0)
             
             labels = (
-                alt.Chart(chart_df)
-                # 1) total bar length (reported + missing) per row for x position
-                .transform_joinaggregate(Total='sum(Value)', groupby=['Series'])
-                # 2) exclude the *_MISS rows when computing the text value
-                .transform_filter(alt.NotPredicate(missing_pred))
-                # 3) sum reported per row; keep Total for x position
-                .transform_aggregate(
-                    Reported='sum(Value)',
-                    Total='max(Total)',
-                    groupby=['Series']
-                )
-                .mark_text(align='left', baseline='middle', dx=4)
-                .encode(
-                    y=alt.Y('Series:N', sort=y_sort, title=''),
-                    x=alt.X('Total:Q'),                 # place at the far right of the full bar
-                    text=alt.Text('Reported:Q', format='.1f')  # just the number (no "out of")
-                )
+                alt.Chart(labels_df)
+                  .mark_text(align="left", baseline="middle", dx=4)
+                  .encode(
+                      y=alt.Y("Series:N", sort=y_sort, title=""),
+                      x=alt.X("Total:Q"),                       # place text at right edge of the bar
+                      text=alt.Text("Reported:Q", format=".1f") # just the number (no "out of")
+                  )
             )
             
             st.altair_chart(
@@ -1177,6 +1181,7 @@ if view == "Total":
                   .configure_view(stroke=None),
                 use_container_width=True
             )
+            
 
             note = "Bars show total counts of reported Disclosure Requirements, stacked by standard (E1–E5, S1–S4, G1)."
             if n_peers > 0:
