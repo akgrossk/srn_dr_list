@@ -7,6 +7,36 @@ from io import BytesIO
 import requests
 from urllib.parse import urlencode
 
+# --- Global background gradient ---
+st.markdown("""
+<style>
+/* App shell */
+html, body, [data-testid="stAppViewContainer"] {
+  background: linear-gradient(
+    180deg,
+    #E3DFFF 0%,
+    #E3DFFF 60%,
+    #FFFFFF 100%
+  ) !important;
+}
+
+/* Make the top header transparent so the gradient is visible */
+[data-testid="stHeader"] {
+  background: transparent !important;
+}
+
+/* Sidebar: let the gradient show through */
+[data-testid="stSidebar"], [data-testid="stSidebarContent"] {
+  background: transparent !important;
+}
+
+/* Fallback for older Streamlit: ensure app root is transparent */
+.stApp {
+  background: transparent !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # ========= VARIANT / TREATMENT ARMS =========
 VARIANT_KEYS = ["v1", "v2", "v3"]
 DEFAULT_VARIANT = None  # None => randomize when URL lacks ?v=
