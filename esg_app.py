@@ -1163,7 +1163,7 @@ if view == "Total":
             ).properties(
                 height=120, width="container",
                 padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
-            ).configure_view(stroke=None)
+            ).configure_view(stroke=None).configure(background='white')
             st.altair_chart(bars, use_container_width=True)
             
             note = "Bars show total counts of reported Disclosure Requirements, stacked by standard (E1–E5, S1–S4, G1)."
@@ -1259,7 +1259,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                           .encode(y=alt.Y("Series:N", sort=y_sort),
                                   x="total:Q", text=alt.Text("total:Q", format=".1f")))
                 st.altair_chart(alt.layer(bars, totals).properties(height=120, width="container")
-                                .configure_view(stroke=None), use_container_width=True)
+                                .configure_view(stroke=None), use_container_width=True).configure(background='white')
 
             st.caption("Counts of reported Disclosure Requirements within this pillar." + (note if n_peers > 0 else ""))
             st.markdown("---")
@@ -1617,7 +1617,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                         .transform_filter(alt.FieldEqualPredicate(field="Series", equal=peers_label))
                         .transform_filter("datum.share >= 0.10")
                         .transform_calculate(xtext="datum.xa + (datum.xb - datum.xa) * datum.share * 0.35")
-                        .mark_text(baseline="middle", fontSize=11, color="white")
+                        .mark_text(baseline="middle", fontSize=11, color="#111"")
                         .encode(
                             y=y_enc,
                             x=alt.X("xtext:Q", scale=xscale),
