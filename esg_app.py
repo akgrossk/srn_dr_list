@@ -990,8 +990,7 @@ if view == "Total":
         # Variant-specific caption
         if VARIANT == "v2":
             note = ("Rows show how many Disclosure Requirements the firm reported "
-                    "(**Reported disclosure requirements**), how many are unreported "
-                    "(**Missing disclosure requirements**), and the pillar’s **Total**.")
+                    "(**Reported disclosure requirements**) and the pillar’s **Total**.")
         elif VARIANT == "v3":
             note = ("Rows show the firm’s reported DRs (**Firm — number of reported Disclosure Requirements**), "
                     "**Missing disclosure requirements** (= Total − Reported), and the pillar’s **Total**.")
@@ -1384,7 +1383,6 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
             row = {"Standard": SHORT_ESRS_LABELS.get(std_code, std_code)}
             if VARIANT == "v2":
                 row["Reported disclosure requirements"] = firm_yes
-                row["Missing disclosure requirements"] = missing
                 row["Total disclosure requirements"] = total_std
             elif VARIANT == "v3":
                 row["Firm — number of reported Disclosure Requirements"] = firm_yes
