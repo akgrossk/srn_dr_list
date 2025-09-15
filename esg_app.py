@@ -694,7 +694,7 @@ sector_txt   = f"Sector: <strong>{current_row.get(sector_col, 'n/a')}</strong>" 
 industry_txt = f"Industry: <strong>{current_row.get(industry_col, 'n/a')}</strong>" if industry_col else ""
 sub = " · ".join([t for t in [isin_txt, country_txt, sector_txt, industry_txt] if t])
 if sub:
-    st.markdown("<div style='height: 8px'></div>", unsafe_allow_html=True) 
+    st.markdown(f"<div class='firm-meta'>{sub}</div>", unsafe_allow_html=True)
 
 # ====== REPORT BUTTON + AUDITOR POPOVER ======
 # Prefer Sustainability Report (Link_SR); fall back to Annual Report (Link_AR)
