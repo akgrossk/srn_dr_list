@@ -1354,19 +1354,34 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 )
 
 
-                totals = (
-                    base.transform_aggregate(total="sum(Value)", groupby=["Series"])
-                        .mark_text(align="left", baseline="middle", dx=4)
-                        .encode(y=alt.Y("Series:N", sort=y_sort),
-                                x="total:Q", text=alt.Text("total:Q", format=".1f"))
+                fixed_total = sum(STD_TOTAL_OVERRIDES.get(s, 0) for s in stds_in_pillar)
+                
+                # sums of *reported* (exclude the *_MISS segments)
+                reported_df = (
+                    cdf[~cdf["Cat"].str.endswith("_MISS")]
+                      .groupby("Series", as_index=False)["Value"].sum()
+                      .rename(columns={"Value": "Reported"})
                 )
-
-                fig = alt.layer(bars, totals).properties(
+                reported_df["Total"] = float(fixed_total)
+                reported_df["Label"] = reported_df["Reported"].map(lambda v: f"{v:.1f}") + f" / {fixed_total}"
+                
+                labels = (
+                    alt.Chart(reported_df)
+                       .mark_text(align="left", baseline="middle", dx=4)
+                       .encode(
+                           y=alt.Y("Series:N", sort=y_sort),
+                           x="Total:Q",             # place label at the far right end of the full stack
+                           text="Label:N",
+                       )
+                )
+                
+                fig = alt.layer(bars, labels).properties(
                     height=120, width="container",
                     padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
                 ).configure_view(stroke=None)
-
+                
                 st.altair_chart(fig, use_container_width=True)
+
 
                 fixed_total = sum(STD_TOTAL_OVERRIDES.get(s, 0) for s in stds_in_pillar)
                 st.caption(
