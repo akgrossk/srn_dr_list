@@ -1017,10 +1017,10 @@ if view == "Total":
             else:  # v1
                 row = {
                     "Pillar": PILLAR_LABEL[pillar],
-                    "Firm — number of Disclosure Requirements": firm_yes,
+                    "Firm — number of reported Disclosure Requirements": firm_yes,
                 }
                 if peer_yes_mean is not None:
-                    row[f"Peers — mean number of Disclosure Requirements ({comp_label})"] = round(peer_yes_mean, 1)
+                    row[f"Peers — mean number of reported Disclosure Requirements ({comp_label})"] = round(peer_yes_mean, 1)
     
             summary_rows.append(row)
     
@@ -1164,7 +1164,7 @@ if view == "Total":
                 )
                 .encode(
                     y=alt.Y("Series:N", title="", sort=y_sort),
-                    x=alt.X("Value:Q", title="Number of Disclosure Requirements reported", stack="zero"),
+                    x=alt.X("Value:Q", title="Number of reported Disclosure Requirements", stack="zero"),
                     color=alt.Color(
                         "StdCode:N",
                         scale=alt.Scale(domain=color_domain, range=color_range),
@@ -1263,7 +1263,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 base = alt.Chart(cdf)
                 bars = base.mark_bar(stroke="#000", strokeWidth=1, strokeOpacity=0.9, strokeJoin="miter").encode(
                     y=alt.Y("Series:N", title="", sort=y_sort),
-                    x=alt.X("Value:Q", title="Number of Disclosure Requirements reported"),
+                    x=alt.X("Value:Q", title="Number of reported Disclosure Requirements"),
                     color=alt.Color("StdCode:N",
                                     scale=alt.Scale(domain=color_domain, range=color_range),
                                     legend=None),
@@ -1433,10 +1433,10 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 row["Missing disclosure requirements"] = missing
                 row["Total disclosure requirements"] = total_std
             else:
-                row["Firm — number of Disclosure Requirements"] = firm_yes
+                row["Firm — number of reported Disclosure Requirements"] = firm_yes
 
             if peer_yes_mean is not None:
-                row[f"Peers — mean number of Disclosure Requirements ({comp_label})"] = round(peer_yes_mean, 1)
+                row[f"Peers — mean number of reported Disclosure Requirements ({comp_label})"] = round(peer_yes_mean, 1)
 
             summary_rows.append(row)
 
