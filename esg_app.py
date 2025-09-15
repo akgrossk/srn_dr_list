@@ -549,8 +549,8 @@ def render_inline_legend_with_missing(codes, colors):
           opacity: .6;                                   /* like lighter fill */
           border: 1.5px dashed var(--miss);              /* like dashed stroke */
           /* soft/“fizzy” edge mask */
-          -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 78%, transparent 82%);
-                  mask-image: radial-gradient(circle at 50% 50%, #000 78%, transparent 82%);
+          -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 75%, transparent 85%);
+                  mask-image: radial-gradient(circle at 50% 50%, #000 75%, transparent 85%);
           -webkit-mask-composite: source-over;
         }
         </style>
