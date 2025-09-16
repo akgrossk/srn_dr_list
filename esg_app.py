@@ -1136,7 +1136,7 @@ if view == "Total":
         else:
             present_codes = STD_ORDER
 
-        # --- after chart_df is built and present_codes computed ---
+            # --- header + legend (unchanged) ---
         render_section_header("Total overview", [])
         if VARIANT in ("v2","v3"):
             render_inline_legend_with_missing(present_codes, STD_COLOR)
@@ -1144,57 +1144,77 @@ if view == "Total":
             render_inline_legend(present_codes, STD_COLOR)
         
         if not chart_df.empty:
-            # Color mapping: standards as before, missing use your MISSING_COLOR
             color_domain = present_codes + [c for c in MISSING_CODES if (chart_df["StdCode"] == c).any()]
             color_range = [
                 STD_COLOR[c] if c in STD_COLOR else MISSING_COLOR.get(c, "#cccccc")
                 for c in color_domain
             ]
-        
             y_sort = [firm_series] + ([peers_series] if peers_series else [])
         
-            # 🔹 identify the missing segments so we can style them differently
-            missing_present = [c for c in MISSING_CODES if (chart_df["StdCode"] == c).any()]
-            is_missing = alt.FieldOneOfPredicate(field="StdCode", oneOf=missing_present) if missing_present else alt.datum.False
-        
-            base = alt.Chart(chart_df)
-        
-            bars = (
-                base
-                .mark_bar()  # no global stroke here; we set it conditionally below
-                .encode(
-                    y=alt.Y("Series:N", title="", sort=y_sort),
-                    x=alt.X("Value:Q", title="Number of reported Disclosure Requirements", stack="zero"),
-                    color=alt.Color(
-                        "StdCode:N",
-                        scale=alt.Scale(domain=color_domain, range=color_range),
-                        legend=None
-                    ),
-                    order=alt.Order("StdRank:Q"),
-        
-                    # 🔹 missing get semi-transparent fill
-                    opacity=alt.condition(is_missing, alt.value(0.6), alt.value(1.0)),
-        
-                    # 🔹 dashed outline only on missing; no border on normal segments
-                    stroke=alt.condition(
-                        is_missing,
-                        alt.Color("StdCode:N", scale=alt.Scale(domain=color_domain, range=color_range)),
-                        alt.value(None)  # effectively no stroke
-                    ),
-                    strokeDash=alt.condition(is_missing, alt.value([3, 2]), alt.value([0, 0])),
-                    strokeWidth=alt.condition(is_missing, alt.value(1.5), alt.value(0)),
-                    strokeOpacity=alt.condition(is_missing, alt.value(1.0), alt.value(0.0)),
-        
-                    tooltip=[
-                        alt.Tooltip("Series:N", title="Series"),
-                        alt.Tooltip("Standard:N", title="Segment"),
-                        alt.Tooltip("Value:Q", title="# DR", format=".1f"),
-                    ],
-                )
-            ).properties(
+            base = alt.Chart(chart_df).properties(
                 height=120, width="container",
                 padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
             ).configure_view(stroke=None)
+        
+            missing_present = [c for c in MISSING_CODES if (chart_df["StdCode"] == c).any()]
+        
+            if missing_present:
+                # predicate to catch the *_MISS pillars
+                is_missing = alt.FieldOneOfPredicate(field="StdCode", oneOf=missing_present)
+        
+                bars = (
+                    base
+                    .mark_bar()
+                    .encode(
+                        y=alt.Y("Series:N", title="", sort=y_sort),
+                        x=alt.X("Value:Q", title="Number of reported Disclosure Requirements", stack="zero"),
+                        color=alt.Color("StdCode:N",
+                                        scale=alt.Scale(domain=color_domain, range=color_range),
+                                        legend=None),
+                        order=alt.Order("StdRank:Q"),
+        
+                        # missing: lighter + dashed outline
+                        opacity=alt.condition(is_missing, alt.value(0.6), alt.value(1.0)),
+                        stroke=alt.condition(
+                            is_missing,
+                            alt.Color("StdCode:N", scale=alt.Scale(domain=color_domain, range=color_range)),
+                            alt.value(None)  # no border on normal segments
+                        ),
+                        strokeDash=alt.condition(is_missing, alt.value([3, 2]), alt.value([0, 0])),
+                        strokeWidth=alt.condition(is_missing, alt.value(1.5), alt.value(0)),
+                        strokeOpacity=alt.condition(is_missing, alt.value(1.0), alt.value(0.0)),
+        
+                        tooltip=[
+                            alt.Tooltip("Series:N", title="Series"),
+                            alt.Tooltip("Standard:N", title="Segment"),
+                            alt.Tooltip("Value:Q", title="# DR", format=".1f"),
+                        ],
+                    )
+                )
+            else:
+                # no missing segments in the data: keep solids, no borders
+                bars = (
+                    base
+                    .mark_bar()
+                    .encode(
+                        y=alt.Y("Series:N", title="", sort=y_sort),
+                        x=alt.X("Value:Q", title="Number of reported Disclosure Requirements", stack="zero"),
+                        color=alt.Color("StdCode:N",
+                                        scale=alt.Scale(domain=color_domain, range=color_range),
+                                        legend=None),
+                        order=alt.Order("StdRank:Q"),
+                        opacity=alt.value(1.0),
+                        stroke=alt.value(None),
+                        strokeDash=alt.value([0, 0]),
+                        strokeWidth=alt.value(0),
+                        strokeOpacity=alt.value(0.0),
+                        tooltip=[
+                            alt.Tooltip("Series:N", title="Series"),
+                            alt.Tooltip("Standard:N", title="Segment"),
+                            alt.Tooltip("Value:Q", title="# DR", format=".1f"),
+                        ],
+                    )
+                )
         
             st.altair_chart(bars, use_container_width=True)
         
