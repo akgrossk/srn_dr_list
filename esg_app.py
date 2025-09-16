@@ -456,7 +456,8 @@ def build_peers(df, comp_col, current_row):
         peers = peers.drop(current_row.name, errors="ignore")
     except Exception:
         pass
-    note = f" ({comp_col} = {current_val}, n={len(peers)})"
+    label = friendly_col_label(comp_col)  # <-- use friendly label in the note
+    note = f" ({label} = {current_val}, n={len(peers)})"
     return peers, len(peers), note
 
 def build_custom_peers(df, label_col, selected_labels, current_row):
@@ -506,7 +507,6 @@ MISSING_COLOR = {
     "S_MISS": "#BF8F8F",  # light red
     "G_MISS": "#C9BA8D",  # light yellow
 }
-
 
 def pillar_color(p: str) -> str:
     # use the *existing* pillar base color (unchanged palette)
@@ -627,6 +627,19 @@ def render_pillar_legend_with_missing(stds_in_pillar, colors, pillar):
         unsafe_allow_html=True,
     )
     st.markdown(f'<div class="legend-inline">{items}</div>', unsafe_allow_html=True)
+
+def friendly_col_label(comp_col: str) -> str:
+    # map the *detected* columns to nice display labels
+    try:
+        if comp_col == country_col:
+            return "Country"
+        if comp_col == sector_col:
+            return "Sector"
+        if comp_col == industry_col:
+            return "Industry"
+    except Exception:
+        pass
+    return str(comp_col)  # fallback
 
 
 # ========= LOAD DATA (GitHub only) =========
