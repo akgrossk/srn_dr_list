@@ -6,6 +6,7 @@ import altair as alt
 from io import BytesIO
 import requests
 from urllib.parse import urlencode
+from openai import OpenAI
 
 # ---- FORCE LIGHT MODE (UI + charts) ----
 st.set_page_config(layout="wide", initial_sidebar_state="expanded")
@@ -134,6 +135,7 @@ VARIANT = _get_variant()
 
 # ========= CONFIG =========
 DEFAULT_DATA_URL = "https://github.com/akgrossk/srn_dr_list/blob/main/DR_upload.xlsx"
+openai = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 FIRM_NAME_COL_CANDIDATES = ["name", "company", "firm"]
 FIRM_ID_COL_CANDIDATES   = ["isin", "ticker"]
@@ -300,7 +302,7 @@ STD_TOTAL_OVERRIDES = {
     "G1": 6,
 }
 
-# ========= VARIANT-SPECIFIC LOOKS =========
+# ========= VARIANT-SPECIFIC LOOKS ========= 
 # You can make each arm feel different: colors, chart marks, table options, etc.
 
 # Color themes for standards by variant:
@@ -416,7 +418,7 @@ def load_table(url: str) -> pd.DataFrame:
         r.raise_for_status()
         data = BytesIO(r.content)
         if u.lower().endswith((".xlsx", ".xls")):
-            return pd.read_excel(data)
+            return pd.read_excel(data).merge(pd.read_json("https://api.srnav.com/documents").loc[:, ['company_id', 'id']].rename(columns={'id': 'document_id'}))
         return pd.read_csv(data)
     except Exception as e:
         st.error(f"Failed to fetch data from GitHub: {e}")
@@ -641,6 +643,17 @@ def friendly_col_label(comp_col: str) -> str:
         pass
     return str(comp_col)  # fallback
 
+def get_context_from_srnapi(document_id, query):
+    pages = requests.get(
+        f"https://api.srnav.com/documents/{document_id}/query",
+        params={
+            "document_id": document_id,
+            "query": query,
+            "top_k": 10
+        }
+    ).json()
+
+    return "\n".join([x["content"] for x in pages])
 
 # ========= LOAD DATA (GitHub only) =========
 df = load_table(DEFAULT_DATA_URL)
@@ -778,7 +791,7 @@ if aud_col in df.columns:
     auditor_val = "" if (pd.isna(v)) else str(v).strip()
 
 # === ACTION ROW (exactly 3 single-line buttons) ===
-btn_col1, btn_col2, btn_col3 = st.columns([1.2, 1, 1.6])
+btn_col1, btn_col2, btn_col3, btn_col4 = st.columns([1, 1, 1, 3])
 
 # Force all buttons onto one line with ellipsis if needed
 st.markdown("""
@@ -839,6 +852,33 @@ with btn_col3:
                 st.toast("No info yet — add an ESG text URL when ready.", icon="📝")
             except Exception:
                 st.info("No info yet — add an ESG text URL when ready.")
+
+with btn_col4:
+    prompt = st.chat_input("Query and search the company\'s report with AI")
+    if prompt:
+        # try:
+        with st.spinner():
+            context = get_context_from_srnapi(current_row.get('document_id'), prompt)
+
+            with st.expander("AI chatbot", expanded=True):
+                with st.chat_message("user"):
+                    st.text(prompt)
+
+                with st.chat_message("assistant"):
+                    st.write_stream(
+                        openai.chat.completions.create(
+                            model="gpt-4.1",
+                            messages=[
+                                {"role": "system", "content": "You are an expert in gathering information from sustainability reports."},
+                                {"role": "user", "content": f"The user asks you the following question {prompt}. Use the following context from the sustainability report to answer the question."},
+                                {"role": "user", "content": context},
+                                {"role": "user", "content": f"Be concise and provide the most relevant information from the texts only. Do not use the internet or general knowledge."},
+                            ],
+                            stream=True
+                        )
+                    )
+        # except:
+        #     st.error("Something went wrong!")
 
 
 # ========= NAV & COMPARISON =========
