@@ -1433,6 +1433,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 cdf["CatRank"] = cdf["Cat"].map(rank_map).astype(int)
 
                 # Colors = base standard color (missing gets hatched styling via opacity/stroke)
+                domain = [c for c in cat_order if (cdf["Cat"] == c).any()]
                 rng = [
                     (MISSING_COLOR[f"{pillar}_MISS"] if c.endswith("_MISS")
                      else STD_COLOR.get(c.replace("_MISS", ""), "#999"))
