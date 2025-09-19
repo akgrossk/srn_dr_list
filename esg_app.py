@@ -605,7 +605,8 @@ def render_pillar_legend_with_missing(stds_in_pillar, colors, pillar):
         for c in stds_in_pillar
     )
 
-    base = pillar_color(pillar)
+    base = MISSING_COLOR[f"{pillar}_MISS"]
+
     items += (
         f'<span class="swatch miss" style="--miss:{base}"></span>'
         f'<span class="lab">{missing_label_for_variant(pillar)}</span>'
