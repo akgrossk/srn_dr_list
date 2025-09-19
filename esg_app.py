@@ -586,8 +586,8 @@ def render_inline_legend_with_missing(codes, colors):
         /* Fallback (if filter unsupported): keep dashed + slightly clipped corners */
         @supports not (filter: url(#fizzyEdge)) {
           .legend-inline .swatch.miss{
-            -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 84%, transparent 88%);
-                    mask-image: radial-gradient(circle at 50% 50%, #000 84%, transparent 88%);
+            -webkit-mask-image: radial-gradient(circle at 50% 50%, #C2C2C2 84%, transparent 88%);
+                    mask-image: radial-gradient(circle at 50% 50%, #C2C2C2 84%, transparent 88%);
           }
         }
         </style>
