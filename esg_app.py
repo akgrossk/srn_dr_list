@@ -511,9 +511,9 @@ def render_section_header(title: str, codes):
 MISSING_CODES = ["E_MISS", "S_MISS", "G_MISS"]
 # exact colors for the added "missing" bars
 MISSING_COLOR = {
-    "E_MISS": "#6B8C79",  # light green
-    "S_MISS": "#BF8F8F",  # light red
-    "G_MISS": "#C9BA8D",  # light yellow
+    "E_MISS": "#D8D8D8",  
+    "S_MISS": "#D8D8D8",  
+    "G_MISS": "#D8D8D8",  
 }
 
 def pillar_color(p: str) -> str:
