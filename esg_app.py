@@ -290,7 +290,7 @@ PALETTE_E = [
     "#5ec962",  # fresh yellow-green
     "#b8e3c6"   # light mint green
 ]
-PALETTE_S = ["#D12828", "#FF1F1F", "#FF5C5C", "#F28585"]             # S1..S4 reds
+PALETTE_S = ["#6B0F0F", "#C01818", "#FF3B2F", "#FFB3A8"]
 PALETTE_G = ["#F0CB51"]                                             # G1 yellow
 STD_ORDER = E_STANDARDS + S_STANDARDS + G_STANDARDS
 STD_COLOR = {
