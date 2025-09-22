@@ -982,6 +982,8 @@ display_mode = st.sidebar.radio(
     index=mode_default_index
 )
 
+X_TITLE = "Number of reported Disclosure Requirements"
+
 # Keep URL in sync
 params = {
     "view": view,
@@ -1235,7 +1237,7 @@ if view == "Total":
                 # Draw a vertical rule from top to bottom of the Series band
                 .mark_rule(stroke="black", strokeWidth=1.5)
                 .encode(
-                    x=alt.X("cum:Q", title=None),
+                    x=alt.X("cum:Q"),
                     y=alt.Y("Series:N", sort=y_sort, title="", bandPosition=0),
                     y2=alt.Y2("Series:N", bandPosition=1),
                     tooltip=[alt.Tooltip("Series:N", title="Series")]
@@ -1252,8 +1254,14 @@ if view == "Total":
                     base
                     .mark_bar()
                     .encode(
-                        y=alt.Y("Series:N", title="", sort=y_sort),
-                        x=alt.X("Value:Q", title="Number of reported Disclosure Requirements", stack="zero"),
+                        y=alt.Y(
+                            "Series:N",
+                            title="",
+                            sort=y_sort,
+                            scale=alt.Scale(paddingInner=0.25, paddingOuter=0.25),
+                        ), 
+
+                        x=alt.X("Value:Q", title=X_TITLE, stack="zero"),
                         color=alt.Color("StdCode:N",
                                         scale=alt.Scale(domain=color_domain, range=color_range),
                                         legend=None),
@@ -1283,8 +1291,14 @@ if view == "Total":
                     base
                     .mark_bar()
                     .encode(
-                        y=alt.Y("Series:N", title="", sort=y_sort),
-                        x=alt.X("Value:Q", title="Number of reported Disclosure Requirements", stack="zero"),
+                        y=alt.Y(
+                            "Series:N",
+                            title="",
+                            sort=y_sort,
+                            scale=alt.Scale(paddingInner=0.25, paddingOuter=0.25),
+                        ), 
+
+                        x=alt.X("Value:Q", title=X_TITLE, stack="zero"),
                         color=alt.Color("StdCode:N",
                                         scale=alt.Scale(domain=color_domain, range=color_range),
                                         legend=None),
@@ -1334,8 +1348,14 @@ if view == "Total":
                         labels_base
                         .mark_text(align="center", baseline="middle", fontSize=11, color="#333", dy=-5)
                         .encode(
-                            y=alt.Y("Series:N", title="", sort=y_sort),
-                            x=alt.X("mid:Q", title=None),
+                            y=alt.Y(
+                                "Series:N",
+                                title="",
+                                sort=y_sort,
+                                scale=alt.Scale(paddingInner=0.25, paddingOuter=0.25),
+                            ), 
+
+                            x=alt.X("mid:Q"),
                             text="pct_label:N",
                         )
                     )
@@ -1343,27 +1363,32 @@ if view == "Total":
                         labels_base
                         .mark_text(align="center", baseline="middle", fontSize=10, color="#333", dy=6)
                         .encode(
-                            y=alt.Y("Series:N", title="", sort=y_sort),
-                            x=alt.X("mid:Q", title=None),
+                            y=alt.Y(
+                                "Series:N",
+                                title="",
+                                sort=y_sort,
+                                scale=alt.Scale(paddingInner=0.25, paddingOuter=0.25),
+                            ),       
+                            x=alt.X("mid:Q"),
                             text=alt.value("missing"),
                         )
                     )
             
                     fig = alt.layer(bars, sep_rules, text_pct, text_missing).properties(
-                        height=120, width="container",
+                        height=alt.Step(56), width="container",
                         padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
                     ).configure_view(stroke=None)
 
                 else:
                     fig = bars.properties(
-                        height=120, width="container",
+                        height=alt.Step(56), width="container",
                         padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
                     ).configure_view(stroke=None)
             else:
 
 
                 fig = alt.layer(bars, sep_rules).properties(
-                    height=120, width="container",
+                    height=alt.Step(56), width="container",
                     padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
                 ).configure_view(stroke=None)
 
@@ -1466,22 +1491,57 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 y_sort = [firm_series] + ([peers_series] if peers_series else [])
 
                 base = alt.Chart(cdf)
-                bars = base.mark_bar(stroke="#000", strokeWidth=1, strokeOpacity=0.9, strokeJoin="miter").encode(
-                    y=alt.Y("Series:N", title="", sort=y_sort),
-                    x=alt.X("Value:Q", title="Number of reported Disclosure Requirements"),
-                    color=alt.Color("StdCode:N",
-                                    scale=alt.Scale(domain=color_domain, range=color_range),
-                                    legend=None),
-                    order=alt.Order("StdCode:N"),
-                    tooltip=[alt.Tooltip("Series:N"), alt.Tooltip("Standard:N"),
-                             alt.Tooltip("Value:Q", title="# DR", format=".1f")],
+
+              
+                bars = (
+                    base
+                    .mark_bar(stroke="#000", strokeWidth=1, strokeOpacity=0.9, strokeJoin="miter")
+                    .encode(
+                        y=alt.Y(
+                            "Series:N",
+                            title="",
+                            sort=y_sort,
+                            # ↑ give each band room so the bar *looks* thick
+                            scale=alt.Scale(paddingInner=0.25, paddingOuter=0.25),
+                        ),
+                        x=alt.X("Value:Q", title=X_TITLE, stack="zero"),
+                        color=alt.Color(
+                            "StdCode:N",
+                            scale=alt.Scale(domain=color_domain, range=color_range),
+                            legend=None,
+                        ),
+                        order=alt.Order("StdCode:N"),
+                        tooltip=[
+                            alt.Tooltip("Series:N"),
+                            alt.Tooltip("Standard:N"),
+                            alt.Tooltip("Value:Q", title="# DR", format=".1f"),
+                        ],
+                    )
                 )
-                totals = (base.transform_aggregate(total="sum(Value)", groupby=["Series"])
-                          .mark_text(align="left", baseline="middle", dx=4)
-                          .encode(y=alt.Y("Series:N", sort=y_sort),
-                                  x="total:Q", text=alt.Text("total:Q", format=".1f")))
-                st.altair_chart(alt.layer(bars, totals).properties(height=120, width="container")
-                                .configure_view(stroke=None), use_container_width=True)
+                
+                totals = (
+                    base.transform_aggregate(total="sum(Value)", groupby=["Series"])
+                    .mark_text(align="left", baseline="middle", dx=4)
+                    .encode(
+                        y=alt.Y("Series:N", sort=y_sort),
+                        x="total:Q",
+                        text=alt.Text("total:Q", format=".1f"),
+                    )
+                )
+                
+                # Use step-based height so each y band gets a consistent pixel height
+                fig = (
+                    alt.layer(bars, totals)
+                    .properties(
+                        height=alt.Step(56),   # ← tweak to 52–64 to taste
+                        width="container",
+                        padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
+                    )
+                    .configure_view(stroke=None)
+                )
+                
+                st.altair_chart(fig, use_container_width=True)
+
 
             st.caption("Counts of reported Disclosure Requirements within this pillar, stacked by standard ." + (note if n_peers > 0 else ""))
             st.markdown("---")
@@ -1575,8 +1635,13 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     base
                     .mark_bar(stroke="#000", strokeWidth=1, strokeOpacity=0.9, strokeJoin="miter")  # default outline
                     .encode(
-                        y=alt.Y("Series:N", title="", sort=y_sort),
-                        x=alt.X("Value:Q", title="Number of Disclosure Requirements"),
+                        y=alt.Y(
+                            "Series:N",
+                            title="",
+                            sort=y_sort,
+                            scale=alt.Scale(paddingInner=0.25, paddingOuter=0.25),
+                        ), 
+                        x=alt.X("Value:Q", title=X_TITLE, stack="zero"),
                         color=alt.Color("Cat:N", scale=alt.Scale(domain=domain, range=rng), legend=None),
                         order=alt.Order("CatRank:Q"),
                         opacity=alt.condition(is_missing, alt.value(0.5), alt.value(1.0)),
@@ -1632,8 +1697,14 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                         labels_base
                         .mark_text(align="center", baseline="middle", fontSize=11, color="#333", dy=-5)
                         .encode(
-                            y=alt.Y("Series:N", title="", sort=y_sort),
-                            x=alt.X("mid:Q", title=None),
+                            y=alt.Y(
+                                "Series:N",
+                                title="",
+                                sort=y_sort,
+                                scale=alt.Scale(paddingInner=0.25, paddingOuter=0.25),
+                            ), 
+
+                            x=alt.X("mid:Q"),
                             text="pct_label:N",
                         )
                     )
@@ -1641,19 +1712,25 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                         labels_base
                         .mark_text(align="center", baseline="middle", fontSize=10, color="#333", dy=6)
                         .encode(
-                            y=alt.Y("Series:N", title="", sort=y_sort),
-                            x=alt.X("mid:Q", title=None),
+                            y=alt.Y(
+                                "Series:N",
+                                title="",
+                                sort=y_sort,
+                                scale=alt.Scale(paddingInner=0.25, paddingOuter=0.25),
+                            ), 
+
+                            x=alt.X("mid:Q"),
                             text=alt.value("missing"),
                         )
                     )
                 
                     fig = alt.layer(bars, text_pct, text_missing, totals).properties(
-                        height=120, width="container",
+                        height=alt.Step(56), width="container",
                         padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
                     ).configure_view(stroke=None)
                 else:
                     fig = alt.layer(bars, totals).properties(
-                        height=120, width="container",
+                        height=alt.Step(56), width="container",
                         padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
                     ).configure_view(stroke=None)
 
@@ -1874,7 +1951,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
 
                 xscale = alt.Scale(domain=[0, len(present_cols)], nice=False, zero=True)
                 x_axis = alt.Axis(values=tick_values, tickSize=0, labelAngle=0, labelPadding=6,
-                                  labelExpr=label_expr, title=None)
+                                  labelExpr=label_expr)
 
                 y_enc = alt.Y(
                     "Series:N",
