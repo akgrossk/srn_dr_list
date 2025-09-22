@@ -1211,11 +1211,37 @@ if view == "Total":
             ]
             y_sort = [firm_series] + ([peers_series] if peers_series else [])
         
-            base = alt.Chart(chart_df).properties(
-                height=120, width="container",
-                padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
-            ).configure_view(stroke=None)
-        
+            base = alt.Chart(chart_df)  # no properties/padding here
+
+            # --- Full-height separators between E | S | G for each row (Firm/Peers) ---
+            sep_rules = (
+                alt.Chart(chart_df)
+                # Identify pillar per segment and pillar order (E=1, S=2, G=3)
+                .transform_calculate(
+                    pillar="substring(datum.StdCode, 0, 1)",
+                    pr="substring(datum.StdCode, 0, 1) == 'E' ? 1 : (substring(datum.StdCode, 0, 1) == 'S' ? 2 : 3)"
+                )
+                # Sum values within Series × pillar (includes *_MISS)
+                .transform_aggregate(
+                    pillar_sum="sum(Value)",
+                    groupby=["Series", "pillar", "pr"]
+                )
+                # Cumulative across pillars to get boundary x-positions for each Series row
+                .transform_window(
+                    cum="sum(pillar_sum)",
+                    sort=[alt.SortField(field="pr", order="ascending")],
+                    groupby=["Series"]
+                )
+                # Draw a vertical rule from top to bottom of the Series band
+                .mark_rule(stroke="black", strokeWidth=1.5)
+                .encode(
+                    x=alt.X("cum:Q", title=None),
+                    y=alt.Y("Series:N", sort=y_sort, title="", bandPosition=0),
+                    y2=alt.Y2("Series:N", bandPosition=1),
+                    tooltip=[alt.Tooltip("Series:N", title="Series")]
+                )
+            )
+
             missing_present = [c for c in MISSING_CODES if (chart_df["StdCode"] == c).any()]
         
             if missing_present:
@@ -1276,7 +1302,76 @@ if view == "Total":
                     )
                 )
         
-            st.altair_chart(bars, use_container_width=True)
+            # === v3: two-line labels centered on the Firm's grey pillar-missing slices
+            if VARIANT == "v3":
+                # Which *_MISS slices are actually present in the Total chart?
+                missing_present = [c for c in MISSING_CODES if (chart_df["StdCode"] == c).any()]
+                if missing_present:
+                    is_missing = alt.FieldOneOfPredicate(field="StdCode", oneOf=missing_present)
+            
+                    labels_base = (
+                        alt.Chart(chart_df)
+                        .transform_filter(alt.FieldEqualPredicate(field="Series", equal=firm_series))
+                        .transform_window(
+                            cum="sum(Value)",
+                            sort=[alt.SortField(field="StdRank", order="ascending")],
+                            groupby=["Series"]
+                        )
+                        .transform_calculate(
+                            prev="datum.cum - datum.Value",
+                            mid="datum.prev + datum.Value/2",
+                            pillar="substring(datum.StdCode, 0, 1)",
+                            # Use fixed pillar totals (E=32, S=32, G=6) for the % label
+                            denom="datum.pillar == 'E' ? 32 : (datum.pillar == 'S' ? 32 : 6)",
+                            pct="datum.denom > 0 ? datum.Value / datum.denom : 0",
+                            pct_label="format(datum.pct, '.1%')"
+                        )
+                        .transform_filter(is_missing)
+                        .transform_filter("datum.Value > 0 && datum.denom > 0")
+                    )
+            
+                    text_pct = (
+                        labels_base
+                        .mark_text(align="center", baseline="middle", fontSize=11, color="#333", dy=-5)
+                        .encode(
+                            y=alt.Y("Series:N", title="", sort=y_sort),
+                            x=alt.X("mid:Q", title=None),
+                            text="pct_label:N",
+                        )
+                    )
+                    text_missing = (
+                        labels_base
+                        .mark_text(align="center", baseline="middle", fontSize=10, color="#333", dy=6)
+                        .encode(
+                            y=alt.Y("Series:N", title="", sort=y_sort),
+                            x=alt.X("mid:Q", title=None),
+                            text=alt.value("missing"),
+                        )
+                    )
+            
+                    fig = alt.layer(bars, sep_rules, text_pct, text_missing).properties(
+                        height=120, width="container",
+                        padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
+                    ).configure_view(stroke=None)
+
+                else:
+                    fig = bars.properties(
+                        height=120, width="container",
+                        padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
+                    ).configure_view(stroke=None)
+            else:
+
+
+                fig = alt.layer(bars, sep_rules).properties(
+                    height=120, width="container",
+                    padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
+                ).configure_view(stroke=None)
+
+
+
+            st.altair_chart(fig, use_container_width=True)
+
+
         
             note = "Bars show total counts of reported Disclosure Requirements, stacked by standard (E1–E5, S1–S4, G1)."
             if n_peers > 0:
@@ -1329,26 +1424,40 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
             firm_series = "Firm"
             peers_series = f"Mean: {comp_label}" if n_peers > 0 else None
 
+
             for std_code in stds_in_pillar:
                 # collect columns for this standard
                 std_metrics = []
                 for gname in pillar_groups:
                     if gname.split("-")[0] == std_code:
                         std_metrics.extend(groups[gname])
-
+            
                 vals = current_row[std_metrics].astype(str).str.strip().str.lower()
                 firm_yes = int(vals.isin(YES_SET).sum())
-                rows.append({"StdCode": std_code, "Standard": SHORT_ESRS_LABELS.get(std_code, std_code),
-                             "Series": firm_series, "Value": float(firm_yes)})
+                rows.append({
+                    "StdCode": std_code,
+                    "Standard": SHORT_ESRS_LABELS.get(std_code, std_code),
+                    "Series": firm_series,
+                    "Value": float(firm_yes),
+                })
+            # (nothing else inside this loop for v1)
 
-                if n_peers > 0 and peers is not None:
+                # Peers rows (reported-only) for v1
+                if n_peers > 0 and peers is not None and peers_series:
                     present = [c for c in std_metrics if c in peers.columns]
                     if present:
                         pb = peers[present].astype(str).applymap(lambda x: x.strip().lower() in YES_SET)
-                        rows.append({"StdCode": std_code,
-                                     "Standard": SHORT_ESRS_LABELS.get(std_code, std_code),
-                                     "Series": peers_series,
-                                     "Value": float(pb.sum(axis=1).mean())})
+                        peer_mean_rep = float(pb.sum(axis=1).mean())
+                    else:
+                        peer_mean_rep = 0.0
+                
+                    rows.append({
+                        "StdCode": std_code,
+                        "Standard": SHORT_ESRS_LABELS.get(std_code, std_code),
+                        "Series": peers_series,
+                        "Value": float(peer_mean_rep),
+                    })
+                
 
             if rows:
                 cdf = pd.DataFrame(rows)
@@ -1399,15 +1508,18 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 firm_yes = int(vals.isin(YES_SET).sum())
                 firm_miss = max(total_std - firm_yes, 0)
 
+   
+                # Firm rows
                 rows.append({"Cat": std_code,
                              "Label": SHORT_ESRS_LABELS.get(std_code, std_code),
-                             "Series": firm_series, "Value": float(firm_yes)})
+                             "Series": firm_series, "Value": float(firm_yes),
+                             "Denom": float(total_std)})
                 rows.append({"Cat": f"{std_code}_MISS",
-                             "Label": f"{SHORT_ESRS_LABELS.get(std_code, std_code)} — "
-                                      f"{'Not reported' if VARIANT=='v2' else 'Missing'}",
-                             "Series": firm_series, "Value": float(firm_miss)})
+                             "Label": f"{SHORT_ESRS_LABELS.get(std_code, std_code)} — {'Not reported' if VARIANT=='v2' else 'Missing'}",
+                             "Series": firm_series, "Value": float(firm_miss),
+                             "Denom": float(total_std)})
 
-                # Peers mean (reported + missing)
+            # Peers rows (only if we actually have peers)
                 if n_peers > 0 and peers is not None:
                     present = [c for c in std_metrics if c in peers.columns]
                     if present:
@@ -1415,15 +1527,27 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                         peer_mean_rep = float(pb.sum(axis=1).mean())
                     else:
                         peer_mean_rep = 0.0
+                
                     peer_mean_miss = max(total_std - peer_mean_rep, 0.0)
-                    rows.append({"Cat": std_code,
-                                 "Label": SHORT_ESRS_LABELS.get(std_code, std_code),
-                                 "Series": peers_series, "Value": float(peer_mean_rep)})
-                    rows.append({"Cat": f"{std_code}_MISS",
-                                 "Label": f"{SHORT_ESRS_LABELS.get(std_code, std_code)} — "
-                                          f"{'Not reported' if VARIANT=='v2' else 'Missing'}",
-                                 "Series": peers_series, "Value": float(peer_mean_miss)})
+                
+                    rows.append({
+                        "Cat": std_code,
+                        "Label": SHORT_ESRS_LABELS.get(std_code, std_code),
+                        "Series": peers_series if peers_series else "Peers",
+                        "Value": float(peer_mean_rep),
+                        "Denom": float(total_std),
+                    })
+                    rows.append({
+                        "Cat": f"{std_code}_MISS",
+                        "Label": f"{SHORT_ESRS_LABELS.get(std_code, std_code)} — "
+                                 f"{'Not reported' if VARIANT=='v2' else 'Missing'}",
+                        "Series": peers_series if peers_series else "Peers",
+                        "Value": float(peer_mean_miss),
+                        "Denom": float(total_std),
+                    })
+                # else: skip peers rows entirely
 
+            
             if rows:
                 cdf = pd.DataFrame(rows)
                 # Order: E1, E1_MISS, E2, E2_MISS, ...
@@ -1480,12 +1604,62 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                                 x="total:Q", text=alt.Text("total:Q", format=".1f"))
                 )
 
-                fig = alt.layer(bars, totals).properties(
-                    height=120, width="container",
-                    padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
-                ).configure_view(stroke=None)
+                # === v3: two-line labels centered on the Firm's grey *_MISS slices (per-standard % of Denom)
+                if VARIANT == "v3":
+                    # Build the set of *_MISS categories that exist for this pillar
+                    missing_cats = [f"{s}_MISS" for s in stds_in_pillar]
+                    is_missing = alt.FieldOneOfPredicate(field="Cat", oneOf=missing_cats)
+                
+                    labels_base = (
+                        alt.Chart(cdf)
+                        .transform_filter(alt.FieldEqualPredicate(field="Series", equal=firm_series))
+                        .transform_window(
+                            cum="sum(Value)",
+                            sort=[alt.SortField(field="CatRank", order="ascending")],
+                            groupby=["Series"]
+                        )
+                        .transform_calculate(
+                            prev="datum.cum - datum.Value",
+                            mid="datum.prev + datum.Value/2",
+                            pct="(datum.Denom && datum.Denom > 0) ? datum.Value / datum.Denom : 0",
+                            pct_label="format(datum.pct, '.1%')"
+                        )
+                        .transform_filter(is_missing)
+                        .transform_filter("datum.Value > 0 && datum.Denom > 0")
+                    )
+                
+                    text_pct = (
+                        labels_base
+                        .mark_text(align="center", baseline="middle", fontSize=11, color="#333", dy=-5)
+                        .encode(
+                            y=alt.Y("Series:N", title="", sort=y_sort),
+                            x=alt.X("mid:Q", title=None),
+                            text="pct_label:N",
+                        )
+                    )
+                    text_missing = (
+                        labels_base
+                        .mark_text(align="center", baseline="middle", fontSize=10, color="#333", dy=6)
+                        .encode(
+                            y=alt.Y("Series:N", title="", sort=y_sort),
+                            x=alt.X("mid:Q", title=None),
+                            text=alt.value("missing"),
+                        )
+                    )
+                
+                    fig = alt.layer(bars, text_pct, text_missing, totals).properties(
+                        height=120, width="container",
+                        padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
+                    ).configure_view(stroke=None)
+                else:
+                    fig = alt.layer(bars, totals).properties(
+                        height=120, width="container",
+                        padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
+                    ).configure_view(stroke=None)
 
+                
                 st.altair_chart(fig, use_container_width=True)
+
 
                 fixed_total = sum(STD_TOTAL_OVERRIDES.get(s, 0) for s in stds_in_pillar)
                 st.caption(
