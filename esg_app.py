@@ -7,6 +7,8 @@ from io import BytesIO
 import requests
 from urllib.parse import urlencode
 from openai import OpenAI
+import uuid
+from supabase import create_client, Client
 
 # ---- FORCE LIGHT MODE (UI + charts) ----
 st.set_page_config(layout="wide", initial_sidebar_state="expanded")
@@ -136,6 +138,19 @@ VARIANT = _get_variant()
 # ========= CONFIG =========
 DEFAULT_DATA_URL = "https://github.com/akgrossk/srn_dr_list/blob/main/DR_upload.xlsx"
 openai = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+
+# ========= SUPABASE CONFIG =========
+# Initialize Supabase client with service role for admin operations
+try:
+    SUPABASE_URL = st.secrets["SUPABASE_URL"]
+    # Use service role key for bypassing RLS (SUPABASE_ANON_KEY contains service role)
+    SUPABASE_SERVICE_KEY = st.secrets.get("SUPABASE_ANON_KEY")  # This contains the service role key
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+    SUPABASE_ENABLED = True
+except Exception as e:
+    st.warning(f"Supabase not configured: {e}")
+    supabase = None
+    SUPABASE_ENABLED = False
 
 FIRM_NAME_COL_CANDIDATES = ["name", "company", "firm"]
 FIRM_ID_COL_CANDIDATES   = ["isin", "ticker"]
@@ -650,6 +665,48 @@ def friendly_col_label(comp_col: str) -> str:
         pass
     return str(comp_col)  # fallback
 
+def log_user_event(user_id: str, event: str, value: str = ""):
+    """
+    Log user events to Supabase table
+    
+    Args:
+        user_id: UUID string from URL parameter
+        event: Event type (e.g., 'firm_selected', 'view_changed', 'comparison_changed')
+        value: Event value (e.g., company name, view type)
+    """
+    if not SUPABASE_ENABLED or not supabase or not user_id:
+        return False
+    
+    try:
+        # Convert user_id to UUID format if it's not already
+        if not user_id.count('-') == 4:  # Simple UUID format check
+            # If user_id is not a UUID, create one based on the string
+            user_uuid = str(uuid.uuid5(uuid.NAMESPACE_DNS, user_id))
+        else:
+            user_uuid = user_id
+        
+        # Ensure all values are clean strings
+        clean_event = str(event).strip()[:100]  # Limit event length
+        clean_value = str(value).strip()[:500] if value else ""  # Limit value length
+        
+        data = {
+            "user_id": user_uuid,
+            "event": clean_event,
+            "value": clean_value
+        }
+        
+        result = supabase.table("log_drlists").insert(data).execute()
+        
+        # Check if insert was successful
+        if result.data:
+            return True
+        else:
+            return False
+        
+    except Exception as e:
+        # Silently fail to avoid disrupting user experience
+        return False
+
 def get_context_from_srnapi(document_id, query):
     pages = requests.get(
         f"https://api.srnav.com/documents/{document_id}/query",
@@ -667,9 +724,13 @@ df = load_table(DEFAULT_DATA_URL)
 if df.empty:
     st.stop()
 
+# Read user parameter early (before sidebar code)
+user_qp = read_query_param("user", None)
 
 # --- Variant switcher (always visible) ---
 st.sidebar.caption(f"Variant: **{VARIANT.upper()}**")
+
+# User parameter is read but not displayed in UI
 
 try:
     # Streamlit >= 1.31
@@ -692,6 +753,11 @@ except Exception:
 if new_variant != VARIANT:
     VARIANT = new_variant
     st.session_state["variant"] = VARIANT
+    
+    # Log variant change
+    if user_qp:
+        log_user_event(user_qp, "variant_changed", new_variant)
+    
     # persist to URL so the link is shareable
     try:
         st.query_params.update({"v": VARIANT})
@@ -738,9 +804,13 @@ if firm_name_col:
             st.stop()
     if not firm_label:
         st.markdown(LANDING_MD)
-        st.info("Select a firm on the left to see which Disclosure Requirements it includes in its report. You can also compare the firm’s reporting to its peers by industry, country, sector, or a custom selection.")
+        st.info("Select a firm on the left to see which Disclosure Requirements it includes in its report. You can also compare the firm's reporting to its peers by industry, country, sector, or a custom selection.")
         st.stop()
     current_row = df[df[firm_name_col].astype(str) == str(firm_label)].iloc[0]
+    
+    # Log firm selection
+    if user_qp:
+        log_user_event(user_qp, "firm_selected", str(firm_label))
 elif firm_id_col:
     firms = df[firm_id_col].dropna().astype(str).unique().tolist()
     default_index = firms.index(firm_qp) if (firm_qp in firms) else None
@@ -759,6 +829,10 @@ elif firm_id_col:
         st.info("Select a firm from the sidebar to view details.")
         st.stop()
     current_row = df[df[firm_id_col].astype(str) == str(firm_label)].iloc[0]
+    
+    # Log firm selection (by ID)
+    if user_qp:
+        log_user_event(user_qp, "firm_selected", str(firm_label))
 else:
     st.error("No firm identifier column found (looked for: name/company/firm or isin/ticker).")
     st.stop()
@@ -769,6 +843,9 @@ groups, by_pillar = build_hierarchy(esg_columns)
 
 # ========= HEADER =========
 st.title(str(firm_label))
+
+# User info not displayed in main UI
+
 isin_txt     = f"ISIN: <strong>{current_row.get(firm_id_col, 'n/a')}</strong>" if firm_id_col else ""
 country_txt  = f"Country: <strong>{current_row.get(country_col, 'n/a')}</strong>" if country_col else ""
 sector_txt   = f"Sector: <strong>{current_row.get(sector_col, 'n/a')}</strong>" if sector_col else ""
@@ -815,9 +892,15 @@ st.markdown("""
 # 1) Open firm report
 with btn_col1:
     if _valid_url(link_url):
-        st.link_button("Open firm report", link_url, help="Open the firm's report in a new tab")
+        if st.link_button("Open firm report", link_url, help="Open the firm's report in a new tab"):
+            # Log when user clicks to open report
+            if user_qp:
+                log_user_event(user_qp, "open_report_clicked", str(firm_label))
     else:
         if st.button("Open firm report"):
+            # Log attempt to open unavailable report
+            if user_qp:
+                log_user_event(user_qp, "open_report_clicked_unavailable", str(firm_label))
             try:
                 st.toast("No report link available yet.", icon="ℹ️")
             except Exception:
@@ -827,9 +910,15 @@ with btn_col1:
 with btn_col2:
     try:
         with st.popover("Show auditor"):
+            # Log when user opens auditor popover
+            if user_qp:
+                log_user_event(user_qp, "auditor_popover_opened", str(firm_label))
             st.markdown(f"**Auditor:** {auditor_val or '—'}")
     except Exception:
         if st.button("Show auditor"):
+            # Log when user clicks auditor button (fallback)
+            if user_qp:
+                log_user_event(user_qp, "auditor_button_clicked", str(firm_label))
             st.info(f"Auditor: {auditor_val or '—'}")
 
 # 3) Show text characteristics (URL optional — placeholder for now)
@@ -844,17 +933,23 @@ for col in ["ESG_text_link", "Link_ESG_text", "Link_ESG", "ESG_Text_URL"]:
 
 with btn_col3:
     if _valid_url(esg_link):
-        st.link_button(
+        if st.link_button(
             "Show text characteristics",
             esg_link,
             help="Opens in a new tab",
             type="secondary",          # 👈 force secondary
-        )
+        ):
+            # Log text characteristics link click
+            if user_qp:
+                log_user_event(user_qp, "text_characteristics_clicked", str(firm_label))
     else:
         if st.button(
             "Show text characteristics",
             type="secondary",          # 👈 force secondary fallback too
         ):
+            # Log text characteristics button click
+            if user_qp:
+                log_user_event(user_qp, "text_characteristics_clicked_unavailable", str(firm_label))
             try:
                 st.toast("No info yet — add an ESG text URL when ready.", icon="📝")
             except Exception:
@@ -863,6 +958,10 @@ with btn_col3:
 with btn_col4:
     prompt = st.chat_input("Query and search the company\'s report with AI")
     if prompt:
+        # Log AI query
+        if user_qp:
+            log_user_event(user_qp, "ai_query_submitted", f"{str(firm_label)}: {prompt[:100]}")
+        
         # try:
         with st.spinner():
             context = get_context_from_srnapi(current_row.get('document_id'), prompt)
@@ -897,11 +996,20 @@ if current_view not in valid_views:
     current_view = "Total"
 
 view = st.sidebar.radio("Section", valid_views, index=valid_views.index(current_view))
+
+# Log view change if different from URL parameter
+if user_qp and view != current_view:
+    log_user_event(user_qp, "view_changed", view)
+
 comp_options = ["No comparison", "Country", "Sector", "Industry", "Custom peers"]
 comp_default_label = PARAM_TO_COMP.get(comp_qp, "No comparison")
 if comp_default_label not in comp_options:
     comp_default_label = "No comparison"
 comparison = st.sidebar.selectbox("Comparison", comp_options, index=comp_options.index(comp_default_label))
+
+# Log comparison change if different from URL parameter
+if user_qp and comparison != comp_default_label:
+    log_user_event(user_qp, "comparison_changed", comparison)
 
 if comparison == "Country" and not country_col:
     st.sidebar.info("No country column found; comparison will be disabled.")
@@ -924,6 +1032,10 @@ if comparison == "Custom peers" and label_col:
     if len(selected_custom_peers) > 4:
         st.sidebar.warning("Using only the first 4 selected peers.")
         selected_custom_peers = selected_custom_peers[:4]
+    
+    # Log custom peers selection if different from URL default
+    if user_qp and set(selected_custom_peers) != set(default_peers):
+        log_user_event(user_qp, "custom_peers_selected", f"{str(firm_label)}: {', '.join(selected_custom_peers)}")
 
 # --- SIDEBAR: peer firm list toggle -----------------------------------------
 # Build the same peer set the charts use, based on current comparison mode
@@ -941,6 +1053,10 @@ elif comparison == "Custom peers":
     )
 
 show_peer_list = st.sidebar.checkbox("Show peer firm list", value=False)
+
+# Log when user toggles peer list visibility
+if user_qp and show_peer_list:
+    log_user_event(user_qp, "peer_list_toggled", f"{str(firm_label)}: shown")
 
 if show_peer_list:
     if _n_peers == 0 or _peers_df is None or _peers_df.empty:
@@ -982,6 +1098,11 @@ display_mode = st.sidebar.radio(
     index=mode_default_index
 )
 
+# Log display mode change if different from URL parameter
+expected_mode = "Charts" if mode_qp == "charts" else "Tables"
+if user_qp and display_mode != expected_mode:
+    log_user_event(user_qp, "display_mode_changed", display_mode)
+
 X_TITLE = "Number of reported Disclosure Requirements"
 
 # Keep URL in sync
@@ -994,6 +1115,8 @@ params = {
 }
 if COMP_TO_PARAM.get(comparison) == "custom" and selected_custom_peers:
     params["peers"] = ",".join(selected_custom_peers)
+if user_qp:  # only include user param if it exists
+    params["user"] = user_qp
 set_query_params(**params)
 
 def link_for(pillar_key: str) -> str:
@@ -1002,9 +1125,12 @@ def link_for(pillar_key: str) -> str:
         "firm": str(firm_label),
         "comp": COMP_TO_PARAM.get(comparison, "none"),
         "mode": "charts" if display_mode == "Charts" else "tables",
+        "v": VARIANT,  # keep variant in links
     }
     if COMP_TO_PARAM.get(comparison) == "custom" and selected_custom_peers:
         qp["peers"] = ",".join(selected_custom_peers)
+    if user_qp:  # include user param in links
+        qp["user"] = user_qp
     return "?" + urlencode(qp)
 
 # ========= COMBINED (chart/table with counts) =========
