@@ -1442,12 +1442,12 @@ if view == "Total":
                     )
                 )
         
-            # === v3: two-line labels centered on the Firm's grey pillar-missing slices
-            if VARIANT == "v3":
-                # Which *_MISS slices are actually present in the Total chart?
+            # === v2/v3: two-line labels centered on the Firm's grey pillar-missing slices
+            if VARIANT in ("v2", "v3"):
                 missing_present = [c for c in MISSING_CODES if (chart_df["StdCode"] == c).any()]
                 if missing_present:
                     is_missing = alt.FieldOneOfPredicate(field="StdCode", oneOf=missing_present)
+                    miss_word = "not reported" if VARIANT == "v2" else "missing"
             
                     labels_base = (
                         alt.Chart(chart_df)
@@ -1473,51 +1473,36 @@ if view == "Total":
                     text_pct = (
                         labels_base
                         .mark_text(align="center", baseline="middle", fontSize=11, color="#333", dy=-5)
-                        .encode(
-                            y=alt.Y(
-                                "Series:N",
-                                title="",
-                                sort=y_sort,
-                                scale=alt.Scale(paddingInner=0.25, paddingOuter=0.25),
-                            ), 
-
-                            x=alt.X("mid:Q"),
-                            text="pct_label:N",
-                        )
+                        .encode(y=alt.Y("Series:N", title="", sort=y_sort,
+                                        scale=alt.Scale(paddingInner=0.25, paddingOuter=0.25)),
+                                x=alt.X("mid:Q"),
+                                text="pct_label:N")
                     )
+            
                     text_missing = (
                         labels_base
                         .mark_text(align="center", baseline="middle", fontSize=10, color="#333", dy=6)
-                        .encode(
-                            y=alt.Y(
-                                "Series:N",
-                                title="",
-                                sort=y_sort,
-                                scale=alt.Scale(paddingInner=0.25, paddingOuter=0.25),
-                            ),       
-                            x=alt.X("mid:Q"),
-                            text=alt.value("missing"),
-                        )
+                        .encode(y=alt.Y("Series:N", title="", sort=y_sort,
+                                        scale=alt.Scale(paddingInner=0.25, paddingOuter=0.25)),
+                                x=alt.X("mid:Q"),
+                                text=alt.value(miss_word))
                     )
             
                     fig = alt.layer(bars, sep_rules, text_pct, text_missing).properties(
                         height=alt.Step(56), width="container",
                         padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
                     ).configure_view(stroke=None)
-
                 else:
                     fig = bars.properties(
                         height=alt.Step(56), width="container",
                         padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
                     ).configure_view(stroke=None)
             else:
-
-
                 fig = alt.layer(bars, sep_rules).properties(
                     height=alt.Step(56), width="container",
                     padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
                 ).configure_view(stroke=None)
-
+            
 
 
             st.altair_chart(fig, use_container_width=True)
@@ -1795,11 +1780,11 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                                 x="total:Q", text=alt.Text("total:Q", format=".1f"))
                 )
 
-                # === v3: two-line labels centered on the Firm's grey *_MISS slices (per-standard % of Denom)
-                if VARIANT == "v3":
-                    # Build the set of *_MISS categories that exist for this pillar
+                # === v2/v3: two-line labels centered on the Firm's grey *_MISS slices (per-standard % of Denom)
+                if VARIANT in ("v2", "v3"):
                     missing_cats = [f"{s}_MISS" for s in stds_in_pillar]
                     is_missing = alt.FieldOneOfPredicate(field="Cat", oneOf=missing_cats)
+                    miss_word = "not reported" if VARIANT == "v2" else "missing"
                 
                     labels_base = (
                         alt.Chart(cdf)
@@ -1822,32 +1807,18 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     text_pct = (
                         labels_base
                         .mark_text(align="center", baseline="middle", fontSize=11, color="#333", dy=-5)
-                        .encode(
-                            y=alt.Y(
-                                "Series:N",
-                                title="",
-                                sort=y_sort,
-                                scale=alt.Scale(paddingInner=0.25, paddingOuter=0.25),
-                            ), 
-
-                            x=alt.X("mid:Q"),
-                            text="pct_label:N",
-                        )
+                        .encode(y=alt.Y("Series:N", title="", sort=y_sort,
+                                        scale=alt.Scale(paddingInner=0.25, paddingOuter=0.25)),
+                                x=alt.X("mid:Q"),
+                                text="pct_label:N")
                     )
                     text_missing = (
                         labels_base
                         .mark_text(align="center", baseline="middle", fontSize=10, color="#333", dy=6)
-                        .encode(
-                            y=alt.Y(
-                                "Series:N",
-                                title="",
-                                sort=y_sort,
-                                scale=alt.Scale(paddingInner=0.25, paddingOuter=0.25),
-                            ), 
-
-                            x=alt.X("mid:Q"),
-                            text=alt.value("missing"),
-                        )
+                        .encode(y=alt.Y("Series:N", title="", sort=y_sort,
+                                        scale=alt.Scale(paddingInner=0.25, paddingOuter=0.25)),
+                                x=alt.X("mid:Q"),
+                                text=alt.value(miss_word))
                     )
                 
                     fig = alt.layer(bars, text_pct, text_missing, totals).properties(
@@ -1859,6 +1830,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                         height=alt.Step(56), width="container",
                         padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
                     ).configure_view(stroke=None)
+                
 
                 
                 st.altair_chart(fig, use_container_width=True)
