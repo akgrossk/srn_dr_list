@@ -2049,7 +2049,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
 
                 xscale = alt.Scale(domain=[0, len(present_cols)], nice=False, zero=True)
                 x_axis = alt.Axis(values=tick_values, tickSize=0, labelAngle=0, labelPadding=6,
-                                  labelExpr=label_expr)
+                                  labelExpr=label_expr, title=None,)
 
                 y_enc = alt.Y(
                     "Series:N",
