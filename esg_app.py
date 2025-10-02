@@ -1640,17 +1640,39 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     )
                 )
                 
-                # Use step-based height so each y band gets a consistent pixel height
-                fig = (
-                    alt.layer(bars, totals)
-                    .properties(
-                        height=alt.Step(56),   # ← tweak to 52–64 to taste
-                        width="container",
-                        padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
+
+                # --- vertical separators between standards (thick like Total) ---
+                sep_rules_pillar_v1 = (
+                    alt.Chart(cdf)
+                    .transform_aggregate(
+                        std_sum="sum(Value)",
+                        groupby=["Series", "StdCode"]
                     )
-                    .configure_view(stroke=None)
+                    .transform_lookup(
+                        lookup="StdCode",
+                        from_=alt.LookupData(pd.DataFrame({"StdCode": stds_in_pillar, "ord": list(range(len(stds_in_pillar)))}),
+                                             key="StdCode", fields=["ord"])
+                    )
+                    .transform_window(
+                        cum="sum(std_sum)",
+                        sort=[alt.SortField(field="ord", order="ascending")],
+                        groupby=["Series"]
+                    )
+                    .transform_filter("datum.cum > 0")
+                    .mark_rule(stroke="black", strokeWidth=1.5)
+                    .encode(
+                        x=alt.X("cum:Q"),
+                        y=alt.Y("Series:N", sort=[firm_series] + ([peers_series] if 'peers_series' in locals() and peers_series else []),
+                                title="", bandPosition=0),
+                        y2=alt.Y2("Series:N", bandPosition=1)
+                    )
                 )
                 
+                fig = alt.layer(bars, sep_rules_pillar_v1, totals) \
+                        .properties(height=alt.Step(56), width="container",
+                                    padding={"left": 12, "right": 12, "top": 6, "bottom": 6}) \
+                        .configure_view(stroke=None)
+
                 st.altair_chart(fig, use_container_width=True)
 
 
