@@ -1640,39 +1640,17 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     )
                 )
                 
-
-                # --- vertical separators between standards (thick like Total) ---
-                sep_rules_pillar_v1 = (
-                    alt.Chart(cdf)
-                    .transform_aggregate(
-                        std_sum="sum(Value)",
-                        groupby=["Series", "StdCode"]
+                # Use step-based height so each y band gets a consistent pixel height
+                fig = (
+                    alt.layer(bars, totals)
+                    .properties(
+                        height=alt.Step(56),   # ← tweak to 52–64 to taste
+                        width="container",
+                        padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
                     )
-                    .transform_lookup(
-                        lookup="StdCode",
-                        from_=alt.LookupData(pd.DataFrame({"StdCode": stds_in_pillar, "ord": list(range(len(stds_in_pillar)))}),
-                                             key="StdCode", fields=["ord"])
-                    )
-                    .transform_window(
-                        cum="sum(std_sum)",
-                        sort=[alt.SortField(field="ord", order="ascending")],
-                        groupby=["Series"]
-                    )
-                    .transform_filter("datum.cum > 0")
-                    .mark_rule(stroke="black", strokeWidth=1.5)
-                    .encode(
-                        x=alt.X("cum:Q"),
-                        y=alt.Y("Series:N", sort=[firm_series] + ([peers_series] if 'peers_series' in locals() and peers_series else []),
-                                title="", bandPosition=0),
-                        y2=alt.Y2("Series:N", bandPosition=1)
-                    )
+                    .configure_view(stroke=None)
                 )
                 
-                fig = alt.layer(bars, sep_rules_pillar_v1, totals) \
-                        .properties(height=alt.Step(56), width="container",
-                                    padding={"left": 12, "right": 12, "top": 6, "bottom": 6}) \
-                        .configure_view(stroke=None)
-
                 st.altair_chart(fig, use_container_width=True)
 
 
@@ -1842,42 +1820,11 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                                 x=alt.X("mid:Q"),
                                 text=alt.value(miss_word))
                     )
-
-                    # --- vertical separators between standards (thick like Total) ---
-                    sep_rules_pillar = (
-                        alt.Chart(cdf)
-                        # CatBase = standard code without "_MISS"
-                        .transform_calculate(CatBase="replace(datum.Cat, /_MISS$/, '')")
-                        # Use your existing rank/order to sort
-                        .transform_calculate(StdOrder="datum.CatRank % 2 == 0 ? datum.CatRank : datum.CatRank - 1")
-                        # Sum Value per Series × standard (reported + missing)
-                        .transform_aggregate(
-                            std_sum="sum(Value)",
-                            groupby=["Series", "CatBase", "StdOrder"]
-                        )
-                        # Cumulative across standards to find boundaries
-                        .transform_window(
-                            cum="sum(std_sum)",
-                            sort=[alt.SortField(field="StdOrder", order="ascending")],
-                            groupby=["Series"]
-                        )
-                        # Optional: skip the first boundary at 0
-                        .transform_filter("datum.cum > 0")
-                        .mark_rule(stroke="black", strokeWidth=1.5)  # <-- thicker line
-                        .encode(
-                            x=alt.X("cum:Q"),
-                            y=alt.Y("Series:N", sort=[firm_series] + ([peers_series] if peers_series else []),
-                                    title="", bandPosition=0),
-                            y2=alt.Y2("Series:N", bandPosition=1),
-                            tooltip=[alt.Tooltip("Series:N", title="Series")]
-                        )
-                    )
-                    
-                    fig = alt.layer(bars, sep_rules_pillar, totals) \
-                            .properties(height=alt.Step(56), width="container",
-                                        padding={"left": 12, "right": 12, "top": 6, "bottom": 6}) \
-                            .configure_view(stroke=None)
                 
+                    fig = alt.layer(bars, text_pct, text_missing, totals).properties(
+                        height=alt.Step(56), width="container",
+                        padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
+                    ).configure_view(stroke=None)
                 else:
                     fig = alt.layer(bars, totals).properties(
                         height=alt.Step(56), width="container",
