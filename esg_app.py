@@ -1487,7 +1487,7 @@ if view == "Total":
                                 x=alt.X("mid:Q"),
                                 text=alt.value(miss_word))
                     )
-            
+    
                     fig = alt.layer(bars, sep_rules, text_pct, text_missing).properties(
                         height=alt.Step(56), width="container",
                         padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
@@ -1639,10 +1639,38 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                         text=alt.Text("total:Q", format=".1f"),
                     )
                 )
+
+                # Full-height separators between standards (for each Series row)
+                sep_rules = (
+                    alt.Chart(cdf)
+                    # Sum Value within Series × standard
+                    .transform_aggregate(
+                        std_sum="sum(Value)",
+                        groupby=["Series", "StdCode"]
+                    )
+                    # Keep pillar order: stds_in_pillar
+                    .transform_calculate(
+                        std_rank=f"indexof({stds_in_pillar!r}, datum.StdCode)"
+                    )
+                    # Cumulative across standards to get boundary x-positions
+                    .transform_window(
+                        cum="sum(std_sum)",
+                        sort=[alt.SortField(field="std_rank", order="ascending")],
+                        groupby=["Series"]
+                    )
+                    .mark_rule(stroke="black", strokeWidth=1.5)
+                    .encode(
+                        x=alt.X("cum:Q"),
+                        y=alt.Y("Series:N", sort=y_sort, title="", bandPosition=0),
+                        y2=alt.Y2("Series:N", bandPosition=1),
+                        tooltip=[alt.Tooltip("Series:N", title="Series")]
+                    )
+                )
+
                 
                 # Use step-based height so each y band gets a consistent pixel height
                 fig = (
-                    alt.layer(bars, totals)
+                    alt.layer(bars, sep_rules, totals)
                     .properties(
                         height=alt.Step(56),   # ← tweak to 52–64 to taste
                         width="container",
@@ -1820,13 +1848,43 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                                 x=alt.X("mid:Q"),
                                 text=alt.value(miss_word))
                     )
-                
-                    fig = alt.layer(bars, text_pct, text_missing, totals).properties(
+
+                    # Full-height separators between standards (reported + missing treated as one block)
+                    sep_rules = (
+                        alt.Chart(cdf)
+                        # Derive base standard code without _MISS
+                        .transform_calculate(baseStd="replace(datum.Cat, /_MISS$/, '')")
+                        # Sum within Series × baseStd (adds reported + missing)
+                        .transform_aggregate(
+                            std_sum="sum(Value)",
+                            groupby=["Series", "baseStd"]
+                        )
+                        # Respect the pillar order in stds_in_pillar
+                        .transform_calculate(
+                            std_rank=f"indexof({stds_in_pillar!r}, datum.baseStd)"
+                        )
+                        # Cumulative across base standards -> boundary x positions
+                        .transform_window(
+                            cum="sum(std_sum)",
+                            sort=[alt.SortField(field="std_rank", order="ascending")],
+                            groupby=["Series"]
+                        )
+                        .mark_rule(stroke="black", strokeWidth=1.5)
+                        .encode(
+                            x=alt.X("cum:Q"),
+                            y=alt.Y("Series:N", sort=y_sort, title="", bandPosition=0),
+                            y2=alt.Y2("Series:N", bandPosition=1),
+                            tooltip=[alt.Tooltip("Series:N", title="Series")]
+                        )
+                    )
+
+                    
+                    fig = alt.layer(bars, sep_rules, text_pct, text_missing, totals).properties(
                         height=alt.Step(56), width="container",
                         padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
                     ).configure_view(stroke=None)
                 else:
-                    fig = alt.layer(bars, totals).properties(
+                    fig = alt.layer(bars, sep_rules, totals).properties(
                         height=alt.Step(56), width="container",
                         padding={"left": 12, "right": 12, "top": 6, "bottom": 6},
                     ).configure_view(stroke=None)
