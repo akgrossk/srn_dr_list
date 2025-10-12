@@ -494,6 +494,79 @@ def build_custom_peers(df, label_col, selected_labels, current_row):
         pass
     note = f" (custom peers, n={len(peers)})"
     return peers, len(peers), note
+MISSING_SWATCH_COLOR = "#C2C2C2"  # one neutral grey for all pillars
+
+def render_inline_legend_with_single_missing(codes, colors, label_text="Not reported"):
+    _inject_fizzy_filter()
+    items = "".join(
+        f'<span class="swatch" style="background:{colors[c]}"></span>'
+        f'<span class="lab">{c}</span>'
+        for c in codes
+    )
+    # one shared grey chip
+    items += (
+        f'<span class="swatch miss" style="--miss:{MISSING_SWATCH_COLOR}"></span>'
+        f'<span class="lab">{label_text}</span>'
+    )
+    st.markdown(
+        """
+        <style>
+        .legend-inline{display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:center;margin-top:.35rem;}
+        .legend-inline .swatch{display:inline-block;width:12px;height:12px;border-radius:2px;margin-right:.35rem;}
+        .legend-inline .lab{font-size:0.9rem;}
+        .legend-inline .swatch.miss{
+          background: var(--miss);
+          opacity: .6;
+          border: 1.5px dashed var(--miss);
+          filter: url(#fizzyEdge);
+        }
+        @supports not (filter: url(#fizzyEdge)) {
+          .legend-inline .swatch.miss{
+            -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 84%, transparent 88%);
+                    mask-image: radial-gradient(circle at 50% 50%, #000 84%, transparent 88%);
+          }
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown(f'<div class="legend-inline">{items}</div>', unsafe_allow_html=True)
+
+
+def render_pillar_legend_single_missing(stds_in_pillar, colors, label_text="Not reported"):
+    _inject_fizzy_filter()
+    items = "".join(
+        f'<span class="swatch" style="background:{colors[c]}"></span>'
+        f'<span class="lab">{c}</span>'
+        for c in stds_in_pillar
+    )
+    items += (
+        f'<span class="swatch miss" style="--miss:{MISSING_SWATCH_COLOR}"></span>'
+        f'<span class="lab">{label_text}</span>'
+    )
+    st.markdown(
+        """
+        <style>
+        .legend-inline{display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:center;margin-top:.35rem;}
+        .legend-inline .swatch{display:inline-block;width:12px;height:12px;border-radius:2px;margin-right:.35rem;}
+        .legend-inline .lab{font-size:0.9rem;}
+        .legend-inline .swatch.miss{
+          background: var(--miss);
+          opacity: .6;
+          border: 1.5px dashed var(--miss);
+          filter: url(#fizzyEdge);
+        }
+        @supports not (filter: url(#fizzyEdge)) {
+          .legend-inline .swatch.miss{
+            -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 84%, transparent 88%);
+                    mask-image: radial-gradient(circle at 50% 50%, #000 84%, transparent 88%);
+          }
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown(f'<div class="legend-inline">{items}</div>', unsafe_allow_html=True)
 
 def render_inline_legend(codes, colors):
     items = "".join(
@@ -1294,7 +1367,7 @@ if view == "Total":
         render_section_header("Total overview", [])
         if VARIANT == "v3":
             # v3: show standards + “Not reported” chips
-            render_inline_legend_with_missing(present_codes, STD_COLOR)
+            render_inline_legend_with_single_missing(present_codes, STD_COLOR)
         else:
             # v2 and v1: standards only (no missing in legend)
             render_inline_legend(present_codes, STD_COLOR)
@@ -1650,7 +1723,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
             # v2 / v3: show legend
             if VARIANT == "v3":
                 # v3: standards + “Not reported”
-                render_pillar_legend_with_missing(stds_in_pillar, STD_COLOR, pillar)
+                render_pillar_legend_single_missing(stds_in_pillar, STD_COLOR)
             else:
                 # v2: standards only (no missing in legend)
                 render_inline_legend(stds_in_pillar, STD_COLOR)
