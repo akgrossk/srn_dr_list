@@ -1936,7 +1936,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 fixed_total = sum(STD_TOTAL_OVERRIDES.get(s, 0) for s in stds_in_pillar)
                 st.caption(
                     f" Counts of reported Disclosure Requirements (solid) within this pillar, stacked by standard."
-                    f"{'Not reported in grey.' if VARIANT=='v3' else ''} "
+                    f"{' Not reported in grey.' if VARIANT=='v3' else ''} "
                     f"Total in standard = {fixed_total}."
                     + (note if n_peers > 0 else "")
                 )
