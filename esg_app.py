@@ -875,7 +875,7 @@ if aud_col in df.columns:
     auditor_val = "" if (pd.isna(v)) else str(v).strip()
 
 # === ACTION ROW (exactly 3 single-line buttons) ===
-btn_col1, btn_col2, btn_col3, btn_col4 = st.columns([1, 1, 1, 3])
+btn_col1, btn_col2, btn_col3 = st.columns([1, 1, 3])
 
 # Force all buttons onto one line with ellipsis if needed
 st.markdown("""
@@ -921,41 +921,8 @@ with btn_col2:
                 log_user_event(user_qp, "auditor_button_clicked", str(firm_label))
             st.info(f"Auditor: {auditor_val or '—'}")
 
-# 3) Show text characteristics (URL optional — placeholder for now)
-# Try a few likely column names; adjust to match your data later
-esg_link = ""
-for col in ["ESG_text_link", "Link_ESG_text", "Link_ESG", "ESG_Text_URL"]:
-    if col in df.columns:
-        candidate = str(current_row.get(col, "")).strip()
-        if _valid_url(candidate):
-            esg_link = candidate
-            break
 
 with btn_col3:
-    if _valid_url(esg_link):
-        if st.link_button(
-            "Show text characteristics",
-            esg_link,
-            help="Opens in a new tab",
-            type="secondary",          # 👈 force secondary
-        ):
-            # Log text characteristics link click
-            if user_qp:
-                log_user_event(user_qp, "text_characteristics_clicked", str(firm_label))
-    else:
-        if st.button(
-            "Show text characteristics",
-            type="secondary",          # 👈 force secondary fallback too
-        ):
-            # Log text characteristics button click
-            if user_qp:
-                log_user_event(user_qp, "text_characteristics_clicked_unavailable", str(firm_label))
-            try:
-                st.toast("No info yet — add an ESG text URL when ready.", icon="📝")
-            except Exception:
-                st.info("No info yet — add an ESG text URL when ready.")
-
-with btn_col4:
     prompt = st.chat_input("Query and search the company\'s report with AI")
     if prompt:
         # Log AI query
