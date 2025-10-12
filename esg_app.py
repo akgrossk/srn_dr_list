@@ -333,9 +333,9 @@ STD_COLOR_V2 = STD_COLOR
 
 STD_COLOR_V3 = STD_COLOR 
 
-if VARIANT == "v2":
+if VARIANT == "v3":
     STD_COLOR = STD_COLOR_V2
-elif VARIANT == "v3":
+elif VARIANT == "v2":
     STD_COLOR = STD_COLOR_V3
 # else keep v1 defaults
 
@@ -541,7 +541,7 @@ def pillar_color(p: str) -> str:
 
 def missing_label_for_variant(pillar: str) -> str:
     base = {"E":"E — ", "S":"S — ", "G":"G — "}[pillar]
-    return base + ("Not reported" if VARIANT == "v2" else "Missing")
+    return base + ("Not reported" if VARIANT == "v3" else "Missing")
 
 
 def std_missing_label(std_code: str) -> str:
@@ -1149,7 +1149,7 @@ if view == "Total":
                 firm_yes = 0
                 peer_yes_mean = None
     
-            if VARIANT == "v2":
+            if VARIANT == "v3":
                 row = {
                     "Pillar": PILLAR_LABEL[pillar],
                     "Reported disclosure requirements": firm_yes,
@@ -1159,7 +1159,7 @@ if view == "Total":
                 if peer_yes_mean is not None:
                     row[f"Peers — mean reported ({comp_label})"] = round(peer_yes_mean, 1)
     
-            elif VARIANT == "v3":
+            elif VARIANT == "v2":
                 row = {
                     "Pillar": PILLAR_LABEL[pillar],
                     "Firm — number of reported Disclosure Requirements": firm_yes,
@@ -1185,11 +1185,11 @@ if view == "Total":
         st.dataframe(tbl, use_container_width=True, hide_index=True)
     
         # Variant-specific caption
-        if VARIANT == "v2":
+        if VARIANT == "v3":
             note = ("Rows show how many Disclosure Requirements the firm reported "
                     "(Reported disclosure requirements), how many are unreported "
                     "(Not reported disclosure requirements), and the pillar’s Total.")
-        elif VARIANT == "v3":
+        elif VARIANT == "v2":
             note = ("Rows show the firm’s reported DRs (**Firm — number of reported Disclosure Requirements), "
                     "Missing disclosure requirements (= Total − Reported), and the pillar’s Total.")
         else:
@@ -1414,7 +1414,7 @@ if view == "Total":
                 missing_present = [c for c in MISSING_CODES if (chart_df["StdCode"] == c).any()]
                 if missing_present:
                     is_missing = alt.FieldOneOfPredicate(field="StdCode", oneOf=missing_present)
-                    miss_word = "not reported" if VARIANT == "v2" else "missing"
+                    miss_word = "not reported" if VARIANT == "v3" else "missing"
             
                     labels_base = (
                         alt.Chart(chart_df)
@@ -1779,7 +1779,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 if VARIANT in ("v2", "v3"):
                     missing_cats = [f"{s}_MISS" for s in stds_in_pillar]
                     is_missing = alt.FieldOneOfPredicate(field="Cat", oneOf=missing_cats)
-                    miss_word = "not reported" if VARIANT == "v2" else "missing"
+                    miss_word = "not reported" if VARIANT == "v3" else "missing"
                 
                     labels_base = (
                         alt.Chart(cdf)
@@ -1899,11 +1899,11 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
 
             # Variant-specific columns
             row = {"Standard": SHORT_ESRS_LABELS.get(std_code, std_code)}
-            if VARIANT == "v2":
+            if VARIANT == "v3":
                 row["Reported disclosure requirements"] = firm_yes
                 row["Not reported disclosure requirements"] = missing
                 row["Total disclosure requirements"] = total_std
-            elif VARIANT == "v3":
+            elif VARIANT == "v2":
                 row["Firm — number of reported Disclosure Requirements"] = firm_yes
                 row["Missing disclosure requirements"] = missing
                 row["Total disclosure requirements"] = total_std
@@ -1919,9 +1919,9 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
             tbl = pd.DataFrame(summary_rows)
             st.dataframe(tbl, use_container_width=True, hide_index=True)
             cap = "Rows show the number of reported Disclosure Requirements per ESRS standard in this pillar."
-            if VARIANT == "v2":
+            if VARIANT == "v3":
                 cap += " Includes each standard’s Total and Not reported."
-            elif VARIANT == "v3":
+            elif VARIANT == "v2":
                 cap += " Includes each standard’s Total and Missing."
             if n_peers > 0:
                 cap += note
@@ -1950,7 +1950,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
         if VARIANT == "v1":
             # v1: show only the short name like "E1 - Climate change"
             exp_title = short_title
-        elif VARIANT == "v3":
+        elif VARIANT == "v2":
             # v3: show reported + missing (no "/total" after reported)
             missing_count = max(n_metrics - int(firm_yes_count), 0)
             if peers_yes_mean is not None:
@@ -2147,7 +2147,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 st.altair_chart(fig, use_container_width=True)
                 tiles_legend = (
                     "Tiles: dark = reported, light = missing. "
-                    if VARIANT == "v3"
+                    if VARIANT == "v2"
                     else "Tiles: dark = reported, light = not reported. "
                 )
                 st.caption(
