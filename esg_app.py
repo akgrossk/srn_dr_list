@@ -2026,29 +2026,28 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
             missing_count = max(n_metrics - int(firm_yes_count), 0)
             if peers_yes_mean is not None:
                 exp_title = (
-                    f"{short_title} • {n_metrics} Disclosure Requirements — "
-                    f"reported: {firm_yes_count} "
+                    f"{short_title} • Disclosure Requirements "
+                    f"reported: {firm_yes_count}/{n_metrics} "
                     f"(Peers {comp_label}: {peers_yes_mean:.1f})"
                 )
             else:
                 exp_title = (
-                    f"{short_title} • {n_metrics} Disclosure Requirements — "
+                    f"{short_title} • Disclosure Requirements "
                     f"reported: {firm_yes_count}"
                 )
         else:
             # v2: keep original reported/total style
             if peers_yes_mean is not None:
                 exp_title = (
-                    f"{short_title} • {n_metrics} Disclosure Requirements — "
+                    f"{short_title} •  Disclosure Requirements "
                     f"reported: {firm_yes_count}/{n_metrics} "
                     f"(Peers {comp_label}: {peers_yes_mean:.1f})"
                 )
             else:
                 exp_title = (
-                    f"{short_title} • {n_metrics} Disclosure Requirements — "
+                    f"{short_title} • Disclosure Requirements "
                     f"reported: {firm_yes_count}/{n_metrics}"
                 )
-
 
         with st.expander(exp_title, expanded=False):
             if display_mode == "Tables":
