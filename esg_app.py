@@ -1292,9 +1292,11 @@ if view == "Total":
 
             # --- header + legend (unchanged) ---
         render_section_header("Total overview", [])
-        if VARIANT in ("v2","v3"):
+        if VARIANT == "v3":
+            # v3: show standards + “Not reported” chips
             render_inline_legend_with_missing(present_codes, STD_COLOR)
         else:
+            # v2 and v1: standards only (no missing in legend)
             render_inline_legend(present_codes, STD_COLOR)
         
         if not chart_df.empty:
@@ -1645,8 +1647,13 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
             st.markdown("---")
 
         else:
-            # v2 / v3: reported + hatched missing per standard; rows sum to fixed totals
-            render_pillar_legend_with_missing(stds_in_pillar, STD_COLOR, pillar)
+            # v2 / v3: show legend
+            if VARIANT == "v3":
+                # v3: standards + “Not reported”
+                render_pillar_legend_with_missing(stds_in_pillar, STD_COLOR, pillar)
+            else:
+                # v2: standards only (no missing in legend)
+                render_inline_legend(stds_in_pillar, STD_COLOR)
 
             rows = []
             firm_series = "Firm"
