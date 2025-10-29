@@ -753,7 +753,10 @@ def log_user_event(user_id: str, event: str, value: str = "", metadata: dict = N
         value: Event value (e.g., company name, view type)
         metadata: Additional metadata dictionary for context
     """
+    print(f"🔍 TRACKING: {event} = {value}")  # Debug output
+    
     if not SUPABASE_ENABLED or not supabase:
+        print(f"❌ SUPABASE not available")  # Debug output
         return False
     
     # If no user_id provided, use a default anonymous user
@@ -795,12 +798,15 @@ def log_user_event(user_id: str, event: str, value: str = "", metadata: dict = N
         
         # Check if insert was successful
         if result.data:
+            print(f"✅ SUCCESS: {event} logged to database")  # Debug output
             return True
         else:
+            print(f"❌ FAILED: {event} not logged to database")  # Debug output
             return False
         
     except Exception as e:
-        # Silently fail to avoid disrupting user experience
+        # Log error for debugging
+        print(f"❌ ERROR: {event} failed with error: {str(e)}")
         return False
 
 def get_context_from_srnapi(document_id, query):
@@ -825,17 +831,14 @@ try:
     data_load_duration = (pd.Timestamp.now() - data_load_start).total_seconds()
     
     # Track data loading performance
-    if user_qp:
-        log_user_event(user_qp, "data_loading", f"duration_{data_load_duration:.2f}s")
+    log_user_event(user_qp, "data_loading", f"duration_{data_load_duration:.2f}s")
     
     if df.empty:
-        if user_qp:
-            log_user_event(user_qp, "data_loading_error", "DataFrame is empty after loading")
+        log_user_event(user_qp, "data_loading_error", "DataFrame is empty after loading")
         st.stop()
 except Exception as e:
     data_load_duration = (pd.Timestamp.now() - data_load_start).total_seconds()
-    if user_qp:
-        log_user_event(user_qp, "data_loading_exception", f"Failed to load data: {str(e)[:100]}")
+    log_user_event(user_qp, "data_loading_exception", f"Failed to load data: {str(e)[:100]}")
     st.error(f"Failed to load data: {e}")
     st.stop()
 
@@ -882,8 +885,7 @@ if new_variant != VARIANT:
     st.session_state["variant"] = VARIANT
     
     # Log variant change
-    if user_qp:
-        log_user_event(user_qp, "variant_changed", new_variant)
+    log_user_event(user_qp, "variant_changed", new_variant)
     
     # persist to URL so the link is shareable
     try:
@@ -935,13 +937,12 @@ if firm_name_col:
         st.stop()
     current_row = df[df[firm_name_col].astype(str) == str(firm_label)].iloc[0]
     
-    # Log firm selection
-    if user_qp:
-        log_user_event(user_qp, "firm_selected", str(firm_label), {
-            "firm_name": str(firm_label),
-            "isin": str(current_row.get(firm_id_col, "")) if firm_id_col else "",
-            "country": str(current_row.get(country_col, "")) if country_col else ""
-        })
+    # Log firm selection (always log, not just on change)
+    log_user_event(user_qp, "firm_selected", str(firm_label), {
+        "firm_name": str(firm_label),
+        "isin": str(current_row.get(firm_id_col, "")) if firm_id_col else "",
+        "country": str(current_row.get(country_col, "")) if country_col else ""
+    })
 elif firm_id_col:
     firms = df[firm_id_col].dropna().astype(str).unique().tolist()
     default_index = firms.index(firm_qp) if (firm_qp in firms) else None
@@ -961,13 +962,12 @@ elif firm_id_col:
         st.stop()
     current_row = df[df[firm_id_col].astype(str) == str(firm_label)].iloc[0]
     
-    # Log firm selection (by ID)
-    if user_qp:
-        log_user_event(user_qp, "firm_selected", str(firm_label), {
-            "firm_name": str(firm_label),
-            "isin": str(current_row.get(firm_id_col, "")) if firm_id_col else "",
-            "country": str(current_row.get(country_col, "")) if country_col else ""
-        })
+    # Log firm selection (by ID) - always log
+    log_user_event(user_qp, "firm_selected", str(firm_label), {
+        "firm_name": str(firm_label),
+        "isin": str(current_row.get(firm_id_col, "")) if firm_id_col else "",
+        "country": str(current_row.get(country_col, "")) if country_col else ""
+    })
 else:
     st.error("No firm identifier column found (looked for: name/company/firm or isin/ticker).")
     st.stop()
@@ -1029,13 +1029,11 @@ with btn_col1:
     if _valid_url(link_url):
         if st.link_button("Open firm report", link_url, help="Open the firm's report in a new tab"):
             # Log when user clicks to open report
-            if user_qp:
-                log_user_event(user_qp, "open_report_clicked", str(firm_label))
+            log_user_event(user_qp, "open_report_clicked", str(firm_label))
     else:
         if st.button("Open firm report"):
             # Log attempt to open unavailable report
-            if user_qp:
-                log_user_event(user_qp, "open_report_clicked_unavailable", str(firm_label))
+            log_user_event(user_qp, "open_report_clicked_unavailable", str(firm_label))
             try:
                 st.toast("No report link available yet.", icon="ℹ️")
             except Exception:
@@ -1046,14 +1044,12 @@ with btn_col2:
     try:
         with st.popover("Show auditor"):
             # Log when user opens auditor popover
-            if user_qp:
-                log_user_event(user_qp, "auditor_popover_opened", str(firm_label))
+            log_user_event(user_qp, "auditor_popover_opened", str(firm_label))
             st.markdown(f"**Auditor:** {auditor_val or '—'}")
     except Exception:
         if st.button("Show auditor"):
             # Log when user clicks auditor button (fallback)
-            if user_qp:
-                log_user_event(user_qp, "auditor_button_clicked", str(firm_label))
+            log_user_event(user_qp, "auditor_button_clicked", str(firm_label))
             st.info(f"Auditor: {auditor_val or '—'}")
 
 
@@ -1061,8 +1057,7 @@ with btn_col3:
     prompt = st.chat_input("Query and search the company\'s report with AI")
     if prompt:
         # Log AI query with enhanced tracking
-        if user_qp:
-            log_user_event(user_qp, "ai_query_submitted", f"{str(firm_label)}: {prompt[:100]}")
+        log_user_event(user_qp, "ai_query_submitted", f"{str(firm_label)}: {prompt[:100]}")
         
         # Track API call start time for performance monitoring
         api_start_time = pd.Timestamp.now()
@@ -1075,8 +1070,7 @@ with btn_col3:
             api_end_time = pd.Timestamp.now()
             api_duration = (api_end_time - api_start_time).total_seconds()
             
-            if user_qp:
-                log_user_event(user_qp, "ai_api_response", f"duration_{api_duration:.2f}s")
+            log_user_event(user_qp, "ai_api_response", f"duration_{api_duration:.2f}s")
 
             with st.expander("AI chatbot", expanded=True) as ai_expander:
                 # Track AI chatbot expander interaction
@@ -1113,9 +1107,8 @@ if current_view not in valid_views:
 
 view = st.sidebar.radio("Section", valid_views, index=valid_views.index(current_view))
 
-# Log view change if different from URL parameter
-if user_qp and view != current_view:
-    log_user_event(user_qp, "view_changed", view)
+# Log view selection (always log)
+log_user_event(user_qp, "view_selected", view)
 
 comp_options = ["No comparison", "Country", "Sector", "Industry", "Custom peers"]
 comp_default_label = PARAM_TO_COMP.get(comp_qp, "No comparison")
@@ -1123,9 +1116,8 @@ if comp_default_label not in comp_options:
     comp_default_label = "No comparison"
 comparison = st.sidebar.selectbox("Comparison", comp_options, index=comp_options.index(comp_default_label))
 
-# Log comparison change if different from URL parameter
-if user_qp and comparison != comp_default_label:
-    log_user_event(user_qp, "comparison_changed", comparison)
+# Log comparison selection (always log)
+log_user_event(user_qp, "comparison_selected", comparison)
 
 if comparison == "Country" and not country_col:
     st.sidebar.info("No country column found; comparison will be disabled.")
@@ -1149,9 +1141,8 @@ if comparison == "Custom peers" and label_col:
         st.sidebar.warning("Using only the first 4 selected peers.")
         selected_custom_peers = selected_custom_peers[:4]
     
-    # Log custom peers selection if different from URL default
-    if user_qp and set(selected_custom_peers) != set(default_peers):
-        log_user_event(user_qp, "custom_peers_selected", f"{str(firm_label)}: {', '.join(selected_custom_peers)}")
+    # Log custom peers selection (always log)
+    log_user_event(user_qp, "custom_peers_selected", f"{str(firm_label)}: {', '.join(selected_custom_peers)}")
 
 # --- SIDEBAR: peer firm list toggle -----------------------------------------
 # Build the same peer set the charts use, based on current comparison mode
@@ -1171,7 +1162,7 @@ elif comparison == "Custom peers":
 show_peer_list = st.sidebar.checkbox("Show peer firm list", value=False)
 
 # Log when user toggles peer list visibility
-if user_qp and show_peer_list:
+if show_peer_list:
     log_user_event(user_qp, "peer_list_toggled", f"{str(firm_label)}: shown")
 
 if show_peer_list:
@@ -1214,10 +1205,8 @@ display_mode = st.sidebar.radio(
     index=mode_default_index
 )
 
-# Log display mode change if different from URL parameter
-expected_mode = "Charts" if mode_qp == "charts" else "Tables"
-if user_qp and display_mode != expected_mode:
-    log_user_event(user_qp, "display_mode_changed", display_mode)
+# Log display mode selection (always log)
+log_user_event(user_qp, "display_mode_selected", display_mode)
 
 X_TITLE = "Number of reported Disclosure Requirements"
 
@@ -1794,8 +1783,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
             st.altair_chart(fig, use_container_width=True)
             chart_render_duration = (pd.Timestamp.now() - chart_render_start).total_seconds()
             
-            if user_qp:
-                log_user_event(user_qp, "chart_rendering", f"duration_{chart_render_duration:.2f}s")
+            log_user_event(user_qp, "chart_rendering", f"duration_{chart_render_duration:.2f}s")
 
             st.caption("Counts of reported Disclosure Requirements within this pillar, stacked by standard ." + (note if n_peers > 0 else ""))
             st.markdown("---")
@@ -2304,8 +2292,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 st.altair_chart(fig, use_container_width=True)
                 tile_render_duration = (pd.Timestamp.now() - tile_render_start).total_seconds()
                 
-                if user_qp:
-                    log_user_event(user_qp, "tile_chart_rendering", f"duration_{tile_render_duration:.2f}s")
+                log_user_event(user_qp, "tile_chart_rendering", f"duration_{tile_render_duration:.2f}s")
                 
                 tiles_legend = (
                     "Tiles: dark = reported, light = missing. "
