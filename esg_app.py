@@ -738,17 +738,27 @@ def friendly_col_label(comp_col: str) -> str:
         pass
     return str(comp_col)  # fallback
 
-def log_user_event(user_id: str, event: str, value: str = ""):
+def track_expander_interaction(user_id: str, expander_title: str, expanded: bool, context: str = ""):
+    """Track when users expand/collapse sections"""
+    if user_id:
+        log_user_event(user_id, "expander_interaction", f"{expander_title}: {'expanded' if expanded else 'collapsed'}")
+
+def log_user_event(user_id: str, event: str, value: str = "", metadata: dict = None):
     """
-    Log user events to Supabase table
+    Log user events to Supabase table with enhanced tracking
     
     Args:
-        user_id: UUID string from URL parameter
+        user_id: UUID string from URL parameter (optional)
         event: Event type (e.g., 'firm_selected', 'view_changed', 'comparison_changed')
         value: Event value (e.g., company name, view type)
+        metadata: Additional metadata dictionary for context
     """
-    if not SUPABASE_ENABLED or not supabase or not user_id:
+    if not SUPABASE_ENABLED or not supabase:
         return False
+    
+    # If no user_id provided, use a default anonymous user
+    if not user_id:
+        user_id = "cd483ee2-246f-46a1-b825-4b7cc1498900"  # Use existing user ID for anonymous tracking
     
     try:
         # Convert user_id to UUID format if it's not already
@@ -762,11 +772,24 @@ def log_user_event(user_id: str, event: str, value: str = ""):
         clean_event = str(event).strip()[:100]  # Limit event length
         clean_value = str(value).strip()[:500] if value else ""  # Limit value length
         
+        # Prepare enhanced data structure
         data = {
             "user_id": user_uuid,
             "event": clean_event,
-            "value": clean_value
+            "value": clean_value,
+            "timestamp": pd.Timestamp.now().isoformat(),
+            "session_id": st.session_state.get("session_id", ""),
+            "variant": VARIANT,
+            "url_params": str(st.query_params) if hasattr(st, 'query_params') else "",
         }
+        
+        # Add only essential metadata if provided
+        if metadata:
+            # Only add the essential meta fields we kept
+            essential_meta_fields = ['firm_name', 'isin', 'country']
+            for key, val in metadata.items():
+                if key in essential_meta_fields and key not in data:
+                    data[f"meta_{key}"] = str(val)[:200]  # Limit metadata length
         
         result = supabase.table("log_drlists").insert(data).execute()
         
@@ -792,13 +815,44 @@ def get_context_from_srnapi(document_id, query):
 
     return "\n".join([x["content"] for x in pages])
 
-# ========= LOAD DATA (GitHub only) =========
-df = load_table(DEFAULT_DATA_URL)
-if df.empty:
-    st.stop()
-
 # Read user parameter early (before sidebar code)
 user_qp = read_query_param("user", None)
+
+# ========= LOAD DATA (GitHub only) =========
+data_load_start = pd.Timestamp.now()
+try:
+    df = load_table(DEFAULT_DATA_URL)
+    data_load_duration = (pd.Timestamp.now() - data_load_start).total_seconds()
+    
+    # Track data loading performance
+    if user_qp:
+        log_user_event(user_qp, "data_loading", f"duration_{data_load_duration:.2f}s")
+    
+    if df.empty:
+        if user_qp:
+            log_user_event(user_qp, "data_loading_error", "DataFrame is empty after loading")
+        st.stop()
+except Exception as e:
+    data_load_duration = (pd.Timestamp.now() - data_load_start).total_seconds()
+    if user_qp:
+        log_user_event(user_qp, "data_loading_exception", f"Failed to load data: {str(e)[:100]}")
+    st.error(f"Failed to load data: {e}")
+    st.stop()
+
+# Initialize session tracking
+if "session_id" not in st.session_state:
+    st.session_state["session_id"] = str(uuid.uuid4())
+if "session_start_time" not in st.session_state:
+    st.session_state["session_start_time"] = pd.Timestamp.now().isoformat()
+if "page_load_count" not in st.session_state:
+    st.session_state["page_load_count"] = 0
+st.session_state["page_load_count"] += 1
+
+# Log page load/session initialization
+if user_qp:
+    log_user_event(user_qp, "page_load", f"load_count_{st.session_state['page_load_count']}")
+else:
+    log_user_event(None, "page_load", f"load_count_{st.session_state['page_load_count']}")
 
 # --- Variant switcher (always visible) ---
 st.sidebar.caption(f"Variant: **{VARIANT.upper()}**")
@@ -883,7 +937,11 @@ if firm_name_col:
     
     # Log firm selection
     if user_qp:
-        log_user_event(user_qp, "firm_selected", str(firm_label))
+        log_user_event(user_qp, "firm_selected", str(firm_label), {
+            "firm_name": str(firm_label),
+            "isin": str(current_row.get(firm_id_col, "")) if firm_id_col else "",
+            "country": str(current_row.get(country_col, "")) if country_col else ""
+        })
 elif firm_id_col:
     firms = df[firm_id_col].dropna().astype(str).unique().tolist()
     default_index = firms.index(firm_qp) if (firm_qp in firms) else None
@@ -905,7 +963,11 @@ elif firm_id_col:
     
     # Log firm selection (by ID)
     if user_qp:
-        log_user_event(user_qp, "firm_selected", str(firm_label))
+        log_user_event(user_qp, "firm_selected", str(firm_label), {
+            "firm_name": str(firm_label),
+            "isin": str(current_row.get(firm_id_col, "")) if firm_id_col else "",
+            "country": str(current_row.get(country_col, "")) if country_col else ""
+        })
 else:
     st.error("No firm identifier column found (looked for: name/company/firm or isin/ticker).")
     st.stop()
@@ -998,15 +1060,29 @@ with btn_col2:
 with btn_col3:
     prompt = st.chat_input("Query and search the company\'s report with AI")
     if prompt:
-        # Log AI query
+        # Log AI query with enhanced tracking
         if user_qp:
             log_user_event(user_qp, "ai_query_submitted", f"{str(firm_label)}: {prompt[:100]}")
+        
+        # Track API call start time for performance monitoring
+        api_start_time = pd.Timestamp.now()
         
         # try:
         with st.spinner():
             context = get_context_from_srnapi(current_row.get('document_id'), prompt)
+            
+            # Log API response time
+            api_end_time = pd.Timestamp.now()
+            api_duration = (api_end_time - api_start_time).total_seconds()
+            
+            if user_qp:
+                log_user_event(user_qp, "ai_api_response", f"duration_{api_duration:.2f}s")
 
-            with st.expander("AI chatbot", expanded=True):
+            with st.expander("AI chatbot", expanded=True) as ai_expander:
+                # Track AI chatbot expander interaction
+                if user_qp:
+                    track_expander_interaction(user_qp, "AI chatbot", True, f"firm_{str(firm_label)}")
+                
                 with st.chat_message("user"):
                     st.text(prompt)
 
@@ -1713,8 +1789,13 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     .configure_view(stroke=None)
                 )
                 
-                st.altair_chart(fig, use_container_width=True)
-
+                # Track chart rendering performance
+            chart_render_start = pd.Timestamp.now()
+            st.altair_chart(fig, use_container_width=True)
+            chart_render_duration = (pd.Timestamp.now() - chart_render_start).total_seconds()
+            
+            if user_qp:
+                log_user_event(user_qp, "chart_rendering", f"duration_{chart_render_duration:.2f}s")
 
             st.caption("Counts of reported Disclosure Requirements within this pillar, stacked by standard ." + (note if n_peers > 0 else ""))
             st.markdown("---")
@@ -2049,7 +2130,11 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     f"reported: {firm_yes_count}/{n_metrics}"
                 )
 
-        with st.expander(exp_title, expanded=False):
+        with st.expander(exp_title, expanded=False) as dr_expander:
+            # Track DR expander interaction when user expands
+            if user_qp:
+                track_expander_interaction(user_qp, exp_title, False, f"firm_{str(firm_label)}_pillar_{pillar}")
+            
             if display_mode == "Tables":
                 # Per-DR table with Code + Name + Reported (+ peers %)
                 codes = [str(c).strip().split(" ")[0] for c in metrics]
@@ -2214,7 +2299,14 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                     padding={"left": 12, "right": 12, "top": 6, "bottom": 8},
                 ).configure_view(stroke=None)
 
+                # Track tile chart rendering performance
+                tile_render_start = pd.Timestamp.now()
                 st.altair_chart(fig, use_container_width=True)
+                tile_render_duration = (pd.Timestamp.now() - tile_render_start).total_seconds()
+                
+                if user_qp:
+                    log_user_event(user_qp, "tile_chart_rendering", f"duration_{tile_render_duration:.2f}s")
+                
                 tiles_legend = (
                     "Tiles: dark = reported, light = missing. "
                     if VARIANT == "v2"
@@ -2228,6 +2320,27 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 )
 
 
+
+# ========= SESSION END TRACKING =========
+# Track session end when user leaves (this runs on every page load, so we track session duration)
+if user_qp and "session_start_time" in st.session_state:
+    session_start = pd.Timestamp(st.session_state["session_start_time"])
+    session_duration = (pd.Timestamp.now() - session_start).total_seconds()
+    
+    # Only log session end if it's been more than 30 seconds (to avoid logging on every rerun)
+    if session_duration > 30:
+        log_user_event(user_qp, "session_end", f"duration_{session_duration:.2f}s", {
+            "session_duration_seconds": session_duration,
+            "page_loads": st.session_state.get("page_load_count", 0),
+            "session_id": st.session_state.get("session_id", ""),
+            "final_view": view,
+            "final_firm": str(firm_label),
+            "final_variant": VARIANT
+        })
+        
+        # Reset session tracking for next session
+        st.session_state["session_start_time"] = pd.Timestamp.now().isoformat()
+        st.session_state["page_load_count"] = 0
 
 # ========= Which pillar to render =========
 if view == "E":
