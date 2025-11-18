@@ -1029,19 +1029,53 @@ st.markdown("""
 # 1) Open firm report
 with btn_col1:
     if _valid_url(link_url):
-        # Track every click - link_button returns True only on actual click, Streamlit prevents duplicates
+        # Initialize tracking for this firm if not exists
+        tracking_key = f"open_report_last_logged_{str(firm_label)}"
+        if tracking_key not in st.session_state:
+            st.session_state[tracking_key] = None
+        
+        # Create link button (st.link_button may not support key parameter in all versions)
         clicked = st.link_button("Open firm report", link_url, help="Open the firm's report in a new tab")
-        if clicked:
+        
+        # Track the current button state to detect actual clicks
+        button_state_key = f"open_report_button_state_{str(firm_label)}"
+        if button_state_key not in st.session_state:
+            st.session_state[button_state_key] = False
+        
+        # Only log if button state changed from False to True (actual click)
+        if clicked and not st.session_state[button_state_key]:
             log_user_event(user_qp, "open_report_clicked", str(firm_label))
+            st.session_state[button_state_key] = True
+            st.session_state[tracking_key] = pd.Timestamp.now()
+        elif not clicked:
+            # Reset button state when not clicked (allows logging on next click)
+            st.session_state[button_state_key] = False
     else:
-        clicked_unavailable = st.button("Open firm report")
-        if clicked_unavailable:
-            # Track every click attempt
+        button_key_unavailable = f"open_report_unavailable_btn_{str(firm_label)}"
+        clicked_unavailable = st.button("Open firm report", key=button_key_unavailable)
+        
+        # Initialize tracking for this firm if not exists
+        tracking_key_unavailable = f"open_report_unavailable_last_logged_{str(firm_label)}"
+        if tracking_key_unavailable not in st.session_state:
+            st.session_state[tracking_key_unavailable] = None
+        
+        # Track the current button state to detect actual clicks
+        button_state_key_unavailable = f"open_report_unavailable_button_state_{str(firm_label)}"
+        if button_state_key_unavailable not in st.session_state:
+            st.session_state[button_state_key_unavailable] = False
+        
+        # Only log if button state changed from False to True (actual click)
+        if clicked_unavailable and not st.session_state[button_state_key_unavailable]:
             log_user_event(user_qp, "open_report_clicked_unavailable", str(firm_label))
+            st.session_state[button_state_key_unavailable] = True
+            st.session_state[tracking_key_unavailable] = pd.Timestamp.now()
             try:
                 st.toast("No report link available yet.", icon="ℹ️")
             except Exception:
                 st.info("No report link available yet.")
+        elif not clicked_unavailable:
+            # Reset button state when not clicked (allows logging on next click)
+            st.session_state[button_state_key_unavailable] = False
 
 # 2) Show auditor
 with btn_col2:
