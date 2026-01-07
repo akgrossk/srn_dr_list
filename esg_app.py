@@ -439,7 +439,7 @@ def load_table(url: str) -> pd.DataFrame:
         r.raise_for_status()
         data = BytesIO(r.content)
         if u.lower().endswith((".xlsx", ".xls")):
-            return pd.read_excel(data).merge(pd.read_json("https://api.srnav.com/documents").loc[:, ['company_id', 'id']].rename(columns={'id': 'document_id'}))
+            return pd.read_excel(data).merge(pd.read_json("https://api.srnav.com/documents").assign(company_id = lambda y: [z["id"] for z in y["company"]]).loc[:, ['company_id', 'id']].rename(columns={'id': 'document_id'}))
         return pd.read_csv(data)
     except Exception as e:
         st.error(f"Failed to fetch data from GitHub: {e}")
