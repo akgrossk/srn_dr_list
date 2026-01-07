@@ -964,20 +964,22 @@ st.markdown("""
 
 # 1) Open firm report
 with btn_col1:
-    if _valid_url(link_url):
-        if st.link_button("Open firm report", link_url, help="Open the firm's report in a new tab"):
+    with st.popover("Open firm report"):
+        if _valid_url(link_url):
             # Log when user clicks to open report
             if user_qp:
                 log_user_event(user_qp, "open_report_clicked", str(firm_label))
-    else:
-        if st.button("Open firm report"):
-            # Log attempt to open unavailable report
-            if user_qp:
-                log_user_event(user_qp, "open_report_clicked_unavailable", str(firm_label))
-            try:
-                st.toast("No report link available yet.", icon="ℹ️")
-            except Exception:
-                st.info("No report link available yet.")
+            st.link_button("Open firm report", link_url, help="Open the firm's report in a new tab")
+
+        else:
+            if st.button("Open firm report"):
+                # Log attempt to open unavailable report
+                if user_qp:
+                    log_user_event(user_qp, "open_report_clicked_unavailable", str(firm_label))
+                try:
+                    st.toast("No report link available yet.", icon="ℹ️")
+                except Exception:
+                    st.info("No report link available yet.")
 
 # 2) Show auditor
 with btn_col2:
