@@ -81,6 +81,9 @@ def _force_light_mode():
 
 _force_light_mode()
 
+SUPABASE_ENABLED = True
+supabase = None
+
 # ========= VARIANT / TREATMENT ARMS =========
 
 VARIANT_KEYS = ["v1", "v2", "v3"]
@@ -157,11 +160,8 @@ try:
     # Use service role key for bypassing RLS (SUPABASE_ANON_KEY contains service role)
     SUPABASE_SERVICE_KEY = st.secrets.get("SUPABASE_ANON_KEY")  # This contains the service role key
     supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
-    SUPABASE_ENABLED = True
 except Exception as e:
     st.warning(f"Supabase not configured: {e}")
-    supabase = None
-    SUPABASE_ENABLED = False
 
 FIRM_NAME_COL_CANDIDATES = ["name", "company", "firm"]
 FIRM_ID_COL_CANDIDATES   = ["isin", "ticker"]
