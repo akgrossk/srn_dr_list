@@ -64,18 +64,18 @@ def _force_light_mode():
 
 
     # Force Altair/Vega to light mode
-    alt_light = {
-        "config": {
-            "background": "white",
-            "view": {"stroke": "transparent"},
-            "axis": {"labelColor": "#111111", "titleColor": "#111111", "gridColor": "#e6e6e6"},
-            "legend": {"labelColor": "#111111", "titleColor": "#111111"},
-            "title": {"color": "#111111"},
-        }
-    }
     try:
-        alt.themes.register("force_light", lambda: alt_light)
-        alt.themes.enable("force_light")
+        @alt.theme.register("force_light", enable=True)
+        def force_light_theme():
+            return alt.theme.ThemeConfig({
+                "config": {
+                    "background": "white",
+                    "view": {"stroke": "transparent"},
+                    "axis": {"labelColor": "#111111", "titleColor": "#111111", "gridColor": "#e6e6e6"},
+                    "legend": {"labelColor": "#111111", "titleColor": "#111111"},
+                    "title": {"color": "#111111"},
+                }
+            })
     except Exception:
         pass
 
@@ -106,20 +106,31 @@ def _qp_update(**params):
         cur.update(params)
         st.experimental_set_query_params(**cur)
 
+def _get_user_variant(user_id):
+    if not SUPABASE_ENABLED or not supabase or not user_id:
+        return DEFAULT_VARIANT or np.random.choice(VARIANT_KEYS)
+    
+    try:
+        result = supabase.table("profile").select("drlist_view").eq("id", user_id).execute()
+        if result.data and len(result.data) > 0:
+            drlist_view = result.data[0].get("drlist_view")
+            if drlist_view is not None:
+                variant_map = {0: "v1", 1: "v2", 2: "v3"}
+                return variant_map.get(drlist_view, DEFAULT_VARIANT or np.random.choice(VARIANT_KEYS))
+    except Exception as e:
+        print(f"Error fetching user variant: {e}")
+    
+    return DEFAULT_VARIANT or np.random.choice(VARIANT_KEYS)
+
 def _get_variant():
-    # 1) respect ?v= in URL if present (case-insensitive)
-    v = (_qp_get("v", "") or "").lower()
-    if v in VARIANT_KEYS:
-        st.session_state["variant"] = v
-        return v
-
-    # 2) respect previously chosen session variant
-    v = st.session_state.get("variant")
-    if v not in VARIANT_KEYS:
-        # 3) default: random assignment (unless DEFAULT_VARIANT is set)
-        v = DEFAULT_VARIANT or np.random.choice(VARIANT_KEYS)
-        st.session_state["variant"] = v
-
+    user_id = read_query_param("user", None)
+    
+    # Get variant based on user's drlist_view
+    v = _get_user_variant(user_id)
+    
+    # Store in session
+    st.session_state["variant"] = v
+    
     # persist to URL
     _qp_update(v=v)
     return v
@@ -439,7 +450,14 @@ def load_table(url: str) -> pd.DataFrame:
         r.raise_for_status()
         data = BytesIO(r.content)
         if u.lower().endswith((".xlsx", ".xls")):
-            return pd.read_excel(data).merge(pd.read_json("https://api.srnav.com/documents").loc[:, ['company_id', 'id']].rename(columns={'id': 'document_id'}))
+            df = pd.read_excel(data)
+            try:
+                api_data = pd.read_json("https://api.srnav.com/documents")
+                if 'company_id' in api_data.columns and 'id' in api_data.columns:
+                    df = df.merge(api_data.loc[:, ['company_id', 'id']].rename(columns={'id': 'document_id'}))
+            except Exception as api_err:
+                print(f"Warning: Failed to fetch/merge API data: {api_err}")
+            return df
         return pd.read_csv(data)
     except Exception as e:
         st.error(f"Failed to fetch data from GitHub: {e}")
@@ -738,33 +756,31 @@ def friendly_col_label(comp_col: str) -> str:
         pass
     return str(comp_col)  # fallback
 
-def log_user_event(user_id: str, event: str, value: str = "", metadata: dict = None):
+def log_user_event(user_id: str | None, event: str, value: str | None = None, metadata: dict | None = None):
     """
     Log user events to Supabase table with enhanced tracking
-    
+
     Args:
-        user_id: UUID string from URL parameter (optional)
+        user_id: UUID string from URL parameter (optional, None for anonymous)
         event: Event type (e.g., 'firm_selected', 'view_changed', 'comparison_changed')
         value: Event value (e.g., company name, view type)
         metadata: Additional metadata dictionary for context
     """
     print(f"🔍 TRACKING: {event} = {value}")  # Debug output
-    
+
     if not SUPABASE_ENABLED or not supabase:
         print(f"❌ SUPABASE not available")  # Debug output
         return False
-    
-    # If no user_id provided, use a default anonymous user
-    if not user_id:
-        user_id = "cd483ee2-246f-46a1-b825-4b7cc1498900"  # Use existing user ID for anonymous tracking
-    
+
     try:
         # Convert user_id to UUID format if it's not already
-        if not user_id.count('-') == 4:  # Simple UUID format check
-            # If user_id is not a UUID, create one based on the string
-            user_uuid = str(uuid.uuid5(uuid.NAMESPACE_DNS, user_id))
-        else:
-            user_uuid = user_id
+        user_uuid = None
+        if user_id:
+            if not user_id.count('-') == 4:  # Simple UUID format check
+                # If user_id is not a UUID, create one based on the string
+                user_uuid = str(uuid.uuid5(uuid.NAMESPACE_DNS, user_id))
+            else:
+                user_uuid = user_id
         
         # Ensure all values are clean strings
         clean_event = str(event).strip()[:100]  # Limit event length
@@ -849,44 +865,7 @@ if "tracked_events" not in st.session_state:
         "ai_query_submitted": set()  # Track AI queries by prompt hash
     }
 
-# --- Variant switcher (always visible) ---
-st.sidebar.caption(f"Variant: **{VARIANT.upper()}**")
-
-# User parameter is read but not displayed in UI
-
-try:
-    # Streamlit >= 1.31
-    new_variant = st.sidebar.segmented_control(
-        "View style",
-        options=VARIANT_KEYS,
-        default=VARIANT,
-        format_func=lambda x: x.upper(),
-    )
-except Exception:
-    # Fallback for older Streamlit
-    new_variant = st.sidebar.radio(
-        "View style",
-        options=VARIANT_KEYS,
-        index=VARIANT_KEYS.index(VARIANT),
-        format_func=lambda x: x.upper(),
-        horizontal=True,
-    )
-
-if new_variant != VARIANT:
-    VARIANT = new_variant
-    st.session_state["variant"] = VARIANT
-    
-    # Log variant change
-    log_user_event(user_qp, "variant_changed", new_variant)
-    
-    # persist to URL so the link is shareable
-    try:
-        st.query_params.update({"v": VARIANT})
-    except Exception:
-        cur = st.experimental_get_query_params()
-        cur["v"] = VARIANT
-        st.experimental_set_query_params(**cur)
-    st.rerun()
+# Variant is determined by user's drlist_view attribute from profile table
 
 
 # ========= DETECT COLUMNS & PRE-READ URL STATE =========
@@ -2137,7 +2116,7 @@ def render_pillar(pillar: str, title: str, comparison: str, display_mode: str):
                 if len(pb) > 0:
                     peers_yes_mean = float(pb.sum(axis=1).mean())
 
-       
+        # Build expander title based on variant
         if VARIANT == "v1":
             # v1: show only the short name like "E1 - Climate change"
             exp_title = short_title
