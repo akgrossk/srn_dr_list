@@ -891,8 +891,37 @@ Use this dashboard to explore the **Disclosure Requirements (DR)** that companie
 """
 
 # ========= FIRM PICKER =========
+st.sidebar.header("Firm Selection")
+# Add filters for country and sector
+selected_country = "All"
+if country_col:
+    countries = ["All"] + sorted(df[country_col].dropna().astype(str).unique().tolist())
+    prev_country = st.session_state.get("selected_country", "All")
+    selected_country = st.sidebar.selectbox("Filter by Country", countries, index=0)
+    if selected_country != prev_country:
+        if user_qp:
+            log_user_event(user_qp, "country_filter_changed", selected_country)
+        st.session_state["selected_country"] = selected_country
+
+selected_sector = "All"
+if sector_col:
+    sectors = ["All"] + sorted(df[sector_col].dropna().astype(str).unique().tolist())
+    prev_sector = st.session_state.get("selected_sector", "All")
+    selected_sector = st.sidebar.selectbox("Filter by Sector", sectors, index=0)
+    if selected_sector != prev_sector:
+        if user_qp:
+            log_user_event(user_qp, "sector_filter_changed", selected_sector)
+        st.session_state["selected_sector"] = selected_sector
+
+# Filter the dataframe based on selections
+filtered_df = df.copy()
+if selected_country != "All":
+    filtered_df = filtered_df[filtered_df[country_col].astype(str) == selected_country]
+if selected_sector != "All":
+    filtered_df = filtered_df[filtered_df[sector_col].astype(str) == selected_sector]
+
 if firm_name_col:
-    firms = df[firm_name_col].dropna().astype(str).unique().tolist()
+    firms = filtered_df[firm_name_col].dropna().astype(str).unique().tolist()
     default_index = firms.index(firm_qp) if (firm_qp in firms) else None
     try:
         firm_label = st.sidebar.selectbox("Firm", firms, index=default_index, placeholder="Select a firm…")
@@ -906,7 +935,7 @@ if firm_name_col:
         st.markdown(LANDING_MD)
         st.info("Select a firm on the left to see which Disclosure Requirements it includes in its report. You can compare each firm's reporting against its industry, country, sector, or a custom peer group.")
         st.stop()
-    current_row = df[df[firm_name_col].astype(str) == str(firm_label)].iloc[0]
+    current_row = filtered_df[filtered_df[firm_name_col].astype(str) == str(firm_label)].iloc[0]
     
     # Log firm selection only if it changed (not on initial load)
     # Initialize with current value if not set, without logging
@@ -920,7 +949,7 @@ if firm_name_col:
             "country": str(current_row.get(country_col, "")) if country_col else ""
         })
 elif firm_id_col:
-    firms = df[firm_id_col].dropna().astype(str).unique().tolist()
+    firms = filtered_df[firm_id_col].dropna().astype(str).unique().tolist()
     default_index = firms.index(firm_qp) if (firm_qp in firms) else None
     try:
         firm_label = st.sidebar.selectbox("Firm (ID)", firms, index=default_index, placeholder="Select a firm…")
@@ -936,7 +965,7 @@ elif firm_id_col:
         st.markdown(LANDING_MD)
         st.info("Select a firm from the sidebar to view details.")
         st.stop()
-    current_row = df[df[firm_id_col].astype(str) == str(firm_label)].iloc[0]
+    current_row = filtered_df[filtered_df[firm_id_col].astype(str) == str(firm_label)].iloc[0]
     
     # Log firm selection only if it changed (not on initial load)
     # Initialize with current value if not set, without logging
@@ -1107,6 +1136,7 @@ with btn_col3:
 
 
 # ========= NAV & COMPARISON =========
+st.sidebar.header("Display Options")
 valid_views = ["Total", "E", "S", "G"]
 current_view = read_query_param("view", "Total")
 if current_view == "Combined":
@@ -1149,7 +1179,7 @@ if comparison == "Industry" and not industry_col:
 selected_custom_peers = []
 label_col = firm_name_col if firm_name_col else firm_id_col
 if comparison == "Custom peers" and label_col:
-    all_firms = df[label_col].dropna().astype(str).unique().tolist()
+    all_firms = filtered_df[label_col].dropna().astype(str).unique().tolist()
     try:
         all_firms = [f for f in all_firms if str(f) != str(current_row.get(label_col, ""))]
     except Exception:
@@ -1173,17 +1203,18 @@ if comparison == "Custom peers" and label_col:
 _peers_df, _n_peers, _peer_note = (None, 0, "")
 
 if comparison == "Country" and country_col:
-    _peers_df, _n_peers, _peer_note = build_peers(df, country_col, current_row)
+    _peers_df, _n_peers, _peer_note = build_peers(filtered_df, country_col, current_row)
 elif comparison == "Sector" and sector_col:
-    _peers_df, _n_peers, _peer_note = build_peers(df, sector_col, current_row)
+    _peers_df, _n_peers, _peer_note = build_peers(filtered_df, sector_col, current_row)
 elif comparison == "Industry" and industry_col:
-    _peers_df, _n_peers, _peer_note = build_peers(df, industry_col, current_row)
+    _peers_df, _n_peers, _peer_note = build_peers(filtered_df, industry_col, current_row)
 elif comparison == "Custom peers":
     _peers_df, _n_peers, _peer_note = build_custom_peers(
-        df, label_col, selected_custom_peers, current_row
+        filtered_df, label_col, selected_custom_peers, current_row
     )
 
-show_peer_list = st.sidebar.checkbox("Show peer firm list", value=False)
+if comparison != "No comparison":
+    show_peer_list = st.sidebar.checkbox("Show peer firm list", value=False)
 
 # Log when user toggles peer list visibility only if it changed (not on initial load)
 if st.session_state["tracked_events"]["peer_list_toggled"] is None:
@@ -1195,35 +1226,35 @@ elif not show_peer_list and st.session_state["tracked_events"]["peer_list_toggle
     st.session_state["tracked_events"]["peer_list_toggled"] = False
     log_user_event(user_qp, "peer_list_toggled", f"{str(firm_label)}: hidden")
 
-if show_peer_list:
-    if _n_peers == 0 or _peers_df is None or _peers_df.empty:
-        st.sidebar.info("No peers to display for the current selection.")
-    else:
-        # Decide which columns to show and give them clear headers
-        _name_col = label_col  # prefer firm name if available; else ID
-        _cols = []
-        _ren = {}
-        for src, dst in [
-            (_name_col, "Name"),
-            (country_col, "Country"),
-            (sector_col, "Sector"),
-            (industry_col, "Industry"),
-        ]:
-            if src and src in _peers_df.columns:
-                _cols.append(src)
-                _ren[src] = dst
+    if show_peer_list:
+        if _n_peers == 0 or _peers_df is None or _peers_df.empty:
+            st.sidebar.info("No peers to display for the current selection.")
+        else:
+            # Decide which columns to show and give them clear headers
+            _name_col = label_col  # prefer firm name if available; else ID
+            _cols = []
+            _ren = {}
+            for src, dst in [
+                (_name_col, "Name"),
+                (country_col, "Country"),
+                (sector_col, "Sector"),
+                (industry_col, "Industry"),
+            ]:
+                if src and src in _peers_df.columns:
+                    _cols.append(src)
+                    _ren[src] = dst
 
-        _view = _peers_df[_cols].rename(columns=_ren).copy()
+            _view = _peers_df[_cols].rename(columns=_ren).copy()
 
-        st.sidebar.caption(
-            f"Peers shown: {len(_view)}{_peer_note}"
-        )
-        st.sidebar.dataframe(
-            _view,
-            use_container_width=True,
-            hide_index=True,
-            height=300,
-        )
+            st.sidebar.caption(
+                f"Peers shown: {len(_view)}{_peer_note}"
+            )
+            st.sidebar.dataframe(
+                _view,
+                use_container_width=True,
+                hide_index=True,
+                height=300,
+            )
 
 
 # === ONE GLOBAL DISPLAY MODE TOGGLE (applies to Combined + Pillars) ===
@@ -1285,18 +1316,18 @@ if view == "Total":
     if comparison == "Country" and country_col:
         comp_col = country_col
         comp_label = "Country mean"
-        peers, n_peers, peer_note = build_peers(df, comp_col, current_row)
+        peers, n_peers, peer_note = build_peers(filtered_df, comp_col, current_row)
     elif comparison == "Sector" and sector_col:
         comp_col = sector_col
         comp_label = "Sector mean"
-        peers, n_peers, peer_note = build_peers(df, comp_col, current_row)
+        peers, n_peers, peer_note = build_peers(filtered_df, comp_col, current_row)
     elif comparison == "Industry" and industry_col:
         comp_col = industry_col
         comp_label = "industry mean"
-        peers, n_peers, peer_note = build_peers(df, comp_col, current_row)
+        peers, n_peers, peer_note = build_peers(filtered_df, comp_col, current_row)
     elif comparison == "Custom peers":
         comp_label = "Custom"
-        peers, n_peers, peer_note = build_custom_peers(df, label_col, selected_custom_peers, current_row)
+        peers, n_peers, peer_note = build_custom_peers(filtered_df, label_col, selected_custom_peers, current_row)
     
     firm_series = "Firm"
     comp_label_short = (comp_label or "").replace(" mean", "") if comp_label else None
