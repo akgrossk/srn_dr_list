@@ -123,7 +123,7 @@ def _get_user_variant(user_id):
     return DEFAULT_VARIANT or np.random.choice(VARIANT_KEYS)
 
 def _get_variant():
-    user_id = read_query_param("user", None)
+    user_id = _qp_get("user", None)
     
     # Get variant based on user's drlist_view
     v = _get_user_variant(user_id)
