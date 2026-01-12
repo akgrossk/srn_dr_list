@@ -880,6 +880,8 @@ firm_qp  = read_query_param("firm", None)
 comp_qp  = (read_query_param("comp", "none") or "none").lower()
 peers_qp = read_query_param("peers", "")
 mode_qp  = (read_query_param("mode", "charts") or "charts").lower()
+country_qp = read_query_param("country", "All")
+sector_qp = read_query_param("sector", "All")
 preselected_peers = [p for p in peers_qp.split(",") if p] if peers_qp else []
 
 # --- Landing page content (shown before a firm is selected) ---
@@ -893,21 +895,23 @@ Use this dashboard to explore the **Disclosure Requirements (DR)** that companie
 # ========= FIRM PICKER =========
 st.sidebar.header("Firm Selection")
 # Add filters for country and sector
-selected_country = "All"
+selected_country = country_qp
 if country_col:
     countries = ["All"] + sorted(df[country_col].dropna().astype(str).unique().tolist())
     prev_country = st.session_state.get("selected_country", "All")
-    selected_country = st.sidebar.selectbox("Filter by Country", countries, index=0)
+    default_index = countries.index(country_qp) if (country_qp in countries) else 0
+    selected_country = st.sidebar.selectbox("Filter by Country", countries, index=default_index)
     if selected_country != prev_country:
         if user_qp:
             log_user_event(user_qp, "country_filter_changed", selected_country)
         st.session_state["selected_country"] = selected_country
 
-selected_sector = "All"
+selected_sector = sector_qp
 if sector_col:
     sectors = ["All"] + sorted(df[sector_col].dropna().astype(str).unique().tolist())
     prev_sector = st.session_state.get("selected_sector", "All")
-    selected_sector = st.sidebar.selectbox("Filter by Sector", sectors, index=0)
+    default_index = sectors.index(sector_qp) if (sector_qp in sectors) else 0
+    selected_sector = st.sidebar.selectbox("Filter by Sector", sectors, index=default_index)
     if selected_sector != prev_sector:
         if user_qp:
             log_user_event(user_qp, "sector_filter_changed", selected_sector)
@@ -1284,6 +1288,10 @@ params = {
     "mode": "charts" if display_mode == "Charts" else "tables",
     "v": VARIANT,  # keep variant shareable
 }
+if selected_country and selected_country != "All":
+    params["country"] = selected_country
+if selected_sector and selected_sector != "All":
+    params["sector"] = selected_sector
 if COMP_TO_PARAM.get(comparison) == "custom" and selected_custom_peers:
     params["peers"] = ",".join(selected_custom_peers)
 if user_qp:  # only include user param if it exists
@@ -1298,6 +1306,10 @@ def link_for(pillar_key: str) -> str:
         "mode": "charts" if display_mode == "Charts" else "tables",
         "v": VARIANT,  # keep variant in links
     }
+    if selected_country and selected_country != "All":
+        qp["country"] = selected_country
+    if selected_sector and selected_sector != "All":
+        qp["sector"] = selected_sector
     if COMP_TO_PARAM.get(comparison) == "custom" and selected_custom_peers:
         qp["peers"] = ",".join(selected_custom_peers)
     if user_qp:  # include user param in links
