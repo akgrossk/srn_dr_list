@@ -905,6 +905,7 @@ if country_col:
         if user_qp:
             log_user_event(user_qp, "country_filter_changed", selected_country)
         st.session_state["selected_country"] = selected_country
+        _qp_update(country=selected_country if selected_country != "All" else None)
 
 selected_sector = sector_qp
 if sector_col:
@@ -916,6 +917,7 @@ if sector_col:
         if user_qp:
             log_user_event(user_qp, "sector_filter_changed", selected_sector)
         st.session_state["selected_sector"] = selected_sector
+        _qp_update(sector=selected_sector if selected_sector != "All" else None)
 
 # Filter the dataframe based on selections
 filtered_df = df.copy()
@@ -1217,6 +1219,7 @@ elif comparison == "Custom peers":
         filtered_df, label_col, selected_custom_peers, current_row
     )
 
+show_peer_list = False
 if comparison != "No comparison":
     show_peer_list = st.sidebar.checkbox("Show peer firm list", value=False)
 
@@ -1230,7 +1233,7 @@ elif not show_peer_list and st.session_state["tracked_events"]["peer_list_toggle
     st.session_state["tracked_events"]["peer_list_toggled"] = False
     log_user_event(user_qp, "peer_list_toggled", f"{str(firm_label)}: hidden")
 
-    if show_peer_list:
+if show_peer_list:
         if _n_peers == 0 or _peers_df is None or _peers_df.empty:
             st.sidebar.info("No peers to display for the current selection.")
         else:
