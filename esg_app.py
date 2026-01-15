@@ -2237,7 +2237,7 @@ with tab_text:
     TEXT_METRICS = {
         "pages": "Pages",
         "words_total": "Total words",
-        "fog": "Gunning fog index",
+        "fog": "Language Complexity",
     }
 
     # Keep only metrics that exist in the dataframe
