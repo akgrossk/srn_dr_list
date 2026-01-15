@@ -136,7 +136,7 @@ VARIANT = _get_variant()
 
 
 # ========= CONFIG =========
-DEFAULT_DATA_URL = "https://github.com/akgrossk/srn_dr_list/blob/main/DR_upload.xlsx"
+DEFAULT_DATA_URL = "https://github.com/akgrossk/srn_dr_list/blob/main/DR_upload_extended.xlsx"
 openai = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # ========= SUPABASE CONFIG =========
