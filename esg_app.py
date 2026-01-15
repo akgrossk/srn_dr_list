@@ -2229,6 +2229,10 @@ with tab_dr:
 with tab_text:
     st.subheader("Text characteristics")
 
+    if view != "Total":
+        st.info("Currently, text characteristics are available only in the **Total** view. Select **Total** in the sidebar. We’re working on extending this capability to additional views in a future update.")
+        st.stop()
+        
     # --- Columns we want to show ---
     TEXT_METRICS = {
         "pages": "Pages",
@@ -2296,23 +2300,87 @@ with tab_text:
                 help=("Delta vs peers mean" + peer_note) if show_delta else None,
             )
 
-        # --- Optional: show a small summary table underneath ---
-        rows = []
-        rows.append({"Series": "Firm", **{TEXT_METRICS[c]: firm_vals[c] for c in present_metrics}})
-        if n_peers > 0 and peers is not None and not peers.empty:
-            rows.append({"Series": f"Peers mean{peer_note}", **{TEXT_METRICS[c]: peer_means[c] for c in present_metrics}})
+        # --- CHARTS: only when global display mode is Charts ---
+        if display_mode == "Charts":
+            st.markdown("### Charts")
 
-        out = pd.DataFrame(rows)
+            for c in present_metrics:
+                firm_v = firm_vals.get(c, np.nan)
+                peer_v = peer_means.get(c, np.nan)
 
-        # Nice formatting for display
-        for c in present_metrics:
-            nice = TEXT_METRICS[c]
-            if c in ("pages", "words_total"):
-                out[nice] = out[nice].map(lambda x: "—" if pd.isna(x) else f"{x:,.0f}")
-            else:
-                out[nice] = out[nice].map(lambda x: "—" if pd.isna(x) else f"{x:.2f}")
+                chart_rows = []
+                if not pd.isna(firm_v):
+                    chart_rows.append({"Series": "Firm", "Value": float(firm_v)})
+                if n_peers > 0 and not pd.isna(peer_v):
+                    chart_rows.append({"Series": "Peers mean", "Value": float(peer_v)})
 
-        st.dataframe(out, use_container_width=True, hide_index=True)
+                chart_df = pd.DataFrame(chart_rows)
+                if chart_df.empty:
+                    continue
+
+                fmt = ",.0f" if c in ("pages", "words_total") else ".2f"
+
+                vmax = float(chart_df["Value"].max())
+                xscale = alt.Scale(domain=[0, vmax * 1.10] if vmax > 0 else [0, 1])
+
+                bars = (
+                    alt.Chart(chart_df)
+                    .mark_bar()
+                    .encode(
+                        y=alt.Y("Series:N", title="", sort=["Firm", "Peers mean"]),
+                        x=alt.X("Value:Q", title=TEXT_METRICS[c], scale=xscale),
+                        tooltip=[
+                            alt.Tooltip("Series:N", title="Series"),
+                            alt.Tooltip("Value:Q", title=TEXT_METRICS[c], format=fmt),
+                        ],
+                    )
+                    .properties(height=120)
+                )
+
+                maxv = float(chart_df["Value"].max()) if len(chart_df) else 0.0
+                inside_threshold = 0.18 * maxv
+
+                labels_outside = (
+                    alt.Chart(chart_df)
+                    .transform_filter(f"datum.Value < {inside_threshold}")
+                    .mark_text(align="left", baseline="middle", dx=6)
+                    .encode(
+                        y=alt.Y("Series:N", sort=["Firm", "Peers mean"]),
+                        x=alt.X("Value:Q", scale=xscale),
+                        text=alt.Text("Value:Q", format=fmt),
+                    )
+                )
+
+                labels_inside = (
+                    alt.Chart(chart_df)
+                    .transform_filter(f"datum.Value >= {inside_threshold}")
+                    .mark_text(align="right", baseline="middle", dx=-6, color="white")
+                    .encode(
+                        y=alt.Y("Series:N", sort=["Firm", "Peers mean"]),
+                        x=alt.X("Value:Q", scale=xscale),
+                        text=alt.Text("Value:Q", format=fmt),
+                    )
+                )
+
+                st.altair_chart(alt.layer(bars, labels_outside, labels_inside), use_container_width=True)
+
+        # --- TABLE: only when global display mode is Tables ---
+        if display_mode == "Tables":
+            rows = []
+            rows.append({"Series": "Firm", **{TEXT_METRICS[c]: firm_vals[c] for c in present_metrics}})
+            if n_peers > 0 and peers is not None and not peers.empty:
+                rows.append({"Series": f"Peers mean{peer_note}", **{TEXT_METRICS[c]: peer_means[c] for c in present_metrics}})
+
+            out = pd.DataFrame(rows)
+
+            for c in present_metrics:
+                nice = TEXT_METRICS[c]
+                if c in ("pages", "words_total"):
+                    out[nice] = out[nice].map(lambda x: "—" if pd.isna(x) else f"{x:,.0f}")
+                else:
+                    out[nice] = out[nice].map(lambda x: "—" if pd.isna(x) else f"{x:.2f}")
+
+            st.dataframe(out, use_container_width=True, hide_index=True)
 
         if n_peers > 0:
             st.caption("Peer values are computed as the mean across the current peer set." + peer_note)
