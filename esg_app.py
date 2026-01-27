@@ -128,14 +128,20 @@ def _get_user_variant(user_id):
 def _get_variant():
     user_id = _qp_get("user", None)
     
-    # Get variant based on user's drlist_view
-    v = _get_user_variant(user_id)
+    # First check if variant is already in URL - preserve it if present
+    existing_v = _qp_get("v", None)
+    if existing_v and existing_v in VARIANT_KEYS:
+        # URL already has a valid variant, use it
+        v = existing_v
+    else:
+        # Get variant based on user's drlist_view
+        v = _get_user_variant(user_id)
+        # Only update URL if we're setting a new variant
+        _qp_update(v=v)
     
     # Store in session
     st.session_state["variant"] = v
     
-    # persist to URL
-    _qp_update(v=v)
     return v
 
 # Optional: dev mode via ?dev=1 or secrets
@@ -484,7 +490,10 @@ def set_query_params(**params):
     try:
         st.query_params.update(params)
     except Exception:
-        st.experimental_set_query_params(**params)
+        # Preserve existing params when using experimental API
+        cur = st.experimental_get_query_params()
+        cur.update(params)
+        st.experimental_set_query_params(**cur)
 
 def build_peers(df, comp_col, current_row):
     if not comp_col:
@@ -1090,17 +1099,28 @@ with btn_col1:
 
 # 2) Show auditor
 with btn_col2:
+    # Use session state to control visibility of auditor info
+    auditor_key = f"show_auditor_{str(firm_label)}"
+    if auditor_key not in st.session_state:
+        st.session_state[auditor_key] = False
+    
     try:
-        # Use a button to track every click
-        if st.button("Show auditor"):
+        # Use a button with key to track state
+        if st.button("Show auditor", key=f"auditor_btn_{str(firm_label)}"):
+            # Toggle the state
+            st.session_state[auditor_key] = not st.session_state[auditor_key]
             # Track every click - Streamlit prevents duplicates naturally
             log_user_event(user_qp, "auditor_popover_opened", str(firm_label))
-            st.info(f"**Auditor:** {auditor_val or '—'}")
     except Exception:
-        if st.button("Show auditor"):
+        if st.button("Show auditor", key=f"auditor_btn_{str(firm_label)}"):
+            # Toggle the state
+            st.session_state[auditor_key] = not st.session_state[auditor_key]
             # Track every click
             log_user_event(user_qp, "auditor_button_clicked", str(firm_label))
-            st.info(f"Auditor: {auditor_val or '—'}")
+    
+    # Show info only if state is True
+    if st.session_state[auditor_key]:
+        st.info(f"**Auditor:** {auditor_val or '—'}")
             
 with btn_col3:
     prompt = st.chat_input("Query and search the company\'s report with AI")
@@ -1304,6 +1324,7 @@ def link_for(pillar_key: str) -> str:
         "firm": str(firm_label),
         "comp": COMP_TO_PARAM.get(comparison, "none"),
         "mode": "charts" if display_mode == "Charts" else "tables",
+        "v": VARIANT,  # preserve variant when switching views
     }
     if selected_country and selected_country != "All":
         qp["country"] = selected_country
