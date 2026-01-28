@@ -830,16 +830,60 @@ def log_user_event(user_id: str | None, event: str, value: str | None = None, me
         return False
 
 def get_context_from_srnapi(document_id, query):
-    pages = requests.get(
-        f"https://api.srnav.com/documents/{document_id}/query",
-        params={
-            "document_id": document_id,
-            "query": query,
-            "top_k": 10
-        }
-    ).json()
-
-    return "\n".join([x["content"] for x in pages])
+    try:
+        response = requests.get(
+            f"https://api.srnav.com/documents/{document_id}/query",
+            params={
+                "document_id": document_id,
+                "query": query,
+                "top_k": 10
+            },
+            timeout=30  # Add timeout to prevent hanging
+        )
+        
+        # Check if response was successful
+        response.raise_for_status()
+        
+        # Check if response has content
+        if not response.text or not response.text.strip():
+            print(f"⚠️ WARNING: Empty response from API for document_id: {document_id}")
+            return "No context available from the document."
+        
+        # Try to parse JSON
+        try:
+            pages = response.json()
+        except ValueError as e:
+            print(f"⚠️ WARNING: Invalid JSON response from API: {response.text[:200]}")
+            return "Error retrieving context from the document. Please try again."
+        
+        # Check if pages is a list and has content
+        if not isinstance(pages, list):
+            print(f"⚠️ WARNING: Unexpected response format from API: {type(pages)}")
+            return "Error retrieving context from the document. Please try again."
+        
+        if not pages:
+            return "No relevant context found in the document for this query."
+        
+        # Extract content from pages
+        content_list = []
+        for x in pages:
+            if isinstance(x, dict) and "content" in x:
+                content_list.append(x["content"])
+        
+        if not content_list:
+            return "No relevant context found in the document for this query."
+        
+        return "\n".join(content_list)
+        
+    except requests.exceptions.Timeout:
+        print(f"⚠️ ERROR: Request timeout for document_id: {document_id}")
+        return "Request timed out. Please try again."
+    except requests.exceptions.RequestException as e:
+        print(f"⚠️ ERROR: Request failed for document_id: {document_id}, error: {str(e)}")
+        return f"Error retrieving context: {str(e)}. Please try again."
+    except Exception as e:
+        print(f"⚠️ ERROR: Unexpected error in get_context_from_srnapi: {str(e)}")
+        return "An unexpected error occurred. Please try again."
 
 # Read user parameter early (before sidebar code)
 user_qp = read_query_param("user", None)
@@ -1049,53 +1093,71 @@ st.markdown("""
 # 1) Open firm report
 with btn_col1:
     if _valid_url(link_url):
-        # Initialize tracking for this firm if not exists
-        tracking_key = f"open_report_last_logged_{str(firm_label)}"
-        if tracking_key not in st.session_state:
-            st.session_state[tracking_key] = None
+        # Track previous firm to detect firm changes vs actual button clicks
+        prev_firm_key = "open_report_prev_firm"
+        if prev_firm_key not in st.session_state:
+            st.session_state[prev_firm_key] = None
         
-        # Create link button (st.link_button may not support key parameter in all versions)
-        clicked = st.link_button("Open firm report", link_url, help="Open the firm's report in a new tab")
+        # Check if firm changed in this render cycle (indicates firm selection, not button click)
+        firm_just_selected = st.session_state[prev_firm_key] is not None and st.session_state[prev_firm_key] != str(firm_label)
         
-        # Track the current button state to detect actual clicks
-        button_state_key = f"open_report_button_state_{str(firm_label)}"
-        if button_state_key not in st.session_state:
-            st.session_state[button_state_key] = False
+        # Update previous firm for next render
+        st.session_state[prev_firm_key] = str(firm_label)
         
-        # Only log if button state changed from False to True (actual click)
-        if clicked and not st.session_state[button_state_key]:
-            log_user_event(user_qp, "open_report_clicked", str(firm_label))
-            st.session_state[button_state_key] = True
-            st.session_state[tracking_key] = pd.Timestamp.now()
-        elif not clicked:
-            # Reset button state when not clicked (allows logging on next click)
-            st.session_state[button_state_key] = False
+        # Use a stable button key that doesn't change with firm_label
+        button_key_stable = "open_report_button_stable"
+        
+        # Store current firm for callback
+        current_firm_label = str(firm_label)
+        firm_was_just_selected = firm_just_selected
+        
+        # Track if we need to open link (set by callback, checked after automatic rerun)
+        open_link_flag_key = "open_report_should_open_link"
+        link_url_key = "open_report_link_url"
+        
+        # Define callback function that logs event and sets flag to open link
+        def open_report_callback():
+            # Only log if firm wasn't just selected (actual button click, not firm selection side effect)
+            if not firm_was_just_selected:
+                log_user_event(user_qp, "open_report_clicked", current_firm_label)
+            # Set flags to open link after Streamlit's automatic rerun
+            st.session_state[open_link_flag_key] = True
+            st.session_state[link_url_key] = link_url
+            # Note: Streamlit automatically reruns after callbacks, so we don't need st.rerun()
+        
+        # Use regular button with on_click callback for proper click tracking
+        st.button("Open firm report", key=button_key_stable, help="Open the firm's report in a new tab", on_click=open_report_callback)
     else:
-        button_key_unavailable = f"open_report_unavailable_btn_{str(firm_label)}"
-        clicked_unavailable = st.button("Open firm report", key=button_key_unavailable)
+        # Track previous firm to detect firm changes vs actual button clicks (same logic as available button)
+        prev_firm_key_unavailable = "open_report_unavailable_prev_firm"
+        if prev_firm_key_unavailable not in st.session_state:
+            st.session_state[prev_firm_key_unavailable] = None
         
-        # Initialize tracking for this firm if not exists
-        tracking_key_unavailable = f"open_report_unavailable_last_logged_{str(firm_label)}"
-        if tracking_key_unavailable not in st.session_state:
-            st.session_state[tracking_key_unavailable] = None
+        # Check if firm changed in this render cycle (indicates firm selection, not button click)
+        firm_just_selected_unavailable = st.session_state[prev_firm_key_unavailable] is not None and st.session_state[prev_firm_key_unavailable] != str(firm_label)
         
-        # Track the current button state to detect actual clicks
-        button_state_key_unavailable = f"open_report_unavailable_button_state_{str(firm_label)}"
-        if button_state_key_unavailable not in st.session_state:
-            st.session_state[button_state_key_unavailable] = False
+        # Update previous firm for next render
+        st.session_state[prev_firm_key_unavailable] = str(firm_label)
         
-        # Only log if button state changed from False to True (actual click)
-        if clicked_unavailable and not st.session_state[button_state_key_unavailable]:
-            log_user_event(user_qp, "open_report_clicked_unavailable", str(firm_label))
-            st.session_state[button_state_key_unavailable] = True
-            st.session_state[tracking_key_unavailable] = pd.Timestamp.now()
-            try:
-                st.toast("No report link available yet.", icon="ℹ️")
-            except Exception:
-                st.info("No report link available yet.")
-        elif not clicked_unavailable:
-            # Reset button state when not clicked (allows logging on next click)
-            st.session_state[button_state_key_unavailable] = False
+        # Use a stable button key that doesn't change with firm_label
+        button_key_unavailable_stable = "open_report_unavailable_button_stable"
+        
+        # Store current firm for callback
+        current_firm_label_unavailable = str(firm_label)
+        firm_was_just_selected_unavailable = firm_just_selected_unavailable
+        
+        # Define callback function to log event
+        def open_report_unavailable_callback():
+            # Only log if firm wasn't just selected (actual button click, not firm selection side effect)
+            if not firm_was_just_selected_unavailable:
+                log_user_event(user_qp, "open_report_clicked_unavailable", current_firm_label_unavailable)
+                try:
+                    st.toast("No report link available yet.", icon="ℹ️")
+                except Exception:
+                    st.info("No report link available yet.")
+        
+        # Use regular button with on_click callback for proper click tracking
+        clicked_unavailable = st.button("Open firm report", key=button_key_unavailable_stable, on_click=open_report_unavailable_callback)
 
 # 2) Show auditor
 with btn_col2:
@@ -1156,7 +1218,20 @@ with btn_col3:
         # except:
         #     st.error("Something went wrong!")
 
-
+# Handle link opening after button click (rendered outside button columns to prevent layout shift)
+open_link_flag_key = "open_report_should_open_link"
+link_url_key = "open_report_link_url"
+if st.session_state.get(open_link_flag_key, False):
+    url_to_open = st.session_state.get(link_url_key, "")
+    if url_to_open:
+        import streamlit.components.v1 as components
+        # Open link in new tab - rendered outside columns so it doesn't affect button layout
+        components.html(
+            f'<script>window.open("{url_to_open}", "_blank");</script>',
+            height=0
+        )
+        # Clear the flag
+        st.session_state[open_link_flag_key] = False
 
 tab_dr, tab_text = st.tabs(["Disclosure Requirements", "Text characteristics"])
 
