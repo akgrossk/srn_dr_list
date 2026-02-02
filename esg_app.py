@@ -906,7 +906,7 @@ if firm_name_col:
             st.stop()
     if not firm_label:
         st.markdown(LANDING_MD)
-        st.info("Select a firm on the left to see which Disclosure Requirements it includes in its report. You can compare each firm's reporting against its industry, country, sector, or a custom peer group.")
+        st.info("Select a firm on the left to see which Disclosure Requirements it includes in its report  (Total or split into E, S or G). You can compare each firm's reporting against its industry, country, sector, or a custom peer group.")
         st.stop()
     current_row = filtered_df[filtered_df[firm_name_col].astype(str) == str(firm_label)].iloc[0]
     
