@@ -992,7 +992,7 @@ if firm_name_col:
             st.stop()
     if not firm_label:
         st.markdown(LANDING_MD)
-        st.info("Select a firm on the left to see which Disclosure Requirements it includes in its report. You can compare each firm's reporting against its industry, country, sector, or a custom peer group.")
+        st.info("Select a firm on the left to see which Disclosure Requirements it includes in its report (Total or split into E, S or G). You can compare each firm's reporting against its industry, country, sector, or a custom peer group.")
         st.stop()
     current_row = filtered_df[filtered_df[firm_name_col].astype(str) == str(firm_label)].iloc[0]
     
@@ -1385,6 +1385,9 @@ params = {
     "mode": "charts" if display_mode == "Charts" else "tables",
     "v": VARIANT,  # keep variant shareable
 }
+# Preserve user parameter if present
+if user_qp:
+    params["user"] = user_qp
 if selected_country and selected_country != "All":
     params["country"] = selected_country
 if selected_sector and selected_sector != "All":
@@ -1401,6 +1404,9 @@ def link_for(pillar_key: str) -> str:
         "mode": "charts" if display_mode == "Charts" else "tables",
         "v": VARIANT,  # preserve variant when switching views
     }
+    # Preserve user parameter if present
+    if user_qp:
+        qp["user"] = user_qp
     if selected_country and selected_country != "All":
         qp["country"] = selected_country
     if selected_sector and selected_sector != "All":
