@@ -2146,6 +2146,8 @@ with tab_dr:
         for g in pillar_groups:
             metrics = groups[g]
             base_code = g.split("-")[0]
+            fully_phased_col = f"{base_code}-fully_phased_in"
+            std_fully_phased = is_yes_val(current_row.get(fully_phased_col, np.nan))
             short_title = SHORT_ESRS_LABELS.get(base_code, base_code)
             n_metrics = len(metrics)
 
@@ -2259,9 +2261,9 @@ with tab_dr:
                         except (ValueError, TypeError):
                             reported = False
                         try:
-                            is_phase = float(phase_val) == 1.0
+                            is_phase = float(phase_val) == 1.0 or std_fully_phased
                         except (ValueError, TypeError):
-                            is_phase = False
+                            is_phase = std_fully_phased
                         share = 1.0 if reported else (0.5 if is_phase else 0.0)
                         xg = float(xa + eff_w * (1.0 if (reported or is_phase) else 0.0))
                         rows.append({
