@@ -145,7 +145,7 @@ DEFAULT_DATA_URL = "https://github.com/akgrossk/srn_dr_list/blob/main/flagship_d
 supabase = None
 SUPABASE_ENABLED = False
 
-FIRM_NAME_COL_CANDIDATES = ["display_name", "company", "firm"]
+FIRM_NAME_COL_CANDIDATES = ["display_name", "name","company", "firm"]
 FIRM_ID_COL_CANDIDATES   = ["isin", "ticker"]
 COUNTRY_COL_CANDIDATES   = ["country", "Country"]
 YEAR_COL_CANDIDATES      = ["year", "Year", "fiscal_year", "reporting_year"]
